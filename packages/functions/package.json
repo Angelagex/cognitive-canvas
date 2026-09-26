@@ -1,0 +1,12 @@
+{
+  "name": "@cognitive-canvas/functions",
+  "version": "0.0.0",
+  "type": "module",
+  "dependencies": {
+    "@cognitive-canvas/core": "*",
+    "sst": "*"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8"
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "name": "@cognitive-canvas/core",
+  "type": "module",
+  "version": "0.0.0",
+  "scripts": {
+    "test": "sst shell vitest"
+  },
+  "exports": {
+    "./*": [
+      "./src/*/index.ts",
+      "./src/*.ts"
+    ]
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.1077.0",
+    "@aws-sdk/lib-dynamodb": "^3.1077.0",
+    "electrodb": "^3.9.1",
+    "sst": "*"
+  },
+  "devDependencies": {
+    "vitest": "^2"
+  }
+}
