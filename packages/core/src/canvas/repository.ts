@@ -1,7 +1,18 @@
 import { CanvasEntity } from "./entity";
 
+export type CreateCanvasInput = {
+  id: string;
+  name: string;
+  s3Key?: string;
+  status?: "DRAFT" | "COMPILING" | "COMPILED" | "FAILED";
+  crossLinkDensity?: number;
+  linearThinkingRisk?: boolean;
+};
+
+export type UpdateCanvasInput = Partial<Omit<CreateCanvasInput, "id">>;
+
 export class CanvasRepository {
-  static async create(data: { id: string; name: string }) {
+  static async create(data: CreateCanvasInput) {
     return CanvasEntity.create(data).go();
   }
 
@@ -11,7 +22,7 @@ export class CanvasRepository {
     return result.data;
   }
 
-  static async update(id: string, data: Partial<{ name: string }>) {
+  static async update(id: string, data: UpdateCanvasInput) {
     return CanvasEntity.update({ id }).set(data).go();
   }
 

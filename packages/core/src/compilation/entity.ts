@@ -15,7 +15,23 @@ export const CompilationEntity = new Entity(
         type: "string",
         required: true,
       },
-      name: {
+      canvasId: {
+        type: "string",
+        required: true,
+      },
+      feedbackCritique: {
+        type: "string",
+        required: true,
+      },
+      linearThinkingRisk: {
+        type: "boolean",
+        required: true,
+      },
+      crossLinkDensityScore: {
+        type: "number",
+        required: true,
+      },
+      rawOutputJson: {
         type: "string",
         required: true,
       },
@@ -32,7 +48,18 @@ export const CompilationEntity = new Entity(
           composite: [],
         },
       },
+      byCanvas: {
+        index: "gsi1",
+        pk: {
+          field: "gsi1pk",
+          composite: ["canvasId"],
+        },
+        sk: {
+          field: "gsi1sk",
+          composite: ["id"],
+        },
+      },
     },
   },
-  { client, table: Resource.Database.name }
+  { client, table: (Resource as any)?.Database?.name || "CognitiveCanvasTable" }
 );

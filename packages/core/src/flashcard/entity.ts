@@ -15,9 +15,41 @@ export const FlashcardEntity = new Entity(
         type: "string",
         required: true,
       },
-      name: {
+      canvasId: {
         type: "string",
         required: true,
+      },
+      compilationId: {
+        type: "string",
+        required: true,
+      },
+      targetNodeId: {
+        type: "string",
+        required: true,
+      },
+      cardType: {
+        type: ["BASIC", "CLOZE"] as const,
+        required: true,
+      },
+      front: {
+        type: "string",
+        required: false,
+      },
+      back: {
+        type: "string",
+        required: false,
+      },
+      clozeText: {
+        type: "string",
+        required: false,
+      },
+      deckName: {
+        type: "string",
+        required: false,
+      },
+      syncedToAnki: {
+        type: "boolean",
+        default: false,
       },
       ...baseAttributes,
     },
@@ -32,7 +64,29 @@ export const FlashcardEntity = new Entity(
           composite: [],
         },
       },
+      byCompilation: {
+        index: "gsi1",
+        pk: {
+          field: "gsi1pk",
+          composite: ["compilationId"],
+        },
+        sk: {
+          field: "gsi1sk",
+          composite: ["id"],
+        },
+      },
+      byCanvas: {
+        index: "gsi2",
+        pk: {
+          field: "gsi2pk",
+          composite: ["canvasId"],
+        },
+        sk: {
+          field: "gsi2sk",
+          composite: ["id"],
+        },
+      },
     },
   },
-  { client, table: Resource.Database.name }
+  { client, table: (Resource as any)?.Database?.name || "CognitiveCanvasTable" }
 );

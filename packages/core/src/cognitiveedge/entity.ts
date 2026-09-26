@@ -15,7 +15,31 @@ export const CognitiveEdgeEntity = new Entity(
         type: "string",
         required: true,
       },
-      name: {
+      canvasId: {
+        type: "string",
+        required: true,
+      },
+      compilationId: {
+        type: "string",
+        required: true,
+      },
+      sourceNodeId: {
+        type: "string",
+        required: true,
+      },
+      targetNodeId: {
+        type: "string",
+        required: true,
+      },
+      label: {
+        type: "string",
+        required: true,
+      },
+      isCrossLink: {
+        type: "boolean",
+        required: true,
+      },
+      relationNature: {
         type: "string",
         required: true,
       },
@@ -32,7 +56,18 @@ export const CognitiveEdgeEntity = new Entity(
           composite: [],
         },
       },
+      byCompilation: {
+        index: "gsi1",
+        pk: {
+          field: "gsi1pk",
+          composite: ["compilationId"],
+        },
+        sk: {
+          field: "gsi1sk",
+          composite: ["id"],
+        },
+      },
     },
   },
-  { client, table: Resource.Database.name }
+  { client, table: (Resource as any)?.Database?.name || "CognitiveCanvasTable" }
 );

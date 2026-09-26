@@ -3,7 +3,8 @@
   "version": "0.0.0",
   "type": "module",
   "workspaces": [
-    "packages/*"
+    "packages/*",
+    "apps/*"
   ],
   "scripts": {
     "generate-entity": "tsx packages/scripts/src/generate-entity.ts",

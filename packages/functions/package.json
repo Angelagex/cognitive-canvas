@@ -3,10 +3,13 @@
   "version": "0.0.0",
   "type": "module",
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1141.0",
     "@cognitive-canvas/core": "*",
+    "@google/genai": "^2.24.0",
     "sst": "*"
   },
   "devDependencies": {
-    "@types/aws-lambda": "^8"
+    "@types/aws-lambda": "^8",
+    "vitest": "^2.1.9"
   }
 }

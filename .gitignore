@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+**/node_modules/
+*/node_modules/
+
+# SST v3 Ion
+.sst/
+
+# Expo & Metro
+.expo/
+dist/
+web-build/
+
+# Android Native Build Output
+android/app/build/
+android/.gradle/
+android/app/.cxx/
+android/build/
+*.apk
+*.aab
+
+# Environment & Temp
+.env
+.env.local
+.DS_Store
+*.log

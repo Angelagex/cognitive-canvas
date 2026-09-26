@@ -15,8 +15,32 @@ export const CognitiveNodeEntity = new Entity(
         type: "string",
         required: true,
       },
-      name: {
+      canvasId: {
         type: "string",
+        required: true,
+      },
+      compilationId: {
+        type: "string",
+        required: true,
+      },
+      pacerClassification: {
+        type: ["PROCEDURAL", "ANALOGOUS", "CONCEPTUAL", "EVIDENCE", "REFERENCE"] as const,
+        required: true,
+      },
+      detectedContent: {
+        type: "string",
+        required: true,
+      },
+      passiveContext: {
+        type: "string",
+        required: false,
+      },
+      boundingBoxJson: {
+        type: "string",
+        required: true,
+      },
+      deducibleFromContext: {
+        type: "boolean",
         required: true,
       },
       ...baseAttributes,
@@ -32,7 +56,29 @@ export const CognitiveNodeEntity = new Entity(
           composite: [],
         },
       },
+      byCompilation: {
+        index: "gsi1",
+        pk: {
+          field: "gsi1pk",
+          composite: ["compilationId"],
+        },
+        sk: {
+          field: "gsi1sk",
+          composite: ["id"],
+        },
+      },
+      byCanvas: {
+        index: "gsi2",
+        pk: {
+          field: "gsi2pk",
+          composite: ["canvasId"],
+        },
+        sk: {
+          field: "gsi2sk",
+          composite: ["id"],
+        },
+      },
     },
   },
-  { client, table: Resource.Database.name }
+  { client, table: (Resource as any)?.Database?.name || "CognitiveCanvasTable" }
 );

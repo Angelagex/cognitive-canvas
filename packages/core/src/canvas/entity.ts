@@ -19,6 +19,22 @@ export const CanvasEntity = new Entity(
         type: "string",
         required: true,
       },
+      s3Key: {
+        type: "string",
+        required: false,
+      },
+      status: {
+        type: ["DRAFT", "COMPILING", "COMPILED", "FAILED"] as const,
+        default: "DRAFT",
+      },
+      crossLinkDensity: {
+        type: "number",
+        required: false,
+      },
+      linearThinkingRisk: {
+        type: "boolean",
+        required: false,
+      },
       ...baseAttributes,
     },
     indexes: {
@@ -34,5 +50,6 @@ export const CanvasEntity = new Entity(
       },
     },
   },
-  { client, table: Resource.Database.name }
+  { client, table: (Resource as any)?.Database?.name || "CognitiveCanvasTable" }
 );
+
