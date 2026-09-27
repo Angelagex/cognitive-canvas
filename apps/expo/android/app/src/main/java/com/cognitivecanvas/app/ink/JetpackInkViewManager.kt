@@ -25,15 +25,83 @@ class JetpackInkViewManager : SimpleViewManager<JetpackInkView>() {
         }
     }
 
-    @ReactProp(name = "strokeWidth", defaultFloat = 6f)
+    @ReactProp(name = "strokeWidth", defaultFloat = 18f)
     fun setStrokeWidth(view: JetpackInkView, width: Float) {
         view.strokeWidth = width
+    }
+
+    @ReactProp(name = "brushType")
+    fun setBrushType(view: JetpackInkView, type: String?) {
+        if (!type.isNullOrEmpty()) {
+            view.brushType = type
+        }
+    }
+
+    @ReactProp(name = "canvasScale", defaultFloat = 1.0f)
+    fun setCanvasScale(view: JetpackInkView, scale: Float) {
+        if (!view.isUserInteracting && kotlin.math.abs(view.canvasScale - scale) > 0.01f) {
+            view.canvasScale = scale
+            view.postInvalidate()
+        }
+    }
+
+    @ReactProp(name = "panX", defaultFloat = 0.0f)
+    fun setPanX(view: JetpackInkView, tx: Float) {
+        if (!view.isUserInteracting && kotlin.math.abs(view.canvasTranslateX - tx) > 1.0f) {
+            view.canvasTranslateX = tx
+            view.postInvalidate()
+        }
+    }
+
+    @ReactProp(name = "panY", defaultFloat = 0.0f)
+    fun setPanY(view: JetpackInkView, ty: Float) {
+        if (!view.isUserInteracting && kotlin.math.abs(view.canvasTranslateY - ty) > 1.0f) {
+            view.canvasTranslateY = ty
+            view.postInvalidate()
+        }
+    }
+
+    @ReactProp(name = "zoomInTrigger")
+    fun setZoomInTrigger(view: JetpackInkView, trigger: Int) {
+        if (trigger > 0) {
+            view.zoomIn()
+        }
+    }
+
+    @ReactProp(name = "zoomOutTrigger")
+    fun setZoomOutTrigger(view: JetpackInkView, trigger: Int) {
+        if (trigger > 0) {
+            view.zoomOut()
+        }
+    }
+
+    @ReactProp(name = "resetZoomTrigger")
+    fun setResetZoomTrigger(view: JetpackInkView, trigger: Int) {
+        if (trigger > 0) {
+            view.resetZoom()
+        }
+    }
+
+    @ReactProp(name = "clearTrigger")
+    fun setClearTrigger(view: JetpackInkView, trigger: Int) {
+        if (trigger > 0) {
+            view.clearStrokes()
+        }
+    }
+
+    @ReactProp(name = "undoTrigger")
+    fun setUndoTrigger(view: JetpackInkView, trigger: Int) {
+        if (trigger > 0) {
+            view.undoStroke()
+        }
     }
 
     override fun getExportedCustomDirectEventTypeConstants(): Map<String, Any>? {
         return MapBuilder.of(
             "topStrokeEnd",
-            MapBuilder.of("registrationName", "onStrokeEnd")
+            MapBuilder.of("registrationName", "onStrokeEnd"),
+            "topTransform",
+            MapBuilder.of("registrationName", "onTransform")
         )
     }
 
