@@ -1,0 +1,28 @@
+# Root EAS Build Scope Optimization (.easignore)
+# Restricts EAS Build upload payload in monorepo layout.
+
+# Backend Infrastructure & Functions (Not needed in Mobile App Build)
+infra/
+packages/functions/
+packages/scripts/
+.sst/
+.antigravity/
+
+# Dependencies & Native Build Outputs
+**/node_modules/
+node_modules/
+.expo/
+dist/
+web-build/
+apps/expo/android/app/build/
+apps/expo/android/.gradle/
+apps/expo/android/app/.cxx/
+*.apk
+*.aab
+
+# Version Control & Local Logs
+.git/
+.env
+.env.local
+.DS_Store
+*.log

@@ -1,0 +1,29 @@
+# EAS Build Scope Optimization (.easignore)
+# Ignores non-frontend backend packages and temp directories to keep EAS uploads minimal and fast.
+
+# Ignored Backend Infrastructure & Lambda Functions
+infra/
+packages/functions/
+packages/scripts/
+.sst/
+.antigravity/
+
+# Ignored Build & Dependency Artifacts
+**/node_modules/
+node_modules/
+.expo/
+dist/
+web-build/
+android/app/build/
+android/.gradle/
+android/app/.cxx/
+android/build/
+*.apk
+*.aab
+
+# Version Control & IDE
+.git/
+.env
+.env.local
+.DS_Store
+*.log

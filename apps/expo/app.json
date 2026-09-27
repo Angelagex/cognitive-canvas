@@ -24,7 +24,14 @@
       "package": "com.cognitivecanvas.app"
     },
     "plugins": [
-      "expo-dev-client"
-    ]
+      "expo-dev-client",
+      "./plugins/withJetpackInk"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "b34a25ab-f5ce-4b29-8f94-0f84e466441d"
+      }
+    },
+    "owner": "angel-expos-team"
   }
 }
