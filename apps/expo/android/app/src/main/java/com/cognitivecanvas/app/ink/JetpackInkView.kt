@@ -6,7 +6,6 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Matrix
 import android.view.MotionEvent
-import android.view.ScaleGestureDetector
 import android.widget.FrameLayout
 import androidx.ink.authoring.InProgressStrokesView
 import androidx.ink.authoring.InProgressStrokesFinishedListener
@@ -14,7 +13,11 @@ import androidx.ink.authoring.InProgressStrokeId
 import androidx.ink.brush.Brush
 import androidx.ink.brush.StockBrushes
 import androidx.ink.rendering.android.canvas.CanvasStrokeRenderer
+import androidx.ink.rendering.android.view.ViewStrokeRenderer
 import androidx.ink.strokes.Stroke
+import com.cognitivecanvas.app.ink.input.StylusInputHandler
+import com.cognitivecanvas.app.ink.tools.StrokeEraser
+import com.cognitivecanvas.app.ink.transform.CanvasTransformManager
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.ReactContext
 import com.facebook.react.uimanager.events.RCTEventEmitter
@@ -23,12 +26,28 @@ import java.util.concurrent.CopyOnWriteArrayList
 
 class JetpackInkView(context: Context) : FrameLayout(context) {
 
+    // Submodules
+    private val transformManager = CanvasTransformManager(context) { scale, tx, ty ->
+        postInvalidateOnAnimation()
+        notifyTransformChanged(scale, tx, ty)
+    }
+    private val strokeEraser = StrokeEraser()
+    val stylusHandler = StylusInputHandler(stylusOnly = true) { x, y ->
+        notifyBarrelButton(x, y)
+    }
+
+    // Jetpack Ink Components
     private val inProgressStrokesView = InProgressStrokesView(context)
     private val completedStrokes = CopyOnWriteArrayList<Stroke>()
+    private val undoneStrokes = CopyOnWriteArrayList<Stroke>()
     private val activeStrokeIds = ConcurrentHashMap<Int, InProgressStrokeId>()
+    private val strokesToHandOff = mutableSetOf<InProgressStrokeId>()
+
     private val strokeRenderer = CanvasStrokeRenderer.create()
+    private val viewStrokeRenderer = ViewStrokeRenderer(strokeRenderer, this)
     private val identityMatrix = Matrix()
 
+    // Tool Settings
     var strokeColor: Int = Color.parseColor("#38BDF8")
         set(value) {
             if (field != value) {
@@ -45,7 +64,7 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
             }
         }
 
-    var brushType: String = "pen" // "pen", "marker", "highlighter", "eraser", "pan"
+    var brushType: String = "pen" // "pen", "marker", "highlighter", "eraser", "pan", "lasso", "shapes"
         set(value) {
             if (field != value) {
                 field = value
@@ -53,54 +72,14 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
             }
         }
 
-    var canvasScale: Float = 1.0f
-    var canvasTranslateX: Float = 0.0f
-    var canvasTranslateY: Float = 0.0f
-    var isUserInteracting: Boolean = false
+    var stylusOnly: Boolean
+        get() = stylusHandler.stylusOnly
+        set(value) {
+            stylusHandler.stylusOnly = value
+        }
 
     private var cachedBrush: Brush? = null
-
-    // Panning & Pinch Tracking
-    private var lastTouchX = 0f
-    private var lastTouchY = 0f
-    private var lastFocusX = 0f
-    private var lastFocusY = 0f
     private var isTwoFingerGesture = false
-
-    private val scaleDetector = ScaleGestureDetector(context, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
-        override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
-            lastFocusX = detector.focusX
-            lastFocusY = detector.focusY
-            return true
-        }
-
-        override fun onScale(detector: ScaleGestureDetector): Boolean {
-            val factor = detector.scaleFactor
-            if (factor.isNaN() || factor.isInfinite() || factor == 0f) return true
-
-            val newScale = (canvasScale * factor).coerceIn(0.25f, 4.0f)
-            val actualFactor = newScale / canvasScale
-
-            val focusX = detector.focusX
-            val focusY = detector.focusY
-
-            // 1. Pan delta
-            canvasTranslateX += (focusX - lastFocusX)
-            canvasTranslateY += (focusY - lastFocusY)
-
-            // 2. Scale around focus point
-            canvasTranslateX = focusX - (focusX - canvasTranslateX) * actualFactor
-            canvasTranslateY = focusY - (focusY - canvasTranslateY) * actualFactor
-            canvasScale = newScale
-
-            lastFocusX = focusX
-            lastFocusY = focusY
-
-            postInvalidate()
-            notifyTransformChanged()
-            return true
-        }
-    })
 
     init {
         setWillNotDraw(false)
@@ -114,26 +93,14 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
         inProgressStrokesView.addFinishedStrokesListener(object : InProgressStrokesFinishedListener {
             override fun onStrokesFinished(strokes: Map<InProgressStrokeId, Stroke>) {
                 completedStrokes.addAll(strokes.values)
-                // Remove from inProgressStrokesView internal finished view so strokeRenderer is sole owner
-                inProgressStrokesView.removeFinishedStrokes(strokes.keys)
-                postInvalidate()
+                undoneStrokes.clear() // New stroke clears redo history
+                synchronized(strokesToHandOff) {
+                    strokesToHandOff.addAll(strokes.keys)
+                }
+                postInvalidateOnAnimation()
                 notifyStrokeCountChanged()
             }
         })
-    }
-
-    private fun getRenderMatrix(): Matrix {
-        val matrix = Matrix()
-        matrix.postScale(canvasScale, canvasScale)
-        matrix.postTranslate(canvasTranslateX, canvasTranslateY)
-        return matrix
-    }
-
-    private fun getScreenToWorldMatrix(): Matrix {
-        val render = getRenderMatrix()
-        val inverse = Matrix()
-        render.invert(inverse)
-        return inverse
     }
 
     private fun getOrCreateBrush(): Brush {
@@ -171,27 +138,42 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
     }
 
     private fun notifyStrokeCountChanged() {
-        val reactContext = context as? ReactContext
+        val reactContext = context as? ReactContext ?: return
         val event = Arguments.createMap().apply {
             putInt("strokeCount", completedStrokes.size)
+            putBoolean("canUndo", completedStrokes.isNotEmpty())
+            putBoolean("canRedo", undoneStrokes.isNotEmpty())
         }
-        reactContext?.getJSModule(RCTEventEmitter::class.java)?.receiveEvent(
+        reactContext.getJSModule(RCTEventEmitter::class.java)?.receiveEvent(
             id,
             "topStrokeEnd",
             event
         )
     }
 
-    private fun notifyTransformChanged() {
-        val reactContext = context as? ReactContext
+    private fun notifyTransformChanged(scale: Float, tx: Float, ty: Float) {
+        val reactContext = context as? ReactContext ?: return
         val event = Arguments.createMap().apply {
-            putDouble("scale", canvasScale.toDouble())
-            putDouble("translateX", canvasTranslateX.toDouble())
-            putDouble("translateY", canvasTranslateY.toDouble())
+            putDouble("scale", scale.toDouble())
+            putDouble("translateX", tx.toDouble())
+            putDouble("translateY", ty.toDouble())
         }
-        reactContext?.getJSModule(RCTEventEmitter::class.java)?.receiveEvent(
+        reactContext.getJSModule(RCTEventEmitter::class.java)?.receiveEvent(
             id,
             "topTransform",
+            event
+        )
+    }
+
+    private fun notifyBarrelButton(x: Float, y: Float) {
+        val reactContext = context as? ReactContext ?: return
+        val event = Arguments.createMap().apply {
+            putDouble("x", x.toDouble())
+            putDouble("y", y.toDouble())
+        }
+        reactContext.getJSModule(RCTEventEmitter::class.java)?.receiveEvent(
+            id,
+            "topBarrelButton",
             event
         )
     }
@@ -201,79 +183,18 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
         return true
     }
 
-    private fun distanceToSegmentSquared(
-        px: Float, py: Float,
-        x1: Float, y1: Float,
-        x2: Float, y2: Float
-    ): Float {
-        val dx = x2 - x1
-        val dy = y2 - y1
-        val l2 = dx * dx + dy * dy
-        if (l2 == 0f) {
-            val dpx = px - x1
-            val dpy = py - y1
-            return dpx * dpx + dpy * dpy
-        }
-        val t = ((px - x1) * dx + (py - y1) * dy) / l2
-        val clampedT = t.coerceIn(0f, 1f)
-        val projX = x1 + clampedT * dx
-        val projY = y1 + clampedT * dy
-        val distDx = px - projX
-        val distDy = py - projY
-        return distDx * distDx + distDy * distDy
-    }
-
-    private fun eraseStrokesAt(screenX: Float, screenY: Float) {
-        val worldX = (screenX - canvasTranslateX) / canvasScale
-        val worldY = (screenY - canvasTranslateY) / canvasScale
-        val eraseRadius = (strokeWidth * 3.0f).coerceAtLeast(100f) / canvasScale
-        val eraseRadiusSq = eraseRadius * eraseRadius
-
-        val toRemove = mutableListOf<Stroke>()
-        for (stroke in completedStrokes) {
-            val inputs = stroke.inputs
-            val inputCount = inputs.size
-            if (inputCount == 0) continue
-
-            var hit = false
-            for (i in 0 until inputCount) {
-                val pt = inputs.get(i)
-                val dx = pt.x - worldX
-                val dy = pt.y - worldY
-                if (dx * dx + dy * dy <= eraseRadiusSq) {
-                    hit = true
-                    break
-                }
-                if (i < inputCount - 1) {
-                    val pNext = inputs.get(i + 1)
-                    if (distanceToSegmentSquared(worldX, worldY, pt.x, pt.y, pNext.x, pNext.y) <= eraseRadiusSq) {
-                        hit = true
-                        break
-                    }
-                }
-            }
-
-            if (hit) {
-                toRemove.add(stroke)
-            }
-        }
-
-        if (toRemove.isNotEmpty()) {
-            completedStrokes.removeAll(toRemove)
-            postInvalidate()
-            notifyStrokeCountChanged()
-        }
-    }
-
     override fun onTouchEvent(event: MotionEvent): Boolean {
         parent?.requestDisallowInterceptTouchEvent(true)
 
-        // Pass all events to scaleDetector for pinch-to-zoom tracking
-        scaleDetector.onTouchEvent(event)
+        // Check for S-Pen hardware barrel button press
+        stylusHandler.checkBarrelButton(event)
 
-        // 1. Two-finger Pinch & Pan (Infinite Canvas Gestures)
+        // Always feed multi-touch scale detector
+        transformManager.onTouchEvent(event)
+
+        // 1. Two-finger Gestures (Infinite Canvas Pinch-to-Zoom & Pan)
         if (event.pointerCount >= 2) {
-            isUserInteracting = true
+            transformManager.isUserInteracting = true
             if (!isTwoFingerGesture) {
                 isTwoFingerGesture = true
                 inProgressStrokesView.cancelUnfinishedStrokes()
@@ -285,53 +206,61 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
         if (isTwoFingerGesture) {
             if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
                 isTwoFingerGesture = false
-                isUserInteracting = false
+                transformManager.isUserInteracting = false
             }
             return true
         }
 
-        // 2. Dedicated Pan Mode (Single Finger Dragging Infinite Canvas)
+        // 2. Dedicated Single-Finger Pan Tool
         if (brushType == "pan") {
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
-                    isUserInteracting = true
-                    lastTouchX = event.x
-                    lastTouchY = event.y
+                    transformManager.startSingleTouchPan(event.x, event.y)
                     return true
                 }
                 MotionEvent.ACTION_MOVE -> {
-                    val dx = event.x - lastTouchX
-                    val dy = event.y - lastTouchY
-                    canvasTranslateX += dx
-                    canvasTranslateY += dy
-                    lastTouchX = event.x
-                    lastTouchY = event.y
-                    postInvalidate()
-                    notifyTransformChanged()
+                    transformManager.updateSingleTouchPan(event.x, event.y)
                     return true
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                    isUserInteracting = false
+                    transformManager.endSingleTouchPan()
                     return true
                 }
             }
             return true
         }
 
-        // 3. Eraser Mode (Instant Segment Collision Removal)
-        if (brushType == "eraser") {
+        // 3. Eraser Mode (or S-Pen barrel button held down)
+        val isHardwareEraser = stylusHandler.isStylusEraser(event) || stylusHandler.isBarrelButtonPressed(event)
+        if (brushType == "eraser" || isHardwareEraser) {
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE -> {
-                    eraseStrokesAt(event.x, event.y)
+                    strokeEraser.eraseAt(
+                        event.x, event.y,
+                        transformManager.canvasTranslateX,
+                        transformManager.canvasTranslateY,
+                        transformManager.canvasScale,
+                        strokeWidth,
+                        completedStrokes
+                    ) { removed ->
+                        undoneStrokes.addAll(removed)
+                        postInvalidateOnAnimation()
+                        notifyStrokeCountChanged()
+                    }
                     return true
                 }
             }
             return true
         }
 
-        // 4. Drawing Mode (Pen, Marker, Highlighter) - Ultra Low Latency
+        // 4. Drawing Mode (Pen, Marker, Highlighter)
         val actionIndex = event.actionIndex
         val pointerId = event.getPointerId(actionIndex)
+
+        // Palm Rejection: If Solo Stylus is enabled, ignore non-stylus touches for drawing
+        if (!stylusHandler.shouldAcceptDrawingTouch(event, actionIndex)) {
+            return true
+        }
 
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
@@ -340,7 +269,7 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
                     event,
                     pointerId,
                     brush,
-                    getScreenToWorldMatrix(),
+                    transformManager.getScreenToWorldMatrix(),
                     identityMatrix
                 )
                 activeStrokeIds[pointerId] = strokeId
@@ -378,60 +307,65 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
     }
 
     override fun dispatchDraw(canvas: Canvas) {
-        // Child InProgressStrokesView renders front-buffered active stroke in screen space
-        super.dispatchDraw(canvas)
-
-        // Completed strokes rendered with canvas transform applied
-        val renderMatrix = getRenderMatrix()
+        // 1. Draw completed strokes first (as permanent dry ink layer)
+        val renderMatrix = transformManager.getRenderMatrix()
         canvas.save()
         canvas.concat(renderMatrix)
-        for (stroke in completedStrokes) {
-            strokeRenderer.draw(canvas, stroke, renderMatrix)
+
+        viewStrokeRenderer.drawWithStrokes(canvas) { scope ->
+            for (stroke in completedStrokes) {
+                scope.drawStroke(stroke)
+            }
         }
         canvas.restore()
+
+        // 2. Draw in-progress strokes on top (as active wet ink layer)
+        super.dispatchDraw(canvas)
+
+        // 3. Flicker-Free Handoff: Hand off strokes from InProgressStrokesView ONLY
+        // after our ViewStrokeRenderer has rendered them onto the screen.
+        synchronized(strokesToHandOff) {
+            if (strokesToHandOff.isNotEmpty()) {
+                inProgressStrokesView.removeFinishedStrokes(strokesToHandOff)
+                strokesToHandOff.clear()
+            }
+        }
     }
 
     fun zoomIn() {
-        val newScale = (canvasScale * 1.25f).coerceAtMost(4.0f)
-        val centerX = width / 2f
-        val centerY = height / 2f
-        canvasTranslateX = centerX - (centerX - canvasTranslateX) * (newScale / canvasScale)
-        canvasTranslateY = centerY - (centerY - canvasTranslateY) * (newScale / canvasScale)
-        canvasScale = newScale
-        postInvalidate()
-        notifyTransformChanged()
+        transformManager.zoomIn(width.toFloat(), height.toFloat())
     }
 
     fun zoomOut() {
-        val newScale = (canvasScale / 1.25f).coerceAtLeast(0.25f)
-        val centerX = width / 2f
-        val centerY = height / 2f
-        canvasTranslateX = centerX - (centerX - canvasTranslateX) * (newScale / canvasScale)
-        canvasTranslateY = centerY - (centerY - canvasTranslateY) * (newScale / canvasScale)
-        canvasScale = newScale
-        postInvalidate()
-        notifyTransformChanged()
+        transformManager.zoomOut(width.toFloat(), height.toFloat())
     }
 
     fun resetZoom() {
-        canvasScale = 1.0f
-        canvasTranslateX = 0f
-        canvasTranslateY = 0f
-        postInvalidate()
-        notifyTransformChanged()
+        transformManager.resetZoom()
     }
 
     fun clearStrokes() {
+        undoneStrokes.addAll(completedStrokes)
         completedStrokes.clear()
         inProgressStrokesView.cancelUnfinishedStrokes()
-        postInvalidate()
+        postInvalidateOnAnimation()
         notifyStrokeCountChanged()
     }
 
     fun undoStroke() {
         if (completedStrokes.isNotEmpty()) {
-            completedStrokes.removeAt(completedStrokes.size - 1)
-            postInvalidate()
+            val last = completedStrokes.removeAt(completedStrokes.size - 1)
+            undoneStrokes.add(last)
+            postInvalidateOnAnimation()
+            notifyStrokeCountChanged()
+        }
+    }
+
+    fun redoStroke() {
+        if (undoneStrokes.isNotEmpty()) {
+            val restored = undoneStrokes.removeAt(undoneStrokes.size - 1)
+            completedStrokes.add(restored)
+            postInvalidateOnAnimation()
             notifyStrokeCountChanged()
         }
     }
@@ -439,12 +373,14 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
     fun captureBitmap(): Bitmap {
         val bitmap = Bitmap.createBitmap(width.coerceAtLeast(1), height.coerceAtLeast(1), Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
-        canvas.drawColor(Color.parseColor("#020617"))
-        val renderMatrix = getRenderMatrix()
+        canvas.drawColor(Color.parseColor("#0F172A"))
+        val renderMatrix = transformManager.getRenderMatrix()
         canvas.save()
         canvas.concat(renderMatrix)
-        for (stroke in completedStrokes) {
-            strokeRenderer.draw(canvas, stroke, renderMatrix)
+        viewStrokeRenderer.drawWithStrokes(canvas) { scope ->
+            for (stroke in completedStrokes) {
+                scope.drawStroke(stroke)
+            }
         }
         canvas.restore()
         return bitmap

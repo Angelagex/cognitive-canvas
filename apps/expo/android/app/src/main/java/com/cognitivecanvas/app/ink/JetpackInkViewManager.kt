@@ -20,7 +20,7 @@ class JetpackInkViewManager : SimpleViewManager<JetpackInkView>() {
             try {
                 view.strokeColor = Color.parseColor(colorString)
             } catch (e: IllegalArgumentException) {
-                // Fallback to default
+                // Fallback
             }
         }
     }
@@ -37,28 +37,9 @@ class JetpackInkViewManager : SimpleViewManager<JetpackInkView>() {
         }
     }
 
-    @ReactProp(name = "canvasScale", defaultFloat = 1.0f)
-    fun setCanvasScale(view: JetpackInkView, scale: Float) {
-        if (!view.isUserInteracting && kotlin.math.abs(view.canvasScale - scale) > 0.01f) {
-            view.canvasScale = scale
-            view.postInvalidate()
-        }
-    }
-
-    @ReactProp(name = "panX", defaultFloat = 0.0f)
-    fun setPanX(view: JetpackInkView, tx: Float) {
-        if (!view.isUserInteracting && kotlin.math.abs(view.canvasTranslateX - tx) > 1.0f) {
-            view.canvasTranslateX = tx
-            view.postInvalidate()
-        }
-    }
-
-    @ReactProp(name = "panY", defaultFloat = 0.0f)
-    fun setPanY(view: JetpackInkView, ty: Float) {
-        if (!view.isUserInteracting && kotlin.math.abs(view.canvasTranslateY - ty) > 1.0f) {
-            view.canvasTranslateY = ty
-            view.postInvalidate()
-        }
+    @ReactProp(name = "stylusOnly", defaultBoolean = true)
+    fun setStylusOnly(view: JetpackInkView, enabled: Boolean) {
+        view.stylusOnly = enabled
     }
 
     @ReactProp(name = "zoomInTrigger")
@@ -96,12 +77,21 @@ class JetpackInkViewManager : SimpleViewManager<JetpackInkView>() {
         }
     }
 
+    @ReactProp(name = "redoTrigger")
+    fun setRedoTrigger(view: JetpackInkView, trigger: Int) {
+        if (trigger > 0) {
+            view.redoStroke()
+        }
+    }
+
     override fun getExportedCustomDirectEventTypeConstants(): Map<String, Any>? {
         return MapBuilder.of(
             "topStrokeEnd",
             MapBuilder.of("registrationName", "onStrokeEnd"),
             "topTransform",
-            MapBuilder.of("registrationName", "onTransform")
+            MapBuilder.of("registrationName", "onTransform"),
+            "topBarrelButton",
+            MapBuilder.of("registrationName", "onBarrelButton")
         )
     }
 
