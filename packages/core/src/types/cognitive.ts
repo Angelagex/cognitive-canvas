@@ -255,3 +255,73 @@ export const COGNITIVE_COMPILER_JSON_SCHEMA = {
     "contrasting_cases_icc",
   ],
 } as const;
+
+// ============================================================================
+// 3-LAYER PERSISTENCE & LOCAL VISUAL AST TYPES (.cmn / JSON - Spec Section 5)
+// ============================================================================
+
+export type RawInkPoint = {
+  x: number;
+  y: number;
+  p?: number; // Pressure [0.0 - 1.0]
+  t?: number; // Timestamp relative to stroke start (ms)
+};
+
+export type RawInkStroke = {
+  id: string;
+  points: RawInkPoint[];
+  color: string;
+  width: number;
+  timestamp?: number;
+};
+
+export type RawInkLayer = {
+  strokes: RawInkStroke[];
+};
+
+export type VisualASTEntityType = "TEXT_BLOCK" | "SKETCH_ICON" | "CONTAINER_BOX";
+
+export type VisualBoundingBoxRect = {
+  ymin: number;
+  xmin: number;
+  ymax: number;
+  xmax: number;
+};
+
+export type VisualASTEntity = {
+  id: string;
+  type: VisualASTEntityType;
+  transcribed_text?: string;
+  stroke_ids: string[];
+  bbox: VisualBoundingBoxRect;
+  passive_context?: string | null;
+  child_ids?: string[]; // Level 4: Hierarchical containment
+};
+
+export type VisualASTConnector = {
+  id: string;
+  type: "ARROW" | "LINE";
+  stroke_ids: string[];
+  source_entity_id?: string; // Level 5: Magnetic docking source
+  target_entity_id?: string; // Level 5: Magnetic docking target
+  directionality: "FORWARD" | "BIDIRECTIONAL" | "NONE";
+  label?: string; // Level 5: Adjacent relational label
+};
+
+export type VisualASTLayer = {
+  entities: VisualASTEntity[];
+  connectors: VisualASTConnector[];
+};
+
+export type CognitiveMapDocument = {
+  map_id: string;
+  version: string;
+  metadata: {
+    title: string;
+    created_at: number;
+    updated_at: number;
+  };
+  raw_ink_layer: RawInkLayer;
+  visual_ast_layer: VisualASTLayer;
+  compiled_cognitive_layer: CognitiveCompilerOutput | null;
+};

@@ -46,6 +46,7 @@ class MainApplication : Application(), ReactApplication {
       // If you opted-in for the New Architecture, we load the native entry point for this app.
       load()
     }
+    com.facebook.react.config.ReactFeatureFlags.dispatchPointerEvents = true
     ApplicationLifecycleDispatcher.onApplicationCreate(this)
   }
 

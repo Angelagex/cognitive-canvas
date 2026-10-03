@@ -58,4 +58,12 @@ class MainActivity : ReactActivity() {
       // because it's doing more than [Activity.moveTaskToBack] in fact.
       super.invokeDefaultOnBackPressed()
   }
+
+  override fun dispatchGenericMotionEvent(ev: android.view.MotionEvent): Boolean {
+      if (ev.isFromSource(android.view.InputDevice.SOURCE_STYLUS) ||
+          (ev.pointerCount > 0 && ev.getToolType(0) == android.view.MotionEvent.TOOL_TYPE_STYLUS)) {
+          com.cognitivecanvas.app.ink.JetpackInkView.activeInstance?.get()?.handleStylusHover(ev)
+      }
+      return super.dispatchGenericMotionEvent(ev)
+  }
 }

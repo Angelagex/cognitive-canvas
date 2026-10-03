@@ -29,3 +29,25 @@ export interface BarrelButtonEvent {
   x: number;
   y: number;
 }
+
+export interface SelectionChangedEvent {
+  hasSelection: boolean;
+  selectedCount: number;
+}
+
+export interface PlacedAttribute {
+  id: string;
+  type: PassiveAttributeType;
+  title: string;
+  note: string;
+  worldX: number;
+  worldY: number;
+}
+
+export interface HoverEvent {
+  worldX: number;
+  worldY: number;
+  screenX: number;
+  screenY: number;
+  isHovering: boolean;
+}

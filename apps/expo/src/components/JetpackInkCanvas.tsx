@@ -11,6 +11,8 @@ import {
   StrokeEndEvent,
   TransformEvent,
   BarrelButtonEvent,
+  SelectionChangedEvent,
+  HoverEvent,
 } from "../types/canvas";
 
 export * from "../types/canvas";
@@ -31,9 +33,13 @@ export interface JetpackInkCanvasProps extends ViewProps {
   clearTrigger?: number;
   undoTrigger?: number;
   redoTrigger?: number;
+  deleteSelectionTrigger?: number;
+  clearSelectionTrigger?: number;
   onStrokeEnd?: (event: NativeSyntheticEvent<StrokeEndEvent>) => void;
   onTransform?: (event: NativeSyntheticEvent<TransformEvent>) => void;
   onBarrelButton?: (event: NativeSyntheticEvent<BarrelButtonEvent>) => void;
+  onSelectionChanged?: (event: NativeSyntheticEvent<SelectionChangedEvent>) => void;
+  onHover?: (event: NativeSyntheticEvent<HoverEvent>) => void;
 }
 
 interface NativeJetpackInkViewProps extends ViewProps {
@@ -52,9 +58,13 @@ interface NativeJetpackInkViewProps extends ViewProps {
   clearTrigger: number;
   undoTrigger: number;
   redoTrigger: number;
+  deleteSelectionTrigger?: number;
+  clearSelectionTrigger?: number;
   onStrokeEnd?: (event: NativeSyntheticEvent<StrokeEndEvent>) => void;
   onTransform?: (event: NativeSyntheticEvent<TransformEvent>) => void;
   onBarrelButton?: (event: NativeSyntheticEvent<BarrelButtonEvent>) => void;
+  onSelectionChanged?: (event: NativeSyntheticEvent<SelectionChangedEvent>) => void;
+  onHover?: (event: NativeSyntheticEvent<HoverEvent>) => void;
 }
 
 const NativeJetpackInkView = requireNativeComponent<NativeJetpackInkViewProps>("JetpackInkView");
@@ -75,9 +85,13 @@ export const JetpackInkCanvas: React.FC<JetpackInkCanvasProps> = ({
   clearTrigger = 0,
   undoTrigger = 0,
   redoTrigger = 0,
+  deleteSelectionTrigger = 0,
+  clearSelectionTrigger = 0,
   onStrokeEnd,
   onTransform,
   onBarrelButton,
+  onSelectionChanged,
+  onHover,
   style,
   ...rest
 }) => {
@@ -100,9 +114,13 @@ export const JetpackInkCanvas: React.FC<JetpackInkCanvasProps> = ({
         clearTrigger={clearTrigger}
         undoTrigger={undoTrigger}
         redoTrigger={redoTrigger}
+        deleteSelectionTrigger={deleteSelectionTrigger}
+        clearSelectionTrigger={clearSelectionTrigger}
         onStrokeEnd={onStrokeEnd}
         onTransform={onTransform}
         onBarrelButton={onBarrelButton}
+        onSelectionChanged={onSelectionChanged}
+        onHover={onHover}
         {...rest}
       />
     </View>

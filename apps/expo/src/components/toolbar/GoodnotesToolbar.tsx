@@ -9,7 +9,7 @@ import {
   TextInput,
   TouchableWithoutFeedback,
 } from "react-native";
-import { BrushType, CanvasBackgroundType, EraserMode } from "../../types/canvas";
+import { BrushType, CanvasBackgroundType, EraserMode, PassiveAttributeType } from "../../types/canvas";
 
 interface GoodnotesToolbarProps {
   activeBrush: BrushType;
@@ -25,6 +25,11 @@ interface GoodnotesToolbarProps {
   favoriteColors: string[];
   onUpdateFavoriteColor: (slotIndex: number, newColor: string) => void;
   onTriggerPassiveAttribute: () => void;
+  hasSelection?: boolean;
+  selectedCount?: number;
+  onDeleteSelection?: () => void;
+  onClearSelection?: () => void;
+  onAddAttribute?: (type: PassiveAttributeType, title: string, note: string) => void;
 }
 
 const GOODNOTES_PRESETS = [
@@ -63,6 +68,11 @@ export const GoodnotesToolbar: React.FC<GoodnotesToolbarProps> = ({
   favoriteColors,
   onUpdateFavoriteColor,
   onTriggerPassiveAttribute,
+  hasSelection = false,
+  selectedCount = 0,
+  onDeleteSelection,
+  onClearSelection,
+  onAddAttribute,
 }) => {
   // Modal states
   const [showTemplateMenu, setShowTemplateMenu] = useState(false);
@@ -70,6 +80,11 @@ export const GoodnotesToolbar: React.FC<GoodnotesToolbarProps> = ({
   const [showAttributeModal, setShowAttributeModal] = useState(false);
   const [editingSlot, setEditingSlot] = useState<number>(0);
   const [customHexInput, setCustomHexInput] = useState<string>("#38BDF8");
+
+  // Attribute creation draft inside modal
+  const [attrDraftTitle, setAttrDraftTitle] = useState("");
+  const [attrDraftNote, setAttrDraftNote] = useState("");
+  const [selectedAttrType, setSelectedAttrType] = useState<PassiveAttributeType>("ANALOGY");
 
   const tools: { id: BrushType; label: string; icon: string }[] = [
     { id: "pen", label: "Pluma", icon: "🖊️" },
@@ -89,6 +104,25 @@ export const GoodnotesToolbar: React.FC<GoodnotesToolbarProps> = ({
   const handleApplyColor = (color: string) => {
     onUpdateFavoriteColor(editingSlot, color);
     setShowColorCustomizer(false);
+  };
+
+  const handleSaveAttributeAndPin = () => {
+    if (onAddAttribute) {
+      const defaultTitle =
+        selectedAttrType === "ANALOGY"
+          ? "Analogía"
+          : selectedAttrType === "CAUSAL_MECHANISM"
+          ? "Mecanismo Causal"
+          : "Evidencia Empírica";
+      onAddAttribute(
+        selectedAttrType,
+        attrDraftTitle.trim() || defaultTitle,
+        attrDraftNote.trim() || "Anotación cognitiva para auditoría GRINDE"
+      );
+      setAttrDraftTitle("");
+      setAttrDraftNote("");
+      setShowAttributeModal(false);
+    }
   };
 
   return (
@@ -260,23 +294,64 @@ export const GoodnotesToolbar: React.FC<GoodnotesToolbarProps> = ({
         </View>
       )}
 
+      {/* Shapes Mode Sub-bar */}
       {activeBrush === "shapes" && (
         <View style={styles.subBarInfo}>
           <Text style={styles.subBarInfoIcon}>📐</Text>
+          <View style={styles.subBarPillActive}>
+            <Text style={styles.subBarPillActiveText}>Corrección Automática Activa</Text>
+          </View>
           <Text style={styles.subBarInfoText}>
-            <Text style={{ fontWeight: "700", color: "#38BDF8" }}>Reconocimiento de Formas: </Text>
-            Dibuja círculos, rectángulos o líneas para corrección geométrica automática.
+            Dibuja rectas, círculos, elipses o rectángulos y se convertirán en vectores perfectos.
           </Text>
         </View>
       )}
 
+      {/* Lasso Mode Sub-bar */}
       {activeBrush === "lasso" && (
-        <View style={styles.subBarInfo}>
-          <Text style={styles.subBarInfoIcon}>🪢</Text>
-          <Text style={styles.subBarInfoText}>
-            <Text style={{ fontWeight: "700", color: "#38BDF8" }}>Herramienta Lazo: </Text>
-            Rodea trazos para seleccionarlos, moverlos o editarlos en grupo.
-          </Text>
+        <View style={styles.subBarLasso}>
+          {hasSelection ? (
+            <View style={styles.lassoSelectedRow}>
+              <View style={styles.lassoCountBadge}>
+                <Text style={styles.lassoCountText}>🪢 {selectedCount} trazos seleccionados</Text>
+              </View>
+              <Text style={styles.lassoMoveHint}>Arrastra el recuadro para mover</Text>
+              <TouchableOpacity
+                style={styles.lassoColorBtn}
+                onPress={() => onSelectColor(activeColor)}
+                activeOpacity={0.8}
+              >
+                <View style={[styles.lassoColorDot, { backgroundColor: activeColor }]} />
+                <Text style={styles.lassoColorBtnText}>Colorear</Text>
+              </TouchableOpacity>
+              {onDeleteSelection && (
+                <TouchableOpacity
+                  style={styles.lassoDeleteBtn}
+                  onPress={onDeleteSelection}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.lassoDeleteBtnText}>🗑️ Borrar</Text>
+                </TouchableOpacity>
+              )}
+              {onClearSelection && (
+                <TouchableOpacity
+                  style={styles.lassoClearBtn}
+                  onPress={onClearSelection}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.lassoClearBtnText}>✕ Deseleccionar</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          ) : (
+            <View style={styles.lassoDefaultRow}>
+              <Text style={styles.subBarInfoIcon}>🪢</Text>
+              <Text style={styles.subBarInfoText}>
+                <Text style={{ fontWeight: "700", color: "#38BDF8" }}>Herramienta Lazo: </Text>
+                Rodea trazos para seleccionarlos. Luego arrástralos para moverlos por el lienzo.
+              </Text>
+            </View>
+          )}
         </View>
       )}
 
@@ -427,48 +502,82 @@ export const GoodnotesToolbar: React.FC<GoodnotesToolbarProps> = ({
                 </View>
 
                 <Text style={styles.attrIntro}>
-                  Según la metodología del Dr. Justin Sung, un mapa mental eficaz clasifica los nodos en atributos no lineales:
+                  Según la metodología del Dr. Justin Sung, los conceptos se enriquecen con atributos no lineales:
                 </Text>
 
-                <View style={styles.attrItem}>
-                  <Text style={styles.attrItemIcon}>💡</Text>
-                  <View style={styles.attrItemContent}>
-                    <Text style={styles.attrItemTitle}>Analogía Externa</Text>
-                    <Text style={styles.attrItemDesc}>
-                      Conecta el concepto con otro modelo mental o metáfora del mundo real para activar transferencia de alto nivel.
-                    </Text>
-                  </View>
+                {/* Type Selection Chips */}
+                <View style={styles.attrTypeSelector}>
+                  <TouchableOpacity
+                    style={[
+                      styles.attrTypeChip,
+                      selectedAttrType === "ANALOGY" && styles.attrTypeChipActive,
+                    ]}
+                    onPress={() => setSelectedAttrType("ANALOGY")}
+                  >
+                    <Text style={styles.attrTypeChipIcon}>💡</Text>
+                    <Text style={styles.attrTypeChipText}>Analogía</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.attrTypeChip,
+                      selectedAttrType === "CAUSAL_MECHANISM" && styles.attrTypeChipActive,
+                    ]}
+                    onPress={() => setSelectedAttrType("CAUSAL_MECHANISM")}
+                  >
+                    <Text style={styles.attrTypeChipIcon}>⚙️</Text>
+                    <Text style={styles.attrTypeChipText}>Mecanismo</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.attrTypeChip,
+                      selectedAttrType === "EVIDENCE" && styles.attrTypeChipActive,
+                    ]}
+                    onPress={() => setSelectedAttrType("EVIDENCE")}
+                  >
+                    <Text style={styles.attrTypeChipIcon}>🔬</Text>
+                    <Text style={styles.attrTypeChipText}>Evidencia</Text>
+                  </TouchableOpacity>
                 </View>
 
-                <View style={styles.attrItem}>
-                  <Text style={styles.attrItemIcon}>⚙️</Text>
-                  <View style={styles.attrItemContent}>
-                    <Text style={styles.attrItemTitle}>Mecanismo Causal</Text>
-                    <Text style={styles.attrItemDesc}>
-                      Explica el "por qué" y el proceso intrínseco detrás de la relación en lugar de solo memorizar la definición.
-                    </Text>
-                  </View>
+                {/* Form fields */}
+                <View style={styles.attrForm}>
+                  <TextInput
+                    style={styles.attrInput}
+                    placeholder="Título del concepto o nodo..."
+                    placeholderTextColor="#64748B"
+                    value={attrDraftTitle}
+                    onChangeText={setAttrDraftTitle}
+                  />
+                  <TextInput
+                    style={[styles.attrInput, styles.attrInputMulti]}
+                    placeholder="Explicación / Relación causal o analogía..."
+                    placeholderTextColor="#64748B"
+                    value={attrDraftNote}
+                    onChangeText={setAttrDraftNote}
+                    multiline
+                  />
                 </View>
 
-                <View style={styles.attrItem}>
-                  <Text style={styles.attrItemIcon}>🔬</Text>
-                  <View style={styles.attrItemContent}>
-                    <Text style={styles.attrItemTitle}>Evidencia Empírica</Text>
-                    <Text style={styles.attrItemDesc}>
-                      Soporta el nodo con fórmulas, resultados de estudios, contraejemplos o datos cuantitativos.
-                    </Text>
-                  </View>
-                </View>
+                <View style={styles.attrActionButtons}>
+                  <TouchableOpacity
+                    style={styles.pinBtn}
+                    onPress={handleSaveAttributeAndPin}
+                  >
+                    <Text style={styles.pinBtnText}>📌 Anclar en Lienzo</Text>
+                  </TouchableOpacity>
 
-                <TouchableOpacity
-                  style={styles.attrCompileAction}
-                  onPress={() => {
-                    setShowAttributeModal(false);
-                    onTriggerPassiveAttribute();
-                  }}
-                >
-                  <Text style={styles.attrCompileActionText}>⚡ Abrir Auditoría Cognitiva Completa</Text>
-                </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.attrCompileAction}
+                    onPress={() => {
+                      setShowAttributeModal(false);
+                      onTriggerPassiveAttribute();
+                    }}
+                  >
+                    <Text style={styles.attrCompileActionText}>⚡ Ver Auditoría</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             </TouchableWithoutFeedback>
           </View>
@@ -707,7 +816,18 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 10,
+  },
+  subBarPillActive: {
+    backgroundColor: "#0369A1",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  subBarPillActiveText: {
+    color: "#E0F2FE",
+    fontSize: 11,
+    fontWeight: "700",
   },
   subBarInfoIcon: {
     fontSize: 14,
@@ -715,6 +835,83 @@ const styles = StyleSheet.create({
   subBarInfoText: {
     color: "#94A3B8",
     fontSize: 12,
+  },
+
+  // Lasso Sub-bar
+  subBarLasso: {
+    backgroundColor: "#0C1F38",
+    borderBottomWidth: 1,
+    borderBottomColor: "#0284C7",
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+  },
+  lassoDefaultRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  lassoSelectedRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  lassoCountBadge: {
+    backgroundColor: "#0369A1",
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 12,
+  },
+  lassoCountText: {
+    color: "#F0F9FF",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  lassoMoveHint: {
+    color: "#94A3B8",
+    fontSize: 11,
+    fontStyle: "italic",
+    flex: 1,
+  },
+  lassoColorBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: "#1E293B",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  lassoColorDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  lassoColorBtnText: {
+    color: "#E2E8F0",
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  lassoDeleteBtn: {
+    backgroundColor: "#7F1D1D",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  lassoDeleteBtnText: {
+    color: "#FECACA",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  lassoClearBtn: {
+    backgroundColor: "#1E293B",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  lassoClearBtnText: {
+    color: "#94A3B8",
+    fontSize: 11,
+    fontWeight: "600",
   },
 
   // Template dropdown
@@ -946,45 +1143,81 @@ const styles = StyleSheet.create({
     color: "#94A3B8",
     fontSize: 12,
     lineHeight: 18,
-    marginBottom: 16,
+    marginBottom: 12,
   },
-  attrItem: {
+  attrTypeSelector: {
     flexDirection: "row",
-    gap: 12,
+    gap: 8,
+    marginBottom: 14,
+  },
+  attrTypeChip: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: "#1E293B",
+    borderWidth: 1,
+    borderColor: "#334155",
+    gap: 6,
+  },
+  attrTypeChipActive: {
+    backgroundColor: "#1E3A8A",
+    borderColor: "#38BDF8",
+  },
+  attrTypeChipIcon: {
+    fontSize: 14,
+  },
+  attrTypeChipText: {
+    color: "#CBD5E1",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  attrForm: {
+    gap: 8,
+    marginBottom: 14,
+  },
+  attrInput: {
     backgroundColor: "#1E293B",
     borderRadius: 8,
-    padding: 12,
-    marginBottom: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    color: "#F8FAFC",
+    fontSize: 13,
     borderWidth: 1,
     borderColor: "#334155",
   },
-  attrItemIcon: {
-    fontSize: 22,
+  attrInputMulti: {
+    height: 60,
+    textAlignVertical: "top",
   },
-  attrItemContent: {
+  attrActionButtons: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  pinBtn: {
     flex: 1,
-  },
-  attrItemTitle: {
-    color: "#F1F5F9",
-    fontSize: 13,
-    fontWeight: "700",
-    marginBottom: 3,
-  },
-  attrItemDesc: {
-    color: "#94A3B8",
-    fontSize: 11,
-    lineHeight: 16,
-  },
-  attrCompileAction: {
-    backgroundColor: "#4F46E5",
+    backgroundColor: "#0284C7",
     paddingVertical: 10,
     borderRadius: 8,
     alignItems: "center",
-    marginTop: 8,
   },
-  attrCompileActionText: {
+  pinBtnText: {
     color: "#FFFFFF",
     fontSize: 13,
+    fontWeight: "700",
+  },
+  attrCompileAction: {
+    backgroundColor: "#312E81",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    alignItems: "center",
+  },
+  attrCompileActionText: {
+    color: "#C7D2FE",
+    fontSize: 12,
     fontWeight: "700",
   },
 });

@@ -6,6 +6,7 @@ import { GoodnotesToolbar } from "./src/components/toolbar/GoodnotesToolbar";
 import { JetpackInkCanvas } from "./src/components/JetpackInkCanvas";
 import { FloatingFooter } from "./src/components/footer/FloatingFooter";
 import { CompilerDrawer } from "./src/components/drawer/CompilerDrawer";
+import { PlacedAttributeBadges } from "./src/components/canvas/PlacedAttributeBadges";
 
 export default function App() {
   const {
@@ -38,6 +39,24 @@ export default function App() {
     setIsDrawerOpen,
     isCompiling,
     compilation,
+    hasSelection,
+    selectedCount,
+    deleteSelectionTrigger,
+    clearSelectionTrigger,
+    handleSelectionChanged,
+    handleDeleteSelection,
+    handleClearSelection,
+    placedAttributes,
+    handleAddAttribute,
+    handleDeleteAttribute,
+    hoveredAttribute,
+    hoverScreenX,
+    hoverScreenY,
+    handleHover,
+    handleBadgeHover,
+    canvasScale,
+    canvasTranslateX,
+    canvasTranslateY,
     handleStrokeEnd,
     handleTransform,
     handleBarrelButton,
@@ -81,12 +100,17 @@ export default function App() {
         onSelectBackgroundType={setBackgroundType}
         favoriteColors={favoriteColors}
         onUpdateFavoriteColor={updateFavoriteColor}
+        hasSelection={hasSelection}
+        selectedCount={selectedCount}
+        onDeleteSelection={handleDeleteSelection}
+        onClearSelection={handleClearSelection}
+        onAddAttribute={handleAddAttribute}
         onTriggerPassiveAttribute={() => {
           setIsDrawerOpen(true);
         }}
       />
 
-      {/* 3. Lienzo Infinito con Jetpack Ink Nativo y Fondos sincronizados a 120Hz */}
+      {/* 3. Lienzo Infinito con Jetpack Ink Nativo y Badges de Atributos */}
       <View style={styles.canvasWrapper}>
         <JetpackInkCanvas
           style={StyleSheet.absoluteFill}
@@ -102,9 +126,27 @@ export default function App() {
           clearTrigger={clearTrigger}
           undoTrigger={undoTrigger}
           redoTrigger={redoTrigger}
+          deleteSelectionTrigger={deleteSelectionTrigger}
+          clearSelectionTrigger={clearSelectionTrigger}
           onStrokeEnd={handleStrokeEnd}
           onTransform={handleTransform}
           onBarrelButton={handleBarrelButton}
+          onSelectionChanged={handleSelectionChanged}
+          onHover={handleHover}
+        />
+
+        {/* Badges de Atributos Cognitivos anclados al lienzo con soporte Air View */}
+        <PlacedAttributeBadges
+          attributes={placedAttributes}
+          canvasScale={canvasScale}
+          canvasTranslateX={canvasTranslateX}
+          canvasTranslateY={canvasTranslateY}
+          hoveredAttribute={hoveredAttribute}
+          hoverScreenX={hoverScreenX}
+          hoverScreenY={hoverScreenY}
+          onDeleteAttribute={handleDeleteAttribute}
+          onOpenCompiler={() => setIsDrawerOpen(true)}
+          onBadgeHover={handleBadgeHover}
         />
 
         {/* 4. Barra Inferior Flotante (Solo Stylus & Zoom 100%) */}

@@ -6,6 +6,10 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Matrix
 import android.graphics.Paint
+import android.os.Handler
+import android.os.Looper
+import android.os.SystemClock
+import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.widget.FrameLayout
 import androidx.ink.authoring.InProgressStrokesView
@@ -25,8 +29,25 @@ import com.facebook.react.bridge.ReactContext
 import com.facebook.react.uimanager.events.RCTEventEmitter
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
+import kotlin.math.hypot
 
 class JetpackInkView(context: Context) : FrameLayout(context) {
+
+    companion object {
+        var activeInstance: java.lang.ref.WeakReference<JetpackInkView>? = null
+    }
+
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        activeInstance = java.lang.ref.WeakReference(this)
+    }
+
+    override fun onDetachedFromWindow() {
+        super.onDetachedFromWindow()
+        if (activeInstance?.get() == this) {
+            activeInstance = null
+        }
+    }
 
     // Submodules
     private val transformManager = CanvasTransformManager(context) { scale, tx, ty ->
@@ -34,6 +55,8 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
         notifyTransformChanged(scale, tx, ty)
     }
     private val strokeEraser = StrokeEraser()
+    private val shapeDetector = com.cognitivecanvas.app.ink.tools.ShapeDetector()
+    private val lassoManager = com.cognitivecanvas.app.ink.tools.LassoSelectionManager()
     val stylusHandler = StylusInputHandler(stylusOnly = true) { x, y ->
         notifyBarrelButton(x, y)
     }
@@ -59,6 +82,10 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
             if (field != value) {
                 field = value
                 cachedBrush = null
+                if (brushType == "lasso" && lassoManager.selectedStrokes.isNotEmpty()) {
+                    lassoManager.recolorSelected(value, completedStrokes)
+                    postInvalidateOnAnimation()
+                }
             }
         }
 
@@ -73,6 +100,11 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
     var brushType: String = "pen" // "pen", "marker", "highlighter", "eraser", "pan", "lasso", "shapes"
         set(value) {
             if (field != value) {
+                if (field == "lasso" && value != "lasso") {
+                    lassoManager.clearSelection()
+                    notifySelectionChanged(false, 0)
+                    postInvalidateOnAnimation()
+                }
                 field = value
                 cachedBrush = null
             }
@@ -115,6 +147,40 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
         isAntiAlias = true
     }
 
+    // Draw-and-Hold Shape Detection Dwell
+    private val dwellHandler = Handler(Looper.getMainLooper())
+    private var dwellAnchorX = 0f
+    private var dwellAnchorY = 0f
+    private var dwellPointerId = -1
+    private var isStrokeSnapped = false
+
+    private val dwellRunnable = Runnable {
+        triggerDrawAndHold()
+    }
+
+    private fun triggerDrawAndHold() {
+        val ptrId = dwellPointerId
+        if (ptrId >= 0 && activeStrokeIds.containsKey(ptrId)) {
+            val strokeId = activeStrokeIds[ptrId] ?: return
+            isStrokeSnapped = true
+            try {
+                performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+            } catch (_: Exception) {}
+
+            val finishEvent = MotionEvent.obtain(
+                SystemClock.uptimeMillis(),
+                SystemClock.uptimeMillis(),
+                MotionEvent.ACTION_UP,
+                dwellAnchorX,
+                dwellAnchorY,
+                0
+            )
+            activeStrokeIds.remove(ptrId)
+            inProgressStrokesView.finishStroke(finishEvent, ptrId, strokeId)
+            finishEvent.recycle()
+        }
+    }
+
     init {
         setWillNotDraw(false)
         inProgressStrokesView.eagerInit()
@@ -126,7 +192,16 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
 
         inProgressStrokesView.addFinishedStrokesListener(object : InProgressStrokesFinishedListener {
             override fun onStrokesFinished(strokes: Map<InProgressStrokeId, Stroke>) {
-                completedStrokes.addAll(strokes.values)
+                val shouldSnap = brushType == "shapes" || isStrokeSnapped
+                val finalStrokes = if (shouldSnap) {
+                    strokes.values.map { stroke ->
+                        shapeDetector.detectAndSnap(stroke) ?: stroke
+                    }
+                } else {
+                    strokes.values
+                }
+
+                completedStrokes.addAll(finalStrokes)
                 undoneStrokes.clear() // New stroke clears redo history
                 synchronized(strokesToHandOff) {
                     strokesToHandOff.addAll(strokes.keys)
@@ -187,10 +262,11 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
 
     private fun notifyTransformChanged(scale: Float, tx: Float, ty: Float) {
         val reactContext = context as? ReactContext ?: return
+        val density = context.resources.displayMetrics.density
         val event = Arguments.createMap().apply {
             putDouble("scale", scale.toDouble())
-            putDouble("translateX", tx.toDouble())
-            putDouble("translateY", ty.toDouble())
+            putDouble("translateX", (tx / density).toDouble())
+            putDouble("translateY", (ty / density).toDouble())
         }
         reactContext.getJSModule(RCTEventEmitter::class.java)?.receiveEvent(
             id,
@@ -301,7 +377,33 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
             return true
         }
 
-        // 4. Drawing Mode (Pen, Marker, Highlighter)
+        // 4. Lasso Selection Mode
+        if (brushType == "lasso") {
+            val worldX = (event.x - transformManager.canvasTranslateX) / transformManager.canvasScale
+            val worldY = (event.y - transformManager.canvasTranslateY) / transformManager.canvasScale
+
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    lassoManager.onTouchDown(worldX, worldY)
+                    postInvalidateOnAnimation()
+                    return true
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    lassoManager.onTouchMove(worldX, worldY, completedStrokes)
+                    postInvalidateOnAnimation()
+                    return true
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    val hasSelection = lassoManager.onTouchUp(completedStrokes)
+                    postInvalidateOnAnimation()
+                    notifySelectionChanged(hasSelection, lassoManager.selectedStrokes.size)
+                    return true
+                }
+            }
+            return true
+        }
+
+        // 5. Drawing Mode (Pen, Marker, Highlighter, Shapes)
         val actionIndex = event.actionIndex
         val pointerId = event.getPointerId(actionIndex)
 
@@ -312,6 +414,12 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
 
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
+                dwellHandler.removeCallbacksAndMessages(null)
+                isStrokeSnapped = false
+                dwellAnchorX = event.x
+                dwellAnchorY = event.y
+                dwellPointerId = pointerId
+
                 val brush = getOrCreateBrush()
                 val strokeId = inProgressStrokesView.startStroke(
                     event,
@@ -327,21 +435,38 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
                 val strokeId = activeStrokeIds[pointerId]
                 if (strokeId != null) {
                     inProgressStrokesView.addToStroke(event, pointerId, strokeId)
+
+                    // Draw-and-Hold Dwell Tracking: holding stylus still for 450ms regularizes the shape
+                    val distMoved = hypot(event.x - dwellAnchorX, event.y - dwellAnchorY)
+                    if (distMoved > 16f) {
+                        dwellAnchorX = event.x
+                        dwellAnchorY = event.y
+                        dwellHandler.removeCallbacksAndMessages(null)
+                        if (!isStrokeSnapped) {
+                            dwellHandler.postDelayed(dwellRunnable, 450L)
+                        }
+                    }
                 } else {
                     inProgressStrokesView.addToStroke(event, pointerId)
                 }
                 return true
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> {
+                dwellHandler.removeCallbacksAndMessages(null)
                 val strokeId = activeStrokeIds.remove(pointerId)
                 if (strokeId != null) {
                     inProgressStrokesView.finishStroke(event, pointerId, strokeId)
-                } else {
+                } else if (!isStrokeSnapped) {
                     inProgressStrokesView.finishStroke(event, pointerId)
                 }
+                isStrokeSnapped = false
+                dwellPointerId = -1
                 return true
             }
             MotionEvent.ACTION_CANCEL -> {
+                dwellHandler.removeCallbacksAndMessages(null)
+                isStrokeSnapped = false
+                dwellPointerId = -1
                 val strokeId = activeStrokeIds.remove(pointerId)
                 if (strokeId != null) {
                     inProgressStrokesView.cancelStroke(strokeId, event)
@@ -352,6 +477,72 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
             }
         }
         return super.onTouchEvent(event)
+    }
+
+    fun handleStylusHover(event: MotionEvent) {
+        val location = IntArray(2)
+        getLocationOnScreen(location)
+        val localX = event.rawX - location[0]
+        val localY = event.rawY - location[1]
+
+        val isInside = localX >= 0 && localX <= width && localY >= 0 && localY <= height
+        val density = context.resources.displayMetrics.density
+
+        when (event.actionMasked) {
+            MotionEvent.ACTION_HOVER_MOVE, MotionEvent.ACTION_HOVER_ENTER -> {
+                if (isInside) {
+                    val dpScreenX = localX / density
+                    val dpScreenY = localY / density
+                    val dpTranslateX = transformManager.canvasTranslateX / density
+                    val dpTranslateY = transformManager.canvasTranslateY / density
+                    val scale = transformManager.canvasScale
+
+                    val worldX = (dpScreenX - dpTranslateX) / scale
+                    val worldY = (dpScreenY - dpTranslateY) / scale
+
+                    notifyHover(worldX, worldY, dpScreenX, dpScreenY, true)
+                } else {
+                    notifyHover(0f, 0f, 0f, 0f, false)
+                }
+            }
+            MotionEvent.ACTION_HOVER_EXIT -> {
+                notifyHover(0f, 0f, 0f, 0f, false)
+            }
+        }
+    }
+
+    override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean {
+        return super.dispatchGenericMotionEvent(event)
+    }
+
+    override fun onInterceptHoverEvent(event: MotionEvent): Boolean {
+        return true
+    }
+
+    override fun dispatchHoverEvent(event: MotionEvent): Boolean {
+        handleStylusHover(event)
+        return true
+    }
+
+    override fun onHoverEvent(event: MotionEvent): Boolean {
+        return true
+    }
+
+    private fun notifyHover(worldX: Float, worldY: Float, screenX: Float, screenY: Float, isHovering: Boolean) {
+        android.util.Log.d("AirViewHover", "notifyHover -> worldX=$worldX worldY=$worldY screenX=$screenX screenY=$screenY isHovering=$isHovering")
+        val reactContext = context as? ReactContext ?: return
+        val event = Arguments.createMap().apply {
+            putDouble("worldX", worldX.toDouble())
+            putDouble("worldY", worldY.toDouble())
+            putDouble("screenX", screenX.toDouble())
+            putDouble("screenY", screenY.toDouble())
+            putBoolean("isHovering", isHovering)
+        }
+        reactContext.getJSModule(RCTEventEmitter::class.java)?.receiveEvent(
+            id,
+            "topHover",
+            event
+        )
     }
 
     private fun drawBackgroundPattern(canvas: Canvas) {
@@ -449,12 +640,16 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
                 scope.drawStroke(stroke)
             }
         }
+
+        // 3. Draw Lasso selection loop and bounding box
+        lassoManager.draw(canvas, transformManager.canvasScale)
+
         canvas.restore()
 
-        // 3. Draw in-progress strokes on top
+        // 4. Draw in-progress strokes on top
         super.dispatchDraw(canvas)
 
-        // 4. Seamless handoff (removes finished strokes only after they have been rendered)
+        // 5. Seamless handoff (removes finished strokes only after they have been rendered)
         synchronized(strokesToHandOff) {
             if (strokesToHandOff.isNotEmpty()) {
                 inProgressStrokesView.removeFinishedStrokes(strokesToHandOff)
@@ -478,17 +673,21 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
     fun clearStrokes() {
         undoneStrokes.addAll(completedStrokes)
         completedStrokes.clear()
+        lassoManager.clearSelection()
         inProgressStrokesView.cancelUnfinishedStrokes()
         postInvalidateOnAnimation()
         notifyStrokeCountChanged()
+        notifySelectionChanged(false, 0)
     }
 
     fun undoStroke() {
         if (completedStrokes.isNotEmpty()) {
             val last = completedStrokes.removeAt(completedStrokes.size - 1)
             undoneStrokes.add(last)
+            lassoManager.clearSelection()
             postInvalidateOnAnimation()
             notifyStrokeCountChanged()
+            notifySelectionChanged(false, 0)
         }
     }
 
@@ -496,9 +695,40 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
         if (undoneStrokes.isNotEmpty()) {
             val restored = undoneStrokes.removeAt(undoneStrokes.size - 1)
             completedStrokes.add(restored)
+            lassoManager.clearSelection()
             postInvalidateOnAnimation()
             notifyStrokeCountChanged()
+            notifySelectionChanged(false, 0)
         }
+    }
+
+    fun deleteSelectedStrokes() {
+        val removed = lassoManager.deleteSelected(completedStrokes)
+        if (removed.isNotEmpty()) {
+            undoneStrokes.addAll(removed)
+            postInvalidateOnAnimation()
+            notifyStrokeCountChanged()
+            notifySelectionChanged(false, 0)
+        }
+    }
+
+    fun clearSelection() {
+        lassoManager.clearSelection()
+        postInvalidateOnAnimation()
+        notifySelectionChanged(false, 0)
+    }
+
+    private fun notifySelectionChanged(hasSelection: Boolean, count: Int) {
+        val reactContext = context as? ReactContext ?: return
+        val event = Arguments.createMap().apply {
+            putBoolean("hasSelection", hasSelection)
+            putInt("selectedCount", count)
+        }
+        reactContext.getJSModule(RCTEventEmitter::class.java)?.receiveEvent(
+            id,
+            "topSelectionChanged",
+            event
+        )
     }
 
     fun captureBitmap(): Bitmap {

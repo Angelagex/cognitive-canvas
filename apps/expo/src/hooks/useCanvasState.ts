@@ -1,6 +1,17 @@
 import { useState, useCallback } from "react";
 import { NativeSyntheticEvent } from "react-native";
-import { BrushType, StrokeEndEvent, TransformEvent, BarrelButtonEvent, CanvasBackgroundType, EraserMode } from "../types/canvas";
+import {
+  BrushType,
+  StrokeEndEvent,
+  TransformEvent,
+  BarrelButtonEvent,
+  SelectionChangedEvent,
+  PlacedAttribute,
+  PassiveAttributeType,
+  CanvasBackgroundType,
+  EraserMode,
+  HoverEvent,
+} from "../types/canvas";
 import { CognitiveCompilerOutput } from "@cognitive-canvas/core/types";
 
 export const useCanvasState = () => {
@@ -31,6 +42,24 @@ export const useCanvasState = () => {
     setActiveColor(newColor);
   }, []);
 
+  // Selection state (Lasso)
+  const [hasSelection, setHasSelection] = useState<boolean>(false);
+  const [selectedCount, setSelectedCount] = useState<number>(0);
+  const [deleteSelectionTrigger, setDeleteSelectionTrigger] = useState<number>(0);
+  const [clearSelectionTrigger, setClearSelectionTrigger] = useState<number>(0);
+
+  // Placed Cognitive Attributes (GRINDE / PACER metadata badges)
+  const [placedAttributes, setPlacedAttributes] = useState<PlacedAttribute[]>([
+    {
+      id: "attr-1",
+      type: "CAUSAL_MECHANISM",
+      title: "Mecanismo Causal",
+      note: "La retropropagación calcula derivadas parciales mediante la regla de la cadena",
+      worldX: 350,
+      worldY: 280,
+    },
+  ]);
+
   // History & Undo / Redo
   const [canUndo, setCanUndo] = useState<boolean>(false);
   const [canRedo, setCanRedo] = useState<boolean>(false);
@@ -38,6 +67,9 @@ export const useCanvasState = () => {
 
   // Viewport & Zoom
   const [displayZoom, setDisplayZoom] = useState<number>(100);
+  const [canvasScale, setCanvasScale] = useState<number>(1.0);
+  const [canvasTranslateX, setCanvasTranslateX] = useState<number>(0.0);
+  const [canvasTranslateY, setCanvasTranslateY] = useState<number>(0.0);
 
   // Native Triggers (one-way command pulses, zero bridge ping-pong)
   const [zoomInTrigger, setZoomInTrigger] = useState<number>(0);
@@ -62,8 +94,106 @@ export const useCanvasState = () => {
   }, []);
 
   const handleTransform = useCallback((event: NativeSyntheticEvent<TransformEvent>) => {
-    const { scale } = event.nativeEvent;
+    const { scale, translateX, translateY } = event.nativeEvent;
+    setCanvasScale(scale);
+    setCanvasTranslateX(translateX);
+    setCanvasTranslateY(translateY);
     setDisplayZoom(Math.round(scale * 100));
+  }, []);
+
+  const handleSelectionChanged = useCallback((event: NativeSyntheticEvent<SelectionChangedEvent>) => {
+    const { hasSelection: isSelected, selectedCount: count } = event.nativeEvent;
+    setHasSelection(isSelected);
+    setSelectedCount(count);
+  }, []);
+
+  const handleDeleteSelection = useCallback(() => {
+    setDeleteSelectionTrigger((prev) => prev + 1);
+    setHasSelection(false);
+    setSelectedCount(0);
+  }, []);
+
+  const handleClearSelection = useCallback(() => {
+    setClearSelectionTrigger((prev) => prev + 1);
+    setHasSelection(false);
+    setSelectedCount(0);
+  }, []);
+
+  const handleAddAttribute = useCallback((type: PassiveAttributeType, title: string, note: string) => {
+    const newAttr: PlacedAttribute = {
+      id: `attr-${Date.now()}`,
+      type,
+      title,
+      note,
+      worldX: (-canvasTranslateX + 400) / canvasScale,
+      worldY: (-canvasTranslateY + 300) / canvasScale,
+    };
+    setPlacedAttributes((prev) => [...prev, newAttr]);
+  }, [canvasScale, canvasTranslateX, canvasTranslateY]);
+
+  const handleDeleteAttribute = useCallback((id: string) => {
+    setPlacedAttributes((prev) => prev.filter((a) => a.id !== id));
+  }, []);
+
+  // S-Pen Air View / Hover State (Affordance a 1-2 cm)
+  const [hoveredAttribute, setHoveredAttribute] = useState<PlacedAttribute | null>(null);
+  const [hoverScreenX, setHoverScreenX] = useState<number>(0);
+  const [hoverScreenY, setHoverScreenY] = useState<number>(0);
+
+  const handleHover = useCallback((event: NativeSyntheticEvent<HoverEvent>) => {
+    const { worldX, worldY, screenX, screenY, isHovering } = event.nativeEvent;
+    console.log("[AirView JS] Hover:", { worldX, worldY, screenX, screenY, isHovering, attrCount: placedAttributes.length });
+
+    if (!isHovering) {
+      setHoveredAttribute(null);
+      return;
+    }
+    // Check if hovering near or directly over any placed attribute using a uniform 14dp pill halo
+    const match = placedAttributes.find((attr) => {
+      const attrScreenX = attr.worldX * canvasScale + canvasTranslateX;
+      const attrScreenY = attr.worldY * canvasScale + canvasTranslateY;
+      const badgeScale = Math.min(1.2, Math.max(0.7, canvasScale));
+
+      // Approximate badge dimensions matching PlacedAttributeBadges typography and padding
+      const baseWidth = Math.max(120, attr.title.length * 8 + 36);
+      const baseHeight = 34;
+
+      const centerX = attrScreenX + baseWidth / 2;
+      const centerY = attrScreenY + baseHeight / 2;
+      const scaledWidth = baseWidth * badgeScale;
+      const scaledHeight = baseHeight * badgeScale;
+
+      const boxLeft = centerX - scaledWidth / 2;
+      const boxRight = centerX + scaledWidth / 2;
+      const boxTop = centerY - scaledHeight / 2;
+      const boxBottom = centerY + scaledHeight / 2;
+
+      // Distance from hover point (screenX, screenY) to the nearest edge of the badge
+      const dx = Math.max(0, boxLeft - screenX, screenX - boxRight);
+      const dy = Math.max(0, boxTop - screenY, screenY - boxBottom);
+      const distToEdge = Math.sqrt(dx * dx + dy * dy);
+
+      // Uniform 14dp halo conforming directly to the pill silhouette
+      const HALO_MARGIN = 14;
+      return distToEdge <= HALO_MARGIN;
+    });
+    if (match) {
+      console.log("[AirView JS] >>> HOVER MATCH FOUND:", match.title);
+      setHoveredAttribute(match);
+      setHoverScreenX(screenX);
+      setHoverScreenY(screenY);
+    } else {
+      setHoveredAttribute(null);
+    }
+  }, [placedAttributes, canvasScale, canvasTranslateX, canvasTranslateY]);
+
+  const handleBadgeHover = useCallback((attr: PlacedAttribute | null, screenX?: number, screenY?: number) => {
+    console.log("[AirView Badge JS] Direct badge hover:", attr?.title);
+    setHoveredAttribute(attr);
+    if (attr && screenX !== undefined && screenY !== undefined) {
+      setHoverScreenX(screenX + 80);
+      setHoverScreenY(screenY);
+    }
   }, []);
 
   const handleBarrelButton = useCallback((event: NativeSyntheticEvent<BarrelButtonEvent>) => {
@@ -198,6 +328,24 @@ export const useCanvasState = () => {
     setIsDrawerOpen,
     isCompiling,
     compilation,
+    hasSelection,
+    selectedCount,
+    deleteSelectionTrigger,
+    clearSelectionTrigger,
+    handleSelectionChanged,
+    handleDeleteSelection,
+    handleClearSelection,
+    placedAttributes,
+    handleAddAttribute,
+    handleDeleteAttribute,
+    hoveredAttribute,
+    hoverScreenX,
+    hoverScreenY,
+    handleHover,
+    handleBadgeHover,
+    canvasScale,
+    canvasTranslateX,
+    canvasTranslateY,
     handleStrokeEnd,
     handleTransform,
     handleBarrelButton,

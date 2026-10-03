@@ -98,14 +98,27 @@ class JetpackInkViewManager : SimpleViewManager<JetpackInkView>() {
         }
     }
 
+    @ReactProp(name = "deleteSelectionTrigger")
+    fun setDeleteSelectionTrigger(view: JetpackInkView, trigger: Int) {
+        if (trigger > 0) {
+            view.deleteSelectedStrokes()
+        }
+    }
+
+    @ReactProp(name = "clearSelectionTrigger")
+    fun setClearSelectionTrigger(view: JetpackInkView, trigger: Int) {
+        if (trigger > 0) {
+            view.clearSelection()
+        }
+    }
+
     override fun getExportedCustomDirectEventTypeConstants(): Map<String, Any>? {
-        return MapBuilder.of(
-            "topStrokeEnd",
-            MapBuilder.of("registrationName", "onStrokeEnd"),
-            "topTransform",
-            MapBuilder.of("registrationName", "onTransform"),
-            "topBarrelButton",
-            MapBuilder.of("registrationName", "onBarrelButton")
+        return mapOf(
+            "topStrokeEnd" to mapOf("registrationName" to "onStrokeEnd"),
+            "topTransform" to mapOf("registrationName" to "onTransform"),
+            "topBarrelButton" to mapOf("registrationName" to "onBarrelButton"),
+            "topSelectionChanged" to mapOf("registrationName" to "onSelectionChanged"),
+            "topHover" to mapOf("registrationName" to "onHover")
         )
     }
 
