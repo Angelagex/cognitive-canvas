@@ -220,17 +220,23 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
     override fun onTouchEvent(event: MotionEvent): Boolean {
         parent?.requestDisallowInterceptTouchEvent(true)
 
-        // Check for Goodnotes multi-finger gestures (2-finger double tap = undo, 3-finger double tap = redo)
-        gestureDetector.onTouchEvent(event)
+        val isStylusTouch = (0 until event.pointerCount).any {
+            stylusHandler.isStylus(event, it)
+        }
+        val isHardwareEraser = stylusHandler.isStylusEraser(event) || stylusHandler.isBarrelButtonPressed(event)
+
+        // Multi-finger gestures (undo/redo, canvas pinch & pan) are STRICTLY for finger touches!
+        // Never allow a stylus or barrel button event to feed the scale or gesture detectors.
+        if (!isStylusTouch && !isHardwareEraser) {
+            gestureDetector.onTouchEvent(event)
+            transformManager.onTouchEvent(event)
+        }
 
         // Check for S-Pen hardware barrel button press
         stylusHandler.checkBarrelButton(event)
 
-        // Feed multi-touch scale detector for pinch & pan
-        transformManager.onTouchEvent(event)
-
         // 1. Two-finger Gestures (Infinite Canvas Pinch-to-Zoom & Pan)
-        if (event.pointerCount >= 2) {
+        if (!isStylusTouch && !isHardwareEraser && event.pointerCount >= 2) {
             transformManager.isUserInteracting = true
             if (!isTwoFingerGesture) {
                 isTwoFingerGesture = true
@@ -268,8 +274,13 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
         }
 
         // 3. Eraser Mode (or S-Pen barrel button held down)
-        val isHardwareEraser = stylusHandler.isStylusEraser(event) || stylusHandler.isBarrelButtonPressed(event)
         if (brushType == "eraser" || isHardwareEraser) {
+            // Cancel any pending wet strokes if we switched into eraser mid-stroke
+            if (activeStrokeIds.isNotEmpty()) {
+                inProgressStrokesView.cancelUnfinishedStrokes()
+                activeStrokeIds.clear()
+            }
+
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE -> {
                     strokeEraser.eraseAt(
@@ -352,29 +363,43 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
 
         val viewW = width.toFloat()
         val viewH = height.toFloat()
-        if (viewW <= 0f || viewH <= 0f) return
+        if (viewW <= 0f || viewH <= 0f || scale <= 0f) return
 
         val worldLeft = (0f - tx) / scale
         val worldRight = (viewW - tx) / scale
         val worldTop = (0f - ty) / scale
         val worldBottom = (viewH - ty) / scale
 
-        val spacing = 36f
+        val baseSpacing = when (backgroundType) {
+            "ruled" -> 44f
+            else -> 36f
+        }
+
+        // Adaptive LOD: When zoomed far out, increase spacing so dot density remains readable and 120 FPS
+        var spacing = baseSpacing
+        while (spacing * scale < 18f && spacing < 1000f) {
+            spacing *= 2f
+        }
+
+        val dotRadius = (1.5f / scale).coerceIn(0.8f, 3.5f)
 
         when (backgroundType) {
             "dot_grid" -> {
                 val startX = (kotlin.math.floor(worldLeft / spacing) * spacing)
                 val startY = (kotlin.math.floor(worldTop / spacing) * spacing)
-                val dotRadius = 1.5f
 
                 var x = startX
-                while (x <= worldRight) {
+                var xCount = 0
+                while (x <= worldRight && xCount < 150) {
                     var y = startY
-                    while (y <= worldBottom) {
+                    var yCount = 0
+                    while (y <= worldBottom && yCount < 150) {
                         canvas.drawCircle(x, y, dotRadius, dotPaint)
                         y += spacing
+                        yCount++
                     }
                     x += spacing
+                    xCount++
                 }
             }
             "graph_grid" -> {
@@ -382,24 +407,29 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
                 val startY = (kotlin.math.floor(worldTop / spacing) * spacing)
 
                 var x = startX
-                while (x <= worldRight) {
+                var xCount = 0
+                while (x <= worldRight && xCount < 150) {
                     canvas.drawLine(x, worldTop, x, worldBottom, gridLinePaint)
                     x += spacing
+                    xCount++
                 }
                 var y = startY
-                while (y <= worldBottom) {
+                var yCount = 0
+                while (y <= worldBottom && yCount < 150) {
                     canvas.drawLine(worldLeft, y, worldRight, y, gridLinePaint)
                     y += spacing
+                    yCount++
                 }
             }
             "ruled" -> {
-                val lineSpacing = 44f
-                val startY = (kotlin.math.floor(worldTop / lineSpacing) * lineSpacing)
+                val startY = (kotlin.math.floor(worldTop / spacing) * spacing)
 
                 var y = startY
-                while (y <= worldBottom) {
+                var yCount = 0
+                while (y <= worldBottom && yCount < 200) {
                     canvas.drawLine(worldLeft, y, worldRight, y, gridLinePaint)
-                    y += lineSpacing
+                    y += spacing
+                    yCount++
                 }
             }
         }

@@ -33,10 +33,10 @@ class CanvasTransformManager(
 
         override fun onScale(detector: ScaleGestureDetector): Boolean {
             val factor = detector.scaleFactor
-            if (factor.isNaN() || factor.isInfinite() || factor == 0f) return true
+            if (factor.isNaN() || factor.isInfinite() || factor <= 0f) return true
 
             val newScale = (canvasScale * factor).coerceIn(MIN_SCALE, MAX_SCALE)
-            val actualFactor = newScale / canvasScale
+            val actualFactor = if (canvasScale > 0f) newScale / canvasScale else 1f
 
             val focusX = detector.focusX
             val focusY = detector.focusY
@@ -56,10 +56,34 @@ class CanvasTransformManager(
             onTransformChanged(canvasScale, canvasTranslateX, canvasTranslateY)
             return true
         }
-    })
+    }).apply {
+        // CRITICAL: Disable double-tap/stylus button quick scaling.
+        // Android's ScaleGestureDetector automatically triggers single-finger zoom
+        // when BUTTON_STYLUS_PRIMARY is held unless quickScale is disabled!
+        isQuickScaleEnabled = false
+    }
 
-    fun onTouchEvent(event: MotionEvent) {
-        scaleDetector.onTouchEvent(event)
+    fun onTouchEvent(event: MotionEvent): Boolean {
+        // Only route to scaleDetector if:
+        // 1. Exactly 2 or more touches
+        if (event.pointerCount < 2) return false
+
+        // 2. Reject stylus entirely from triggering canvas zoom/pinch
+        for (i in 0 until event.pointerCount) {
+            val toolType = event.getToolType(i)
+            if (toolType == MotionEvent.TOOL_TYPE_STYLUS || toolType == MotionEvent.TOOL_TYPE_ERASER) {
+                return false
+            }
+        }
+
+        // 3. Reject if any stylus button is pressed
+        val buttonState = event.buttonState
+        if ((buttonState and MotionEvent.BUTTON_STYLUS_PRIMARY) != 0 ||
+            (buttonState and MotionEvent.BUTTON_STYLUS_SECONDARY) != 0) {
+            return false
+        }
+
+        return scaleDetector.onTouchEvent(event)
     }
 
     fun startSingleTouchPan(x: Float, y: Float) {
