@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { NativeSyntheticEvent } from "react-native";
-import { BrushType, StrokeEndEvent, TransformEvent, BarrelButtonEvent } from "../types/canvas";
+import { BrushType, StrokeEndEvent, TransformEvent, BarrelButtonEvent, CanvasBackgroundType, EraserMode } from "../types/canvas";
 import { CognitiveCompilerOutput } from "@cognitive-canvas/core/types";
 
 export const useCanvasState = () => {
@@ -11,7 +11,25 @@ export const useCanvasState = () => {
   const [activeBrush, setActiveBrush] = useState<BrushType>("pen");
   const [activeColor, setActiveColor] = useState<string>("#38BDF8");
   const [activeWidth, setActiveWidth] = useState<number>(18);
+  const [eraserMode, setEraserMode] = useState<EraserMode>("stroke");
+  const [backgroundType, setBackgroundType] = useState<CanvasBackgroundType>("dot_grid");
+  const [favoriteColors, setFavoriteColors] = useState<string[]>([
+    "#38BDF8", // Electric Blue
+    "#F43F5E", // Rose Carmine
+    "#10B981", // Emerald Green
+  ]);
   const [stylusOnly, setStylusOnly] = useState<boolean>(true); // S-Pen palm rejection by default
+
+  const updateFavoriteColor = useCallback((index: number, newColor: string) => {
+    setFavoriteColors((prev) => {
+      const next = [...prev];
+      if (index >= 0 && index < next.length) {
+        next[index] = newColor;
+      }
+      return next;
+    });
+    setActiveColor(newColor);
+  }, []);
 
   // History & Undo / Redo
   const [canUndo, setCanUndo] = useState<boolean>(false);
@@ -158,6 +176,13 @@ export const useCanvasState = () => {
     setActiveColor,
     activeWidth,
     setActiveWidth,
+    eraserMode,
+    setEraserMode,
+    backgroundType,
+    setBackgroundType,
+    favoriteColors,
+    setFavoriteColors,
+    updateFavoriteColor,
     stylusOnly,
     canUndo,
     canRedo,

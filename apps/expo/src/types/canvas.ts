@@ -9,7 +9,9 @@ export type BrushType =
 
 export type PassiveAttributeType = "ANALOGY" | "CAUSAL_MECHANISM" | "EVIDENCE";
 
-export type CanvasBackgroundType = "blank" | "dot_grid" | "millimeter";
+export type CanvasBackgroundType = "dot_grid" | "graph_grid" | "ruled" | "blank";
+
+export type EraserMode = "stroke" | "precision";
 
 export interface StrokeEndEvent {
   strokeCount: number;

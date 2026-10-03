@@ -1,9 +1,12 @@
 package com.cognitivecanvas.app.ink.tools
 
+import androidx.ink.strokes.MutableStrokeInputBatch
 import androidx.ink.strokes.Stroke
 import java.util.concurrent.CopyOnWriteArrayList
 
 class StrokeEraser {
+
+    var eraserMode: String = "stroke" // "stroke" or "precision"
 
     private fun distanceToSegmentSquared(
         px: Float, py: Float,
@@ -39,42 +42,110 @@ class StrokeEraser {
     ) {
         val worldX = (screenX - canvasTranslateX) / canvasScale
         val worldY = (screenY - canvasTranslateY) / canvasScale
-        // Radius adapted for stylus and fingertip swiping
-        val eraseRadius = (strokeWidth * 3.0f).coerceAtLeast(100f) / canvasScale
+        val eraseRadius = (strokeWidth * 3.0f).coerceAtLeast(80f) / canvasScale
         val eraseRadiusSq = eraseRadius * eraseRadius
 
-        val toRemove = mutableListOf<Stroke>()
-        for (stroke in completedStrokes) {
-            val inputs = stroke.inputs
-            val inputCount = inputs.size
-            if (inputCount == 0) continue
+        if (eraserMode == "stroke") {
+            // Whole Stroke Eraser Mode
+            val toRemove = mutableListOf<Stroke>()
+            for (stroke in completedStrokes) {
+                val inputs = stroke.inputs
+                val inputCount = inputs.size
+                if (inputCount == 0) continue
 
-            var hit = false
-            for (i in 0 until inputCount) {
-                val pt = inputs.get(i)
-                val dx = pt.x - worldX
-                val dy = pt.y - worldY
-                if (dx * dx + dy * dy <= eraseRadiusSq) {
-                    hit = true
-                    break
-                }
-                if (i < inputCount - 1) {
-                    val pNext = inputs.get(i + 1)
-                    if (distanceToSegmentSquared(worldX, worldY, pt.x, pt.y, pNext.x, pNext.y) <= eraseRadiusSq) {
+                var hit = false
+                for (i in 0 until inputCount) {
+                    val pt = inputs.get(i)
+                    val dx = pt.x - worldX
+                    val dy = pt.y - worldY
+                    if (dx * dx + dy * dy <= eraseRadiusSq) {
                         hit = true
                         break
+                    }
+                    if (i < inputCount - 1) {
+                        val pNext = inputs.get(i + 1)
+                        if (distanceToSegmentSquared(worldX, worldY, pt.x, pt.y, pNext.x, pNext.y) <= eraseRadiusSq) {
+                            hit = true
+                            break
+                        }
+                    }
+                }
+
+                if (hit) {
+                    toRemove.add(stroke)
+                }
+            }
+
+            if (toRemove.isNotEmpty()) {
+                completedStrokes.removeAll(toRemove)
+                onStrokesRemoved(toRemove)
+            }
+        } else {
+            // Precision / Segment Eraser Mode
+            val toRemove = mutableListOf<Stroke>()
+            val toAdd = mutableListOf<Stroke>()
+
+            for (stroke in completedStrokes) {
+                val inputs = stroke.inputs
+                val inputCount = inputs.size
+                if (inputCount == 0) continue
+
+                val isErased = BooleanArray(inputCount)
+                var anyPointErased = false
+
+                for (i in 0 until inputCount) {
+                    val pt = inputs.get(i)
+                    val dx = pt.x - worldX
+                    val dy = pt.y - worldY
+                    if (dx * dx + dy * dy <= eraseRadiusSq) {
+                        isErased[i] = true
+                        anyPointErased = true
+                    }
+                }
+
+                if (anyPointErased) {
+                    toRemove.add(stroke)
+
+                    // Reconstruct non-erased segments as smaller sub-strokes
+                    var currentBatch: MutableStrokeInputBatch? = null
+                    var currentRunLength = 0
+
+                    for (i in 0 until inputCount) {
+                        if (!isErased[i]) {
+                            if (currentBatch == null) {
+                                currentBatch = MutableStrokeInputBatch()
+                                currentRunLength = 0
+                            }
+                            currentBatch.addOrIgnore(inputs.get(i))
+                            currentRunLength++
+                        } else {
+                            if (currentBatch != null) {
+                                if (currentRunLength >= 2) {
+                                    try {
+                                        toAdd.add(Stroke(stroke.brush, currentBatch.asImmutable()))
+                                    } catch (_: Exception) {}
+                                }
+                                currentBatch = null
+                                currentRunLength = 0
+                            }
+                        }
+                    }
+
+                    if (currentBatch != null && currentRunLength >= 2) {
+                        try {
+                            toAdd.add(Stroke(stroke.brush, currentBatch.asImmutable()))
+                        } catch (_: Exception) {}
                     }
                 }
             }
 
-            if (hit) {
-                toRemove.add(stroke)
+            if (toRemove.isNotEmpty()) {
+                completedStrokes.removeAll(toRemove)
+                if (toAdd.isNotEmpty()) {
+                    completedStrokes.addAll(toAdd)
+                }
+                onStrokesRemoved(toRemove)
             }
-        }
-
-        if (toRemove.isNotEmpty()) {
-            completedStrokes.removeAll(toRemove)
-            onStrokesRemoved(toRemove)
         }
     }
 }

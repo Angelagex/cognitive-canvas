@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Matrix
+import android.graphics.Paint
 import android.view.MotionEvent
 import android.widget.FrameLayout
 import androidx.ink.authoring.InProgressStrokesView
@@ -15,6 +16,7 @@ import androidx.ink.brush.StockBrushes
 import androidx.ink.rendering.android.canvas.CanvasStrokeRenderer
 import androidx.ink.rendering.android.view.ViewStrokeRenderer
 import androidx.ink.strokes.Stroke
+import com.cognitivecanvas.app.ink.input.GestureShortcutDetector
 import com.cognitivecanvas.app.ink.input.StylusInputHandler
 import com.cognitivecanvas.app.ink.tools.StrokeEraser
 import com.cognitivecanvas.app.ink.transform.CanvasTransformManager
@@ -35,6 +37,10 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
     val stylusHandler = StylusInputHandler(stylusOnly = true) { x, y ->
         notifyBarrelButton(x, y)
     }
+    private val gestureDetector = GestureShortcutDetector(
+        onUndoGesture = { undoStroke() },
+        onRedoGesture = { redoStroke() }
+    )
 
     // Jetpack Ink Components
     private val inProgressStrokesView = InProgressStrokesView(context)
@@ -72,6 +78,20 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
             }
         }
 
+    var eraserMode: String
+        get() = strokeEraser.eraserMode
+        set(value) {
+            strokeEraser.eraserMode = value
+        }
+
+    var backgroundType: String = "dot_grid" // "blank", "dot_grid", "graph_grid", "ruled"
+        set(value) {
+            if (field != value) {
+                field = value
+                postInvalidateOnAnimation()
+            }
+        }
+
     var stylusOnly: Boolean
         get() = stylusHandler.stylusOnly
         set(value) {
@@ -80,6 +100,20 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
 
     private var cachedBrush: Brush? = null
     private var isTwoFingerGesture = false
+
+    // Background Paint Styles
+    private val dotPaint = Paint().apply {
+        color = Color.parseColor("#334155")
+        style = Paint.Style.FILL
+        isAntiAlias = true
+    }
+
+    private val gridLinePaint = Paint().apply {
+        color = Color.parseColor("#1E293B")
+        style = Paint.Style.STROKE
+        strokeWidth = 1f
+        isAntiAlias = true
+    }
 
     init {
         setWillNotDraw(false)
@@ -186,10 +220,13 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
     override fun onTouchEvent(event: MotionEvent): Boolean {
         parent?.requestDisallowInterceptTouchEvent(true)
 
+        // Check for Goodnotes multi-finger gestures (2-finger double tap = undo, 3-finger double tap = redo)
+        gestureDetector.onTouchEvent(event)
+
         // Check for S-Pen hardware barrel button press
         stylusHandler.checkBarrelButton(event)
 
-        // Always feed multi-touch scale detector
+        // Feed multi-touch scale detector for pinch & pan
         transformManager.onTouchEvent(event)
 
         // 1. Two-finger Gestures (Infinite Canvas Pinch-to-Zoom & Pan)
@@ -306,12 +343,77 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
         return super.onTouchEvent(event)
     }
 
+    private fun drawBackgroundPattern(canvas: Canvas) {
+        if (backgroundType == "blank") return
+
+        val scale = transformManager.canvasScale
+        val tx = transformManager.canvasTranslateX
+        val ty = transformManager.canvasTranslateY
+
+        val viewW = width.toFloat()
+        val viewH = height.toFloat()
+        if (viewW <= 0f || viewH <= 0f) return
+
+        val worldLeft = (0f - tx) / scale
+        val worldRight = (viewW - tx) / scale
+        val worldTop = (0f - ty) / scale
+        val worldBottom = (viewH - ty) / scale
+
+        val spacing = 36f
+
+        when (backgroundType) {
+            "dot_grid" -> {
+                val startX = (kotlin.math.floor(worldLeft / spacing) * spacing)
+                val startY = (kotlin.math.floor(worldTop / spacing) * spacing)
+                val dotRadius = 1.5f
+
+                var x = startX
+                while (x <= worldRight) {
+                    var y = startY
+                    while (y <= worldBottom) {
+                        canvas.drawCircle(x, y, dotRadius, dotPaint)
+                        y += spacing
+                    }
+                    x += spacing
+                }
+            }
+            "graph_grid" -> {
+                val startX = (kotlin.math.floor(worldLeft / spacing) * spacing)
+                val startY = (kotlin.math.floor(worldTop / spacing) * spacing)
+
+                var x = startX
+                while (x <= worldRight) {
+                    canvas.drawLine(x, worldTop, x, worldBottom, gridLinePaint)
+                    x += spacing
+                }
+                var y = startY
+                while (y <= worldBottom) {
+                    canvas.drawLine(worldLeft, y, worldRight, y, gridLinePaint)
+                    y += spacing
+                }
+            }
+            "ruled" -> {
+                val lineSpacing = 44f
+                val startY = (kotlin.math.floor(worldTop / lineSpacing) * lineSpacing)
+
+                var y = startY
+                while (y <= worldBottom) {
+                    canvas.drawLine(worldLeft, y, worldRight, y, gridLinePaint)
+                    y += lineSpacing
+                }
+            }
+        }
+    }
+
     override fun dispatchDraw(canvas: Canvas) {
-        // 1. Draw completed strokes first (as permanent dry ink layer)
         val renderMatrix = transformManager.getRenderMatrix()
         canvas.save()
         canvas.concat(renderMatrix)
 
+        // 1. Draw native paper template (Dot grid, Graph grid, or Ruled lines)
+        drawBackgroundPattern(canvas)
+
+        // 2. Draw completed strokes
         viewStrokeRenderer.drawWithStrokes(canvas) { scope ->
             for (stroke in completedStrokes) {
                 scope.drawStroke(stroke)
@@ -319,11 +421,10 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
         }
         canvas.restore()
 
-        // 2. Draw in-progress strokes on top (as active wet ink layer)
+        // 3. Draw in-progress strokes on top
         super.dispatchDraw(canvas)
 
-        // 3. Flicker-Free Handoff: Hand off strokes from InProgressStrokesView ONLY
-        // after our ViewStrokeRenderer has rendered them onto the screen.
+        // 4. Seamless handoff (removes finished strokes only after they have been rendered)
         synchronized(strokesToHandOff) {
             if (strokesToHandOff.isNotEmpty()) {
                 inProgressStrokesView.removeFinishedStrokes(strokesToHandOff)
@@ -373,10 +474,11 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
     fun captureBitmap(): Bitmap {
         val bitmap = Bitmap.createBitmap(width.coerceAtLeast(1), height.coerceAtLeast(1), Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
-        canvas.drawColor(Color.parseColor("#0F172A"))
+        canvas.drawColor(Color.parseColor("#090D16"))
         val renderMatrix = transformManager.getRenderMatrix()
         canvas.save()
         canvas.concat(renderMatrix)
+        drawBackgroundPattern(canvas)
         viewStrokeRenderer.drawWithStrokes(canvas) { scope ->
             for (stroke in completedStrokes) {
                 scope.drawStroke(stroke)

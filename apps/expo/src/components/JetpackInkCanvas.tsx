@@ -19,6 +19,8 @@ export interface JetpackInkCanvasProps extends ViewProps {
   strokeColor?: string;
   strokeWidth?: number;
   brushType?: BrushType;
+  eraserMode?: string;
+  backgroundType?: string;
   stylusOnly?: boolean;
   scale?: number;
   panX?: number;
@@ -38,6 +40,8 @@ interface NativeJetpackInkViewProps extends ViewProps {
   strokeColor: string;
   strokeWidth: number;
   brushType: string;
+  eraserMode?: string;
+  backgroundType?: string;
   stylusOnly: boolean;
   canvasScale?: number;
   panX?: number;
@@ -59,6 +63,8 @@ export const JetpackInkCanvas: React.FC<JetpackInkCanvasProps> = ({
   strokeColor = "#38BDF8",
   strokeWidth = 18,
   brushType = "pen",
+  eraserMode = "stroke",
+  backgroundType = "dot_grid",
   stylusOnly = true,
   scale = 1.0,
   panX = 0.0,
@@ -82,6 +88,8 @@ export const JetpackInkCanvas: React.FC<JetpackInkCanvasProps> = ({
         strokeColor={strokeColor}
         strokeWidth={strokeWidth}
         brushType={brushType}
+        eraserMode={eraserMode}
+        backgroundType={backgroundType}
         stylusOnly={stylusOnly}
         canvasScale={scale}
         panX={panX}

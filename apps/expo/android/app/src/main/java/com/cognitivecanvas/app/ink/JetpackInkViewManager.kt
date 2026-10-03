@@ -37,6 +37,20 @@ class JetpackInkViewManager : SimpleViewManager<JetpackInkView>() {
         }
     }
 
+    @ReactProp(name = "eraserMode")
+    fun setEraserMode(view: JetpackInkView, mode: String?) {
+        if (!mode.isNullOrEmpty()) {
+            view.eraserMode = mode
+        }
+    }
+
+    @ReactProp(name = "backgroundType")
+    fun setBackgroundType(view: JetpackInkView, type: String?) {
+        if (!type.isNullOrEmpty()) {
+            view.backgroundType = type
+        }
+    }
+
     @ReactProp(name = "stylusOnly", defaultBoolean = true)
     fun setStylusOnly(view: JetpackInkView, enabled: Boolean) {
         view.stylusOnly = enabled

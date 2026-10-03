@@ -4,7 +4,6 @@ import { useCanvasState } from "./src/hooks/useCanvasState";
 import { TopHeader } from "./src/components/header/TopHeader";
 import { GoodnotesToolbar } from "./src/components/toolbar/GoodnotesToolbar";
 import { JetpackInkCanvas } from "./src/components/JetpackInkCanvas";
-import { DotGridBackground } from "./src/components/canvas/DotGridBackground";
 import { FloatingFooter } from "./src/components/footer/FloatingFooter";
 import { CompilerDrawer } from "./src/components/drawer/CompilerDrawer";
 
@@ -18,6 +17,12 @@ export default function App() {
     setActiveColor,
     activeWidth,
     setActiveWidth,
+    eraserMode,
+    setEraserMode,
+    backgroundType,
+    setBackgroundType,
+    favoriteColors,
+    updateFavoriteColor,
     stylusOnly,
     canUndo,
     canRedo,
@@ -62,7 +67,7 @@ export default function App() {
         onOpenCompiler={() => setIsDrawerOpen(true)}
       />
 
-      {/* 2. Barra de Herramientas Estilo Goodnotes (56dp) */}
+      {/* 2. Barra de Herramientas Estilo Goodnotes (56dp + sub-barra contextual) */}
       <GoodnotesToolbar
         activeBrush={activeBrush}
         onSelectBrush={setActiveBrush}
@@ -70,21 +75,26 @@ export default function App() {
         onSelectColor={setActiveColor}
         activeWidth={activeWidth}
         onSelectWidth={setActiveWidth}
+        eraserMode={eraserMode}
+        onSelectEraserMode={setEraserMode}
+        backgroundType={backgroundType}
+        onSelectBackgroundType={setBackgroundType}
+        favoriteColors={favoriteColors}
+        onUpdateFavoriteColor={updateFavoriteColor}
         onTriggerPassiveAttribute={() => {
-          // Trigger passive attribute prompt
           setIsDrawerOpen(true);
         }}
       />
 
-      {/* 3. Lienzo Infinito con Dot Grid y Jetpack Ink Nativo */}
+      {/* 3. Lienzo Infinito con Jetpack Ink Nativo y Fondos sincronizados a 120Hz */}
       <View style={styles.canvasWrapper}>
-        <DotGridBackground backgroundColor="#090D16" />
-
         <JetpackInkCanvas
           style={StyleSheet.absoluteFill}
           strokeColor={activeColor}
           strokeWidth={activeWidth}
           brushType={activeBrush}
+          eraserMode={eraserMode}
+          backgroundType={backgroundType}
           stylusOnly={stylusOnly}
           zoomInTrigger={zoomInTrigger}
           zoomOutTrigger={zoomOutTrigger}
