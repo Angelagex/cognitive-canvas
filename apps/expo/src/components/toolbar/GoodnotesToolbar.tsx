@@ -24,7 +24,7 @@ interface GoodnotesToolbarProps {
   onSelectBackgroundType: (type: CanvasBackgroundType) => void;
   favoriteColors: string[];
   onUpdateFavoriteColor: (slotIndex: number, newColor: string) => void;
-  onTriggerPassiveAttribute: () => void;
+  onTriggerPassiveAttribute?: () => void;
   hasSelection?: boolean;
   selectedCount?: number;
   onDeleteSelection?: () => void;
@@ -77,14 +77,8 @@ export const GoodnotesToolbar: React.FC<GoodnotesToolbarProps> = ({
   // Modal states
   const [showTemplateMenu, setShowTemplateMenu] = useState(false);
   const [showColorCustomizer, setShowColorCustomizer] = useState(false);
-  const [showAttributeModal, setShowAttributeModal] = useState(false);
   const [editingSlot, setEditingSlot] = useState<number>(0);
   const [customHexInput, setCustomHexInput] = useState<string>("#38BDF8");
-
-  // Attribute creation draft inside modal
-  const [attrDraftTitle, setAttrDraftTitle] = useState("");
-  const [attrDraftNote, setAttrDraftNote] = useState("");
-  const [selectedAttrType, setSelectedAttrType] = useState<PassiveAttributeType>("ANALOGY");
 
   const tools: { id: BrushType; label: string; icon: string }[] = [
     { id: "pen", label: "Pluma", icon: "🖊️" },
@@ -104,25 +98,6 @@ export const GoodnotesToolbar: React.FC<GoodnotesToolbarProps> = ({
   const handleApplyColor = (color: string) => {
     onUpdateFavoriteColor(editingSlot, color);
     setShowColorCustomizer(false);
-  };
-
-  const handleSaveAttributeAndPin = () => {
-    if (onAddAttribute) {
-      const defaultTitle =
-        selectedAttrType === "ANALOGY"
-          ? "Analogía"
-          : selectedAttrType === "CAUSAL_MECHANISM"
-          ? "Mecanismo Causal"
-          : "Evidencia Empírica";
-      onAddAttribute(
-        selectedAttrType,
-        attrDraftTitle.trim() || defaultTitle,
-        attrDraftNote.trim() || "Anotación cognitiva para auditoría GRINDE"
-      );
-      setAttrDraftTitle("");
-      setAttrDraftNote("");
-      setShowAttributeModal(false);
-    }
   };
 
   return (
@@ -152,16 +127,6 @@ export const GoodnotesToolbar: React.FC<GoodnotesToolbarProps> = ({
                 </TouchableOpacity>
               );
             })}
-
-            {/* Atributo Cognitivo (GRINDE / PACER) */}
-            <TouchableOpacity
-              style={styles.passiveAttrButton}
-              onPress={() => setShowAttributeModal(true)}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.toolIcon}>🏷️</Text>
-              <Text style={styles.passiveAttrLabel}>Atributo</Text>
-            </TouchableOpacity>
 
             {/* Selector de Plantilla de Papel */}
             <TouchableOpacity
@@ -480,109 +445,6 @@ export const GoodnotesToolbar: React.FC<GoodnotesToolbarProps> = ({
         </TouchableWithoutFeedback>
       </Modal>
 
-      {/* 5. Cognitive Attribute Modal (Dr. Justin Sung GRINDE / PACER) */}
-      <Modal
-        visible={showAttributeModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowAttributeModal(false)}
-      >
-        <TouchableWithoutFeedback onPress={() => setShowAttributeModal(false)}>
-          <View style={styles.modalOverlay}>
-            <TouchableWithoutFeedback>
-              <View style={styles.attrCard}>
-                <View style={styles.customizerHeader}>
-                  <Text style={styles.attrModalTitle}>🏷️ Atributos Cognitivos (GRINDE)</Text>
-                  <TouchableOpacity
-                    onPress={() => setShowAttributeModal(false)}
-                    style={styles.closeBtn}
-                  >
-                    <Text style={styles.closeBtnText}>✕</Text>
-                  </TouchableOpacity>
-                </View>
-
-                <Text style={styles.attrIntro}>
-                  Según la metodología del Dr. Justin Sung, los conceptos se enriquecen con atributos no lineales:
-                </Text>
-
-                {/* Type Selection Chips */}
-                <View style={styles.attrTypeSelector}>
-                  <TouchableOpacity
-                    style={[
-                      styles.attrTypeChip,
-                      selectedAttrType === "ANALOGY" && styles.attrTypeChipActive,
-                    ]}
-                    onPress={() => setSelectedAttrType("ANALOGY")}
-                  >
-                    <Text style={styles.attrTypeChipIcon}>💡</Text>
-                    <Text style={styles.attrTypeChipText}>Analogía</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={[
-                      styles.attrTypeChip,
-                      selectedAttrType === "CAUSAL_MECHANISM" && styles.attrTypeChipActive,
-                    ]}
-                    onPress={() => setSelectedAttrType("CAUSAL_MECHANISM")}
-                  >
-                    <Text style={styles.attrTypeChipIcon}>⚙️</Text>
-                    <Text style={styles.attrTypeChipText}>Mecanismo</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={[
-                      styles.attrTypeChip,
-                      selectedAttrType === "EVIDENCE" && styles.attrTypeChipActive,
-                    ]}
-                    onPress={() => setSelectedAttrType("EVIDENCE")}
-                  >
-                    <Text style={styles.attrTypeChipIcon}>🔬</Text>
-                    <Text style={styles.attrTypeChipText}>Evidencia</Text>
-                  </TouchableOpacity>
-                </View>
-
-                {/* Form fields */}
-                <View style={styles.attrForm}>
-                  <TextInput
-                    style={styles.attrInput}
-                    placeholder="Título del concepto o nodo..."
-                    placeholderTextColor="#64748B"
-                    value={attrDraftTitle}
-                    onChangeText={setAttrDraftTitle}
-                  />
-                  <TextInput
-                    style={[styles.attrInput, styles.attrInputMulti]}
-                    placeholder="Explicación / Relación causal o analogía..."
-                    placeholderTextColor="#64748B"
-                    value={attrDraftNote}
-                    onChangeText={setAttrDraftNote}
-                    multiline
-                  />
-                </View>
-
-                <View style={styles.attrActionButtons}>
-                  <TouchableOpacity
-                    style={styles.pinBtn}
-                    onPress={handleSaveAttributeAndPin}
-                  >
-                    <Text style={styles.pinBtnText}>📌 Anclar en Lienzo</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={styles.attrCompileAction}
-                    onPress={() => {
-                      setShowAttributeModal(false);
-                      onTriggerPassiveAttribute();
-                    }}
-                  >
-                    <Text style={styles.attrCompileActionText}>⚡ Ver Auditoría</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </TouchableWithoutFeedback>
-          </View>
-        </TouchableWithoutFeedback>
-      </Modal>
     </View>
   );
 };

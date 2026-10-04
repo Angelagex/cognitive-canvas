@@ -7,6 +7,7 @@ import { JetpackInkCanvas } from "./src/components/JetpackInkCanvas";
 import { FloatingFooter } from "./src/components/footer/FloatingFooter";
 import { CompilerDrawer } from "./src/components/drawer/CompilerDrawer";
 import { PlacedAttributeBadges } from "./src/components/canvas/PlacedAttributeBadges";
+import { SemanticAnchorTooltip } from "./src/components/canvas/SemanticAnchorTooltip";
 
 export default function App() {
   const {
@@ -54,6 +55,10 @@ export default function App() {
     hoverScreenY,
     handleHover,
     handleBadgeHover,
+    anchorTooltip,
+    handleHoverTimeout,
+    handleCloseAnchorTooltip,
+    handleSaveAnchorTooltip,
     canvasScale,
     canvasTranslateX,
     canvasTranslateY,
@@ -104,10 +109,6 @@ export default function App() {
         selectedCount={selectedCount}
         onDeleteSelection={handleDeleteSelection}
         onClearSelection={handleClearSelection}
-        onAddAttribute={handleAddAttribute}
-        onTriggerPassiveAttribute={() => {
-          setIsDrawerOpen(true);
-        }}
       />
 
       {/* 3. Lienzo Infinito con Jetpack Ink Nativo y Badges de Atributos */}
@@ -133,6 +134,7 @@ export default function App() {
           onBarrelButton={handleBarrelButton}
           onSelectionChanged={handleSelectionChanged}
           onHover={handleHover}
+          onHoverTimeout={handleHoverTimeout}
         />
 
         {/* Badges de Atributos Cognitivos anclados al lienzo con soporte Air View */}
@@ -148,6 +150,19 @@ export default function App() {
           onOpenCompiler={() => setIsDrawerOpen(true)}
           onBadgeHover={handleBadgeHover}
         />
+
+        {/* Tooltip flotante contextual de Anclaje Semántico (Hover Dwell 800ms / Botón S-Pen) */}
+        {anchorTooltip?.visible && (
+          <SemanticAnchorTooltip
+            visible={anchorTooltip.visible}
+            screenX={anchorTooltip.screenX}
+            screenY={anchorTooltip.screenY}
+            worldX={anchorTooltip.worldX}
+            worldY={anchorTooltip.worldY}
+            onSave={handleSaveAnchorTooltip}
+            onClose={handleCloseAnchorTooltip}
+          />
+        )}
 
         {/* 4. Barra Inferior Flotante (Solo Stylus & Zoom 100%) */}
         <FloatingFooter

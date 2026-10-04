@@ -13,6 +13,7 @@ import {
   BarrelButtonEvent,
   SelectionChangedEvent,
   HoverEvent,
+  HoverTimeoutEvent,
 } from "../types/canvas";
 
 export * from "../types/canvas";
@@ -40,6 +41,7 @@ export interface JetpackInkCanvasProps extends ViewProps {
   onBarrelButton?: (event: NativeSyntheticEvent<BarrelButtonEvent>) => void;
   onSelectionChanged?: (event: NativeSyntheticEvent<SelectionChangedEvent>) => void;
   onHover?: (event: NativeSyntheticEvent<HoverEvent>) => void;
+  onHoverTimeout?: (event: NativeSyntheticEvent<HoverTimeoutEvent>) => void;
 }
 
 interface NativeJetpackInkViewProps extends ViewProps {
@@ -65,6 +67,7 @@ interface NativeJetpackInkViewProps extends ViewProps {
   onBarrelButton?: (event: NativeSyntheticEvent<BarrelButtonEvent>) => void;
   onSelectionChanged?: (event: NativeSyntheticEvent<SelectionChangedEvent>) => void;
   onHover?: (event: NativeSyntheticEvent<HoverEvent>) => void;
+  onHoverTimeout?: (event: NativeSyntheticEvent<HoverTimeoutEvent>) => void;
 }
 
 const NativeJetpackInkView = requireNativeComponent<NativeJetpackInkViewProps>("JetpackInkView");
@@ -92,6 +95,7 @@ export const JetpackInkCanvas: React.FC<JetpackInkCanvasProps> = ({
   onBarrelButton,
   onSelectionChanged,
   onHover,
+  onHoverTimeout,
   style,
   ...rest
 }) => {
@@ -121,6 +125,7 @@ export const JetpackInkCanvas: React.FC<JetpackInkCanvasProps> = ({
         onBarrelButton={onBarrelButton}
         onSelectionChanged={onSelectionChanged}
         onHover={onHover}
+        onHoverTimeout={onHoverTimeout}
         {...rest}
       />
     </View>

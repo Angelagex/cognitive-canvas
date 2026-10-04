@@ -158,6 +158,33 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
         triggerDrawAndHold()
     }
 
+    // S-Pen Hover Dwell for Semantic Anchoring (ADR 3.1 & Master Spec 4)
+    private val hoverDwellHandler = Handler(Looper.getMainLooper())
+    private var hoverDwellAnchorRawX = 0f
+    private var hoverDwellAnchorRawY = 0f
+    private var isHoverDwellActive = false
+    private var hoverDwellTriggered = false
+    private var lastHoverWorldX = 0f
+    private var lastHoverWorldY = 0f
+    private var lastHoverDpScreenX = 0f
+    private var lastHoverDpScreenY = 0f
+
+    private val hoverDwellRunnable = Runnable {
+        if (isHoverDwellActive && !hoverDwellTriggered) {
+            hoverDwellTriggered = true
+            try {
+                performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+            } catch (_: Exception) {}
+            notifyHoverTimeout(lastHoverWorldX, lastHoverWorldY, lastHoverDpScreenX, lastHoverDpScreenY, 800)
+        }
+    }
+
+    private fun cancelHoverDwell() {
+        hoverDwellHandler.removeCallbacks(hoverDwellRunnable)
+        isHoverDwellActive = false
+        hoverDwellTriggered = false
+    }
+
     private fun triggerDrawAndHold() {
         val ptrId = dwellPointerId
         if (ptrId >= 0 && activeStrokeIds.containsKey(ptrId)) {
@@ -277,13 +304,41 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
 
     private fun notifyBarrelButton(x: Float, y: Float) {
         val reactContext = context as? ReactContext ?: return
+        val density = context.resources.displayMetrics.density
+        val dpX = x / density
+        val dpY = y / density
+        val dpTx = transformManager.canvasTranslateX / density
+        val dpTy = transformManager.canvasTranslateY / density
+        val scale = transformManager.canvasScale
+        val worldX = (dpX - dpTx) / scale
+        val worldY = (dpY - dpTy) / scale
+
         val event = Arguments.createMap().apply {
-            putDouble("x", x.toDouble())
-            putDouble("y", y.toDouble())
+            putDouble("x", dpX.toDouble())
+            putDouble("y", dpY.toDouble())
+            putDouble("worldX", worldX.toDouble())
+            putDouble("worldY", worldY.toDouble())
         }
         reactContext.getJSModule(RCTEventEmitter::class.java)?.receiveEvent(
             id,
             "topBarrelButton",
+            event
+        )
+    }
+
+    private fun notifyHoverTimeout(worldX: Float, worldY: Float, screenX: Float, screenY: Float, durationMs: Int) {
+        android.util.Log.d("AirViewHover", "notifyHoverTimeout -> worldX=$worldX worldY=$worldY screenX=$screenX screenY=$screenY durationMs=$durationMs")
+        val reactContext = context as? ReactContext ?: return
+        val event = Arguments.createMap().apply {
+            putDouble("worldX", worldX.toDouble())
+            putDouble("worldY", worldY.toDouble())
+            putDouble("screenX", screenX.toDouble())
+            putDouble("screenY", screenY.toDouble())
+            putInt("dwellDurationMs", durationMs)
+        }
+        reactContext.getJSModule(RCTEventEmitter::class.java)?.receiveEvent(
+            id,
+            "topHoverTimeout",
             event
         )
     }
@@ -295,6 +350,10 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
         parent?.requestDisallowInterceptTouchEvent(true)
+
+        if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+            cancelHoverDwell()
+        }
 
         val isStylusTouch = (0 until event.pointerCount).any {
             stylusHandler.isStylus(event, it)
@@ -500,12 +559,32 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
                     val worldX = (dpScreenX - dpTranslateX) / scale
                     val worldY = (dpScreenY - dpTranslateY) / scale
 
+                    lastHoverWorldX = worldX
+                    lastHoverWorldY = worldY
+                    lastHoverDpScreenX = dpScreenX
+                    lastHoverDpScreenY = dpScreenY
+
                     notifyHover(worldX, worldY, dpScreenX, dpScreenY, true)
+
+                    // 800 ms Dwell Timer tracking (tolerance <= 15 dp as per ADR 3.1)
+                    val tolerancePx = 15f * density
+                    val distMoved = hypot(event.rawX - hoverDwellAnchorRawX, event.rawY - hoverDwellAnchorRawY)
+
+                    if (!isHoverDwellActive || distMoved > tolerancePx) {
+                        hoverDwellHandler.removeCallbacks(hoverDwellRunnable)
+                        hoverDwellAnchorRawX = event.rawX
+                        hoverDwellAnchorRawY = event.rawY
+                        isHoverDwellActive = true
+                        hoverDwellTriggered = false
+                        hoverDwellHandler.postDelayed(hoverDwellRunnable, 800L)
+                    }
                 } else {
+                    cancelHoverDwell()
                     notifyHover(0f, 0f, 0f, 0f, false)
                 }
             }
             MotionEvent.ACTION_HOVER_EXIT -> {
+                cancelHoverDwell()
                 notifyHover(0f, 0f, 0f, 0f, false)
             }
         }

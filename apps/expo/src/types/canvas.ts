@@ -28,6 +28,8 @@ export interface TransformEvent {
 export interface BarrelButtonEvent {
   x: number;
   y: number;
+  worldX?: number;
+  worldY?: number;
 }
 
 export interface SelectionChangedEvent {
@@ -51,3 +53,13 @@ export interface HoverEvent {
   screenY: number;
   isHovering: boolean;
 }
+
+export interface HoverTimeoutEvent {
+  worldX: number;
+  worldY: number;
+  screenX: number;
+  screenY: number;
+  dwellDurationMs: number;
+  targetEntityId?: string;
+}
+

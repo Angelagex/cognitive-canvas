@@ -11,6 +11,7 @@ import {
   CanvasBackgroundType,
   EraserMode,
   HoverEvent,
+  HoverTimeoutEvent,
 } from "../types/canvas";
 import { CognitiveCompilerOutput } from "@cognitive-canvas/core/types";
 
@@ -196,10 +197,74 @@ export const useCanvasState = () => {
     }
   }, []);
 
-  const handleBarrelButton = useCallback((event: NativeSyntheticEvent<BarrelButtonEvent>) => {
-    // S-Pen hardware barrel button pressed
-    console.log("S-Pen Barrel Button pressed at:", event.nativeEvent.x, event.nativeEvent.y);
+  // Semantic Anchor Tooltip (Air View Hover Dwell 800ms / Barrel Button)
+  const [anchorTooltip, setAnchorTooltip] = useState<{
+    visible: boolean;
+    screenX: number;
+    screenY: number;
+    worldX: number;
+    worldY: number;
+  } | null>(null);
+
+  const handleHoverTimeout = useCallback(
+    (event: NativeSyntheticEvent<HoverTimeoutEvent>) => {
+      const { worldX, worldY, screenX, screenY, dwellDurationMs } = event.nativeEvent;
+      console.log("[SemanticAnchor] Hover timeout dwell (800ms) triggered:", {
+        worldX,
+        worldY,
+        screenX,
+        screenY,
+        dwellDurationMs,
+      });
+      setAnchorTooltip({
+        visible: true,
+        screenX,
+        screenY,
+        worldX,
+        worldY,
+      });
+    },
+    []
+  );
+
+  const handleBarrelButton = useCallback(
+    (event: NativeSyntheticEvent<BarrelButtonEvent>) => {
+      const { x, y, worldX, worldY } = event.nativeEvent;
+      console.log("[SemanticAnchor] S-Pen Barrel button pressed:", { x, y, worldX, worldY });
+      const screenX = x;
+      const screenY = y;
+      const calcWorldX = worldX !== undefined ? worldX : (screenX - canvasTranslateX) / canvasScale;
+      const calcWorldY = worldY !== undefined ? worldY : (screenY - canvasTranslateY) / canvasScale;
+      setAnchorTooltip({
+        visible: true,
+        screenX,
+        screenY,
+        worldX: calcWorldX,
+        worldY: calcWorldY,
+      });
+    },
+    [canvasScale, canvasTranslateX, canvasTranslateY]
+  );
+
+  const handleCloseAnchorTooltip = useCallback(() => {
+    setAnchorTooltip(null);
   }, []);
+
+  const handleSaveAnchorTooltip = useCallback(
+    (type: PassiveAttributeType, title: string, note: string, worldX: number, worldY: number) => {
+      const newAttr: PlacedAttribute = {
+        id: `attr-${Date.now()}`,
+        type,
+        title,
+        note,
+        worldX,
+        worldY,
+      };
+      setPlacedAttributes((prev) => [...prev, newAttr]);
+      setAnchorTooltip(null);
+    },
+    []
+  );
 
   // Action Triggers
   const handleUndo = useCallback(() => {
@@ -239,10 +304,16 @@ export const useCanvasState = () => {
     // Mock compilation grounding with Justin Sung GRINDE + PACER
     setTimeout(() => {
       setCompilation({
+        map_metadata: {
+          title: "Mapa Mental - Redes Neuronales",
+          domain_theme: "Machine Learning / Deep Learning",
+          total_nodes: 2,
+          total_edges: 1,
+        },
         nodes: [
           {
             id: "node_1",
-            visual_bounding_box: [100, 100, 200, 300],
+            visual_bounding_box: { ymin: 100, xmin: 100, ymax: 200, xmax: 300 },
             detected_content: "Concepto Principal: Redes Neuronales",
             passive_context: null,
             pacer_classification: "CONCEPTUAL",
@@ -250,7 +321,7 @@ export const useCanvasState = () => {
           },
           {
             id: "node_2",
-            visual_bounding_box: [300, 100, 400, 300],
+            visual_bounding_box: { ymin: 300, xmin: 100, ymax: 400, xmax: 300 },
             detected_content: "Backpropagation algorithm v1.0",
             passive_context: "Fórmula de derivación en cadena",
             pacer_classification: "EVIDENCE",
@@ -263,18 +334,53 @@ export const useCanvasState = () => {
             target_node_id: "node_2",
             label: "calcula gradientes en",
             is_cross_link: true,
-            relation_nature: "causal",
+            relation_nature: "CAUSAL",
           },
         ],
         grinde_audit: {
           cross_link_density_score: 0.35,
+          non_verbal_balance_score: 0.85,
           linear_thinking_risk: false,
           feedback_critique: "Excelente densidad de relaciones causales y cross-links no lineales.",
         },
+        learning_engine_outputs: {
+          anki_flashcards: [
+            {
+              source_node_id: "node_1",
+              card_type: "CLOZE",
+              front: "Backpropagation",
+              back: "Calcula gradientes",
+            },
+          ],
+          high_road_transfer_prompts: [
+            {
+              core_concept_ids: ["node_2"],
+              unstructured_scenario: "Optimización de flujo en un sistema termodinámico cerrado.",
+              guiding_question: "¿Cómo aplicarías la regla de la cadena de Backpropagation en la minimización de entropía?",
+            },
+          ],
+          derring_effect_challenges: [
+            {
+              flawed_premise: "Aumentar la tasa de aprendizaje a 100 acelerará siempre la convergencia óptima.",
+              corrective_task: "Explica cómo la divergencia de gradientes desestabiliza la superficie de pérdida.",
+              canonical_solution: "Tasas excesivas provocan explosión de gradientes y oscilaciones fuera del mínimo local.",
+            },
+          ],
+          contrasting_cases_icc: [
+            {
+              case_a: "Descenso de gradiente estocástico (SGD)",
+              case_b: "Descenso de gradiente por lotes (Batch GD)",
+              invariant_discovery_prompt: "Identifica el compromiso entre velocidad de convergencia y estabilidad en la superficie de pérdida.",
+            },
+          ],
+        },
         anki_flashcards: [
           {
+            source_node_id: "node_1",
             target_node_id: "node_2",
             card_type: "CLOZE",
+            front: "Backpropagation",
+            back: "Calcula gradientes",
             cloze_text: "Backpropagation calcula el {{c1::gradiente de la función de pérdida}} mediante la regla de la cadena.",
           },
         ],
@@ -343,6 +449,10 @@ export const useCanvasState = () => {
     hoverScreenY,
     handleHover,
     handleBadgeHover,
+    anchorTooltip,
+    handleHoverTimeout,
+    handleCloseAnchorTooltip,
+    handleSaveAnchorTooltip,
     canvasScale,
     canvasTranslateX,
     canvasTranslateY,
