@@ -75,12 +75,13 @@ Basado en: `MASTER_SPEC.md`, `DECISION_RATIONALE.md` y `UI_AND_CANVAS_SPEC.md`.
 > Las interacciones de anclaje de atributos semánticos, el halo perimetral ceñido a palabras completas y el hover dwell sobre entidades complejas dependen directamente del grafo unificado de entidades (`VisualASTEntity[]` y `ConnectorEdge[]`) producido por el **Motor Local de Segmentación y Topología de 5 Niveles** (`VisualASTEngine.ts`).  
 > El clustering heurístico espacial implementado temporalmente en Kotlin (`findEntityClusterAt`) fue una aproximación paliativa inicial; para que una entidad compuesta por múltiples trazos (como una palabra escrita a mano o una caja con título) sea reconocida de forma robusta e invariable, el motor `VisualASTEngine` debe ejecutarse en tiempo real ante cada trazo finalizado (`onStrokeEnd`). Por tanto, la funcionalidad avanzada de anclaje semántico queda formalmente enlazada a la culminación de esta integración.
 
-- [x] **3.1 Motor de 5 Niveles (`VisualASTEngine.ts` en `packages/core`):**
-  - Nivel 1: Clasificación de trazos (cajas cerradas, líneas/conectores, trazos de texto).
-  - Nivel 2: Clúster espacio-temporal (< 600 ms e intersección espacial).
-  - Nivel 3: Flechas compuestas (unificación de tallo y cabeza).
-  - Nivel 4: Contención jerárquica (nodos dentro de `CONTAINER_BOX`).
-  - Nivel 5: Acoplamiento magnético a nodos más cercanos (<= 30px) y enlace de etiquetas textuales.
+- [x] **3.1 Motor Avanzado de 5 Niveles y Topología Causal (`VisualASTEngine.ts` en `packages/core`):**
+  - Nivel 1: Clasificación de trazos (cajas cerradas, líneas/conectores rectos/curvos/codo, puntas de flecha, tapas en T, texto, iconos y gestos scratch-out).
+  - Nivel 2: Agrupamiento adaptativo por línea base ($\tilde{H}$) y componentes conexas (elimina la restricción temporal rígida de 600 ms, absorbe trazos retardados y poda entidades tachadas).
+  - Nivel 3: Flechas compuestas unificadas (rectas, curvas Bézier, codos ortogonales), conectores inhibitorios ($\bot$), flechas bidireccionales ($\leftrightarrow$) y ensamblado de contenedores multi-trazo (3 a 6 líneas formando polígonos cerrados).
+  - Nivel 4: Contención jerárquica (nodos y palabras dentro de `CONTAINER_BOX` mono y multi-trazo).
+  - Nivel 5: Acoplamiento magnético a nodos más cercanos (<= 100 px), enlace de etiquetas textuales intermedias, detección de bucles causales ($A \to B \to C \to A$) y cálculo de métricas de red (raíces, sumideros y enlaces cruzados).
+  - Suite de pruebas completa: 16/16 tests pasando en `visualAST.test.ts` (100% pasando en Vitest).
 - [ ] **3.2 Tareas de Integración & Puente en Tiempo Real (Foco Actual):**
   - [x] **Conexión en Tiempo Real del Visual AST con el Lienzo (`useCanvasState` + `serializeStrokes` / `onStrokeEnd`):**
     * *Diagnóstico superado:* Serialización de trazos (`RawInkStroke[]`) desde Android hacia JS en `onStrokeEnd` completada con normalización de densidad.

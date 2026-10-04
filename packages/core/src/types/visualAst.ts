@@ -51,6 +51,7 @@ export interface VisualEntity {
   semantic_anchor?: SemanticAnchor | null;
   passive_context?: string | null;
   child_ids?: string[]; // Level 4: Hierarchical containment inside CONTAINER_BOX
+  is_scratched_out?: boolean; // Feature 6: In-AST scratch-out flag
 }
 
 /**
@@ -59,16 +60,40 @@ export interface VisualEntity {
 export type ConnectorDirectionality = "FORWARD" | "BIDIRECTIONAL" | "NONE";
 
 /**
+ * Connector Geometry Type (Feature 2)
+ */
+export type ConnectorGeometryType = "STRAIGHT" | "CURVED" | "ELBOW";
+
+/**
  * Connector Edge between entities (Level 5: Magnetic Docking & Relational Labels)
  */
 export interface ConnectorEdge {
   id: string;
-  type: "ARROW" | "LINE";
+  type: "ARROW" | "LINE" | "INHIBITION"; // Feature 5: Added INHIBITION
   stroke_ids: string[];
   source_entity_id?: string; // Magnetically docked source entity id
   target_entity_id?: string; // Magnetically docked target entity id
   directionality: ConnectorDirectionality;
   label?: string; // Adjacent handwritten relational label (e.g. "inhibe", "restringe a")
+  is_curved?: boolean; // Feature 2: Curved Bézier or Elbow connector
+  geometry_type?: ConnectorGeometryType; // Feature 2: Structural geometry
+}
+
+/**
+ * Detected Causal Feedback Loop (Feature 4: System Dynamics / Novak Concept Maps)
+ */
+export interface CausalLoop {
+  cycle_ids: string[]; // Ordered entity IDs forming the closed loop: [A, B, C, A]
+  node_count: number;
+}
+
+/**
+ * High-Level Topological Flow Metrics (Feature 4)
+ */
+export interface TopologyMetrics {
+  root_entity_ids: string[]; // In-degree 0, Out-degree > 0 (Starting premises / central concepts)
+  sink_entity_ids: string[]; // In-degree > 0, Out-degree 0 (Terminal conclusions / leaf outcomes)
+  cross_link_count: number;  // Connectors bridging non-linear branches (Novakian meaningful learning indicator)
 }
 
 /**
@@ -77,4 +102,7 @@ export interface ConnectorEdge {
 export interface VisualAST {
   entities: VisualEntity[];
   connectors: ConnectorEdge[];
+  causal_loops?: CausalLoop[]; // Feature 4: Detected causal feedback cycles
+  topology_metrics?: TopologyMetrics; // Feature 4: Flow and hierarchical metrics
 }
+

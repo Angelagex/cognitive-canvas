@@ -41,13 +41,13 @@ cognitive-canvas/
 ├── packages/
 │   ├── core/                 # Lógica compartida y contratos tipados
 │   │   ├── src/
-│   │   │   ├── parser/       # VisualASTEngine (Motor de Segmentación y Topología de 5 Niveles)
+│   │   │   ├── parser/       # VisualASTEngine (Motor de 5 Niveles - ver VISUAL_AST_SPEC.md)
 │   │   │   └── types/        # Contratos TypeScript canónicos (AST, Ink, Persistence, IA)
 │   │   └── test/             # Tests unitarios Vitest para el Visual AST y esquemas
 │   └── functions/            # Lambdas Serverless de SST v3 (Compilación Gemini 2.0 Flash)
 ├── scripts/
 │   └── install-app.sh        # Automatización de build e instalación en Galaxy Tab
-└── .antigravity/docs/        # Especificaciones maestras y plan de implementación
+└── .antigravity/docs/        # Especificaciones maestras (MASTER_SPEC, VISUAL_AST_SPEC, DECISION_RATIONALE)
 ```
 
 ---

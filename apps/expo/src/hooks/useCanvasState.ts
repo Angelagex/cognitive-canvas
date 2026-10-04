@@ -118,6 +118,18 @@ export const useCanvasState = () => {
           const ast = visualASTEngine.parseVisualAST(strokes, passiveMap);
           setVisualAST(ast);
           console.log(`[VisualASTEngine] Live AST updated: ${ast.entities.length} entities, ${ast.connectors.length} connectors`);
+          ast.entities.forEach((ent, idx) => {
+            console.log(
+              `  [Entity ${idx + 1}] (${ent.type}): ${ent.stroke_ids.length} strokes, bbox: [${Math.round(ent.bbox.xmin)}, ${Math.round(ent.bbox.ymin)} -> ${Math.round(ent.bbox.xmax)}, ${Math.round(ent.bbox.ymax)}]`
+            );
+          });
+          if (ast.connectors.length > 0) {
+            ast.connectors.forEach((conn, idx) => {
+              console.log(
+                `  [Connector ${idx + 1}] (${conn.type}, ${conn.geometry_type}): ${conn.directionality}, strokes: ${conn.stroke_ids.join(", ")}`
+              );
+            });
+          }
         } catch (err) {
           console.warn("[VisualASTEngine] Error parsing live strokes:", err);
         }
@@ -197,21 +209,33 @@ export const useCanvasState = () => {
     // 1. Resolve entity bounds from live Visual AST (word/container entity) or native fallback
     let resolvedEntityBounds: EntityBoundingBox | null = null;
     const hitTolerance = 25; // 25dp tolerance
-    const astEntityMatch = visualAST.entities.find((ent: VisualASTEntity) => {
-      return (
+    let bestEntity: VisualASTEntity | null = null;
+    let minDistance = Infinity;
+
+    for (const ent of visualAST.entities) {
+      const isInside =
         worldX >= ent.bbox.xmin - hitTolerance &&
         worldX <= ent.bbox.xmax + hitTolerance &&
         worldY >= ent.bbox.ymin - hitTolerance &&
-        worldY <= ent.bbox.ymax + hitTolerance
-      );
-    });
+        worldY <= ent.bbox.ymax + hitTolerance;
 
-    if (astEntityMatch) {
+      if (isInside) {
+        const cx = (ent.bbox.xmin + ent.bbox.xmax) / 2;
+        const cy = (ent.bbox.ymin + ent.bbox.ymax) / 2;
+        const dist = Math.hypot(worldX - cx, worldY - cy);
+        if (dist < minDistance) {
+          minDistance = dist;
+          bestEntity = ent;
+        }
+      }
+    }
+
+    if (bestEntity) {
       resolvedEntityBounds = {
-        xmin: astEntityMatch.bbox.xmin,
-        ymin: astEntityMatch.bbox.ymin,
-        xmax: astEntityMatch.bbox.xmax,
-        ymax: astEntityMatch.bbox.ymax,
+        xmin: bestEntity.bbox.xmin,
+        ymin: bestEntity.bbox.ymin,
+        xmax: bestEntity.bbox.xmax,
+        ymax: bestEntity.bbox.ymax,
       };
     } else if (entityBounds) {
       resolvedEntityBounds = entityBounds;

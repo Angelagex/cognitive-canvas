@@ -14,8 +14,10 @@ export const RetrievalPanel: React.FC<RetrievalPanelProps> = ({ compilation }) =
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<"audit" | "anki" | "transfer" | "cases">("audit");
 
+  const cards = compilation?.anki_flashcards || compilation?.learning_engine_outputs?.anki_flashcards || [];
+
   const handleSyncAnki = async () => {
-    if (!compilation || compilation.anki_flashcards.length === 0) {
+    if (!compilation || cards.length === 0) {
       Alert.alert("Sin tarjetas", "No hay tarjetas de memoria de alta fidelidad para sincronizar.");
       return;
     }
@@ -38,7 +40,7 @@ export const RetrievalPanel: React.FC<RetrievalPanelProps> = ({ compilation }) =
       }
 
       setSyncStatus("Sincronizando tarjetas...");
-      const result = await ankiClient.syncFlashcards(compilation.anki_flashcards);
+      const result = await ankiClient.syncFlashcards(cards);
       setSyncStatus(`Sincronizadas: ${result.synced} | Fallidas: ${result.failed}`);
       Alert.alert("Éxito Anki", `Se inyectaron ${result.synced} tarjetas en Anki Desktop.`);
     } catch (error: any) {
@@ -59,7 +61,11 @@ export const RetrievalPanel: React.FC<RetrievalPanelProps> = ({ compilation }) =
     );
   }
 
-  const { grinde_audit, anki_flashcards, high_road_transfer_prompts, derring_effect_challenges, contrasting_cases_icc } = compilation;
+  const { grinde_audit } = compilation;
+  const anki_flashcards = compilation.anki_flashcards || compilation.learning_engine_outputs?.anki_flashcards || [];
+  const high_road_transfer_prompts = compilation.high_road_transfer_prompts || compilation.learning_engine_outputs?.high_road_transfer_prompts || [];
+  const derring_effect_challenges = compilation.derring_effect_challenges || compilation.learning_engine_outputs?.derring_effect_challenges || [];
+  const contrasting_cases_icc = compilation.contrasting_cases_icc || compilation.learning_engine_outputs?.contrasting_cases_icc || [];
 
   return (
     <View style={styles.container}>

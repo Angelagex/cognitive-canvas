@@ -116,3 +116,47 @@ Registro de Decisiones Arquitectónicas, Principios Pedagógicos y Trade-offs T�
   * Disparidad de Propósito: ML Kit es un transcriptor OCR de texto plano a caracteres ASCII; desconoce la topología gráfica (no entiende flechas compuestas de tallo + punta, ni docking magnético, ni contención padre-hijo, ni iconos abstractos de GRINDE).
   * Peso y Autonomía: ML Kit requiere dependencias nativas de Google Play Services y descarga de modelos binarios de 25-40 MB por idioma. `VisualASTEngine` corre en TypeScript puro (< 5 KB), se ejecuta en < 2 ms, funciona 100% offline y es universalmente testeable en Vitest y ejecutable en la tablet y en Lambdas sin dependencias externas.
   * Visión Multimodal Nativa de Gemini 2.0 Flash: La lectura OCR exhaustiva y el entendimiento profundo de la caligrafía los realiza Gemini sobre el bitmap PNG de alta resolución. El motor local solo necesita saber qué trazos forman una unidad física, no su valor textual transcrito.
+
+6.3 Decisión: Umbrales Adaptativos de Escala Caligráfica ($\tilde{H}$) vs. Píxeles Fijos
+- Contexto: Los usuarios alternan entre escribir notas pequeñas al margen (altura ~14-18 px) y títulos de conceptos grandes (~50-80 px).
+- Decisión: Sustituir umbrales estáticos por factores adaptativos escalados según $\tilde{H} = \max(14, \min(h_A, h_B))$.
+  * $\Delta x_{\max} = \max(24, \min(65, 1.25 \times \tilde{H}))$.
+  * $\Delta y_{\max} = \max(16, 0.85 \times \tilde{H})$.
+- Rationale Biomecánico:
+  * En caligrafía pequeña, un $\Delta x$ estático de 42 px fusionaba accidentalmente palabras distintas separadas por espacios cortos.
+  * En titulares grandes, un $\Delta x$ de 42 px fracturaba una misma palabra si el espaciado inter-letra superaba 45 px. La escala adaptativa normaliza la variabilidad caligráfica en tiempo real.
+
+6.4 Decisión: Conectores Curvos Bézier y Ortogonales (Codo) con Filtro de Inflexión Vertical
+- Contexto: Los mapas mentales y diagramas causales utilizan flechas arqueadas para rodear nodos y flechas en ángulo recto (codo) para organizar flujos.
+- Decisión: Integrar clasificación geométrica de conectores curvos (`CURVED`) y ortogonales (`ELBOW`) con `is_curved: true`.
+- Rationale Geométrico y Discriminación de Texto:
+  * Inflexión Vertical: Una flecha curva es un arco suave que presenta a lo sumo 1 inversión vertical en $Y$ ($\le 1$ extremo local). La escritura manuscrita o cursiva oscila verticalmente trazando astas y lazos ($\ge 2$ inversiones en $Y$). Este invariante geométrico evita que palabras cursivas sean erróneamente clasificadas como tallos de flecha.
+  * Detección de Codo: Identifica vértices ortogonales donde dos segmentos consecutivos giran a $90^\circ \pm 20^\circ$ ($|\cos \theta| \le 0.35$).
+
+6.5 Decisión: Detección de Contenedores Multi-Trazo por Ciclos Poligonales (3 a 6 Trazos)
+- Contexto: Los usuarios frecuentemente dibujan cajas delimitadoras trazando 4 líneas rectas separadas (arriba, derecha, abajo, izquierda) en lugar de un único rectángulo cerrado sin levantar el lápiz.
+- Decisión: Implementar un detector de ciclos simples en el grafo de conectividad de extremos de líneas rectas (tolerancia $\le 35\text{ px}$), fusionándolas en una única entidad `CONTAINER_BOX`.
+- Rationale Topológico:
+  * Exclusión de Puntas de Flecha: Solo se consideran líneas rectas cuyos extremos no contengan puntas de flecha (`ARROW_HEAD`), evitando que ciclos de flechas causales se confundan con una caja.
+  * Jerarquía Automática: Permite que el Nivel 4 (Contención Jerárquica) capture inmediatamente cualquier entidad dibujada dentro de una caja de 4 trazos como `child_ids`.
+
+6.6 Decisión: Detección Topológica de Bucles Causales ($A \to B \to C \to A$) y Métricas de Flujo
+- Contexto: Los Mapas Conceptuales de Novak y los Diagramas de Bucles Causales de Senge basan su valor cognitivo en la identificación de ciclos de retroalimentación y premisas fundamentales.
+- Decisión: Incorporar en el Visual AST la detección de ciclos dirigidos simples (`causal_loops`) y métricas de red (`topology_metrics`):
+  * `root_entity_ids`: Nodos con grado de entrada 0 y salida > 0 (conceptos raíz / premisas generadoras).
+  * `sink_entity_ids`: Nodos con grado de entrada > 0 y salida 0 (conclusiones o impactos terminales).
+  * `cross_link_count`: Conexiones cruzadas convergentes, indicador empírico de aprendizaje significativo ausubeliano.
+- Rationale de Aprendizaje:
+  * Provee a Gemini de metadatos estructurales de alto nivel antes del prompting, permitiéndole generar retos de desaprendizaje (*Derring Effect*) y preguntas socráticas dirigidas exactamente a los bucles causales dibujados.
+
+6.7 Decisión: Conectores Inhibitorios ($\bot$) y Flechas Bidireccionales ($\leftrightarrow$)
+- Contexto: En modelos de sistemas complejos, bioquímica, neurociencia y lógica argumentativa, ciertas relaciones son de bloqueo, inhibición o supresión ($A \bot B$), o de influencia recíproca ($A \leftrightarrow B$).
+- Decisión: Soportar `type: "INHIBITION"` (tapa perpendicular en T en el extremo del tallo, ángulo $60^\circ - 120^\circ$) y `directionality: "BIDIRECTIONAL"` (puntas en ambos extremos).
+- Rationale Semántico:
+  * Traduce directamente la semántica de la flecha al compilador: una arista inhibitoria mapea a relaciones semánticas de supresión o penalización en el grafo compilado sin requerir texto explicativo.
+
+6.8 Decisión: Detección y Poda de Gestos de Tachado (*Scratch-Out*) In-AST
+- Contexto: Corrección rápida de errores en el lienzo durante la sesión de dibujo sin necesidad de cambiar a la herramienta borrador.
+- Decisión: Detectar trazos con $\ge 4$ inversiones rápidas de dirección horizontal ($dx$) en un área densa, identificándolos como `SCRATCH_OUT`. Las entidades cuyo bounding box tenga $\ge 35\%$ de solapamiento con el tachado son marcadas como `is_scratched_out: true` y podadas del AST activo.
+- Rationale de Experiencia de Usuario:
+  * Flujo de Pensamiento sin Fricción: El usuario tacha una palabra con un zig-zag rápido del S-Pen y continúa pensando sin interrumpir el flujo cambiando de modo de herramienta. El Visual AST ignora la entidad podada, impidiendo que contamine el grafo cognitivo o las tarjetas de Anki.

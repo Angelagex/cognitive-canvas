@@ -144,12 +144,26 @@ Para no interrumpir el flujo de pensamiento durante el dibujo:
 ================================================================================
 
 5.1 Motor Local de Segmentación y Topología (Visual AST):
-Antes de llamar a la IA, el motor local organiza los trazos en un árbol sintáctico:
-1. Clasificación de trazos: Discrimina texto manuscrito, conectores lineales, contenedores cerrados e iconos gráficos.
-2. Agrupamiento espacio-temporal (Stroke Clustering): Fusiona trazos realizados a corta distancia y con intervalo menor a 600 ms en una sola entidad lógica (palabra o icono).
-3. Formas compuestas: Identifica flechas uniendo el tallo y la punta en una primitiva con dirección.
-4. Topología espacial: Si un nodo está dentro de una caja cerrada, infiere relación de contención jerárquica. Si hay texto escrito junto a una flecha, lo convierte en la etiqueta de relación (ej. "inhibe").
-5. Docking magnético: Los extremos de las flechas se acoplan al borde de la caja del nodo más cercano (distancia <= 30px).
+> *Especificación completa y formalización matemática en: [VISUAL_AST_SPEC.md](file:///home/angel/personal/cognitive-canvas/.antigravity/docs/VISUAL_AST_SPEC.md)*
+
+Antes de llamar a la IA, el motor local organiza los trazos en un árbol sintáctico determinista y de alto rendimiento:
+1. Clasificación de trazos: Discrimina texto manuscrito, conectores lineales (rectos, curvos Bézier, ortogonales en codo), puntas de flecha, tapas inhibitorias en T ($\bot$), contenedores cerrados y gestos de tachado (*scratch-out*).
+2. Agrupamiento Adaptativo por Línea Base (Adaptive Stroke Clustering):
+   - Elimina la fractura por pausas temporales (> 600 ms) usando Componentes Conexas (BFS) con escala dinámica $\tilde{H} = \max(14, \min(h_A, h_B))$.
+   - Umbrales dinámicos: $\Delta x_{\max} = \max(24, \min(65, 1.25 \tilde{H}))$, $\Delta y_{\max} = \max(16, 0.85 \tilde{H})$.
+   - Absorción automática de trazos retardados (*delayed strokes*: cruces de `t`, diacríticos, tildes, puntos sobre la `i`).
+   - Poda en tiempo de AST de entidades tachadas por gestos en zigzag horizontal (*scratch-out*).
+3. Formas compuestas y Conectores Avanzados:
+   - Asignación de puntas de flecha (`ARROW_HEAD`) por proximidad a extremos de tallos rectos, curvos u ortogonales.
+   - Conectores dirigidos (`FORWARD`), bidireccionales (`BIDIRECTIONAL`) e inhibitorios (`INHIBITION`, tapa perpendicular en T).
+   - Ensamblado de contenedores multi-trazo (3 a 6 líneas rectas formando un ciclo poligonal cerrado sin levantar el lápiz).
+4. Topología Espacial y Bucles Causales:
+   - Contención Jerárquica: Si los límites de un nodo o palabra están dentro de un `CONTAINER_BOX`, se asigna a `child_ids`.
+   - Detección de Ciclos Causales (`causal_loops`): Encuentra y normaliza bucles de retroalimentación dirigidos ($A \to B \to C \to A$) para modelos de sistemas y mapas conceptuales de Novak.
+   - Métricas de Red (`topology_metrics`): Identifica premisas generadoras raíz (in-degree 0), conclusiones terminales (out-degree 0) y densidad de enlaces cruzados (*cross-links*).
+5. Docking Magnético y Etiquetas Relacionales:
+   - Los extremos de los conectores se acoplan al borde del bounding box de los nodos más cercanos (distancia <= 100 px).
+   - El texto manuscrito adyacente al punto medio del tallo se enlaza como etiqueta de relación (ej. "inhibe", "restringe a").
 
 5.2 Reconocimiento de Gestos Dinámicos con Stylus (Ink Gestures):
 El motor nativo intercepta patrones gestuales en tiempo real antes de persistir los trazos:

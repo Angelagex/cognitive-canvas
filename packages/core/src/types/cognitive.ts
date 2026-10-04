@@ -40,10 +40,10 @@ export type CognitiveEdge = Omit<CompiledEdge, "relation_nature"> & {
 
 // Progressive Migration Bridge: Allows existing frontend components to read both legacy flat fields and new learning_engine_outputs
 export type CognitiveCompilerOutput = CompiledCognitiveMap & {
-  anki_flashcards: (AnkiFlashcard & { target_node_id?: string; cloze_text?: string })[];
-  high_road_transfer_prompts: any[];
-  derring_effect_challenges: any[];
-  contrasting_cases_icc: any[];
+  anki_flashcards?: (AnkiFlashcard & { target_node_id?: string; cloze_text?: string })[];
+  high_road_transfer_prompts?: any[];
+  derring_effect_challenges?: any[];
+  contrasting_cases_icc?: any[];
 };
 
 export const COGNITIVE_COMPILER_JSON_SCHEMA = COMPILER_JSON_SCHEMA;
