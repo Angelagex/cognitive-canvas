@@ -8,7 +8,7 @@ import {
   Dimensions,
   TouchableWithoutFeedback,
 } from "react-native";
-import { PassiveAttributeType } from "../../types/canvas";
+import { PassiveAttributeType, EntityBoundingBox } from "../../types/canvas";
 
 export interface SemanticAnchorTooltipProps {
   visible: boolean;
@@ -16,6 +16,11 @@ export interface SemanticAnchorTooltipProps {
   screenY: number;
   worldX: number;
   worldY: number;
+  entityBounds?: EntityBoundingBox | null;
+  canvasScale?: number;
+  canvasTranslateX?: number;
+  canvasTranslateY?: number;
+  onModalOpen?: () => void;
   onSave: (
     type: PassiveAttributeType,
     title: string,
@@ -62,18 +67,23 @@ export const SemanticAnchorTooltip: React.FC<SemanticAnchorTooltipProps> = ({
   screenY,
   worldX,
   worldY,
+  entityBounds,
+  canvasScale,
+  canvasTranslateX,
+  canvasTranslateY,
+  onModalOpen,
   onSave,
   onClose,
 }) => {
+  const [stage, setStage] = useState<"icon" | "modal">("icon");
   const [selectedType, setSelectedType] = useState<PassiveAttributeType>("CAUSAL_MECHANISM");
-  const [title, setTitle] = useState("");
   const [note, setNote] = useState("");
   const [isRecordingAudio, setIsRecordingAudio] = useState(false);
   const [hasAudioRecorded, setHasAudioRecorded] = useState(false);
 
   useEffect(() => {
     if (visible) {
-      setTitle("");
+      setStage("icon");
       setNote("");
       setIsRecordingAudio(false);
       setHasAudioRecorded(false);
@@ -83,25 +93,10 @@ export const SemanticAnchorTooltip: React.FC<SemanticAnchorTooltipProps> = ({
   if (!visible) return null;
 
   const { width: windowWidth, height: windowHeight } = Dimensions.get("window");
-  const CARD_WIDTH = 320;
-  const CARD_HEIGHT = 330;
-
-  // Smart floating positioning avoiding toolbar and screen edges
-  let left = screenX + 16;
-  if (left + CARD_WIDTH > windowWidth - 20) {
-    left = Math.max(16, screenX - CARD_WIDTH - 16);
-  }
-
-  let top = screenY - 50;
-  if (top + CARD_HEIGHT > windowHeight - 70) {
-    top = windowHeight - CARD_HEIGHT - 70;
-  }
-  top = Math.max(70, top); // Keep clear of top toolbar (56dp + margin)
-
   const activeConfig = TYPE_CONFIG[selectedType];
 
   const handleSave = () => {
-    const finalTitle = title.trim() || activeConfig.defaultTitle;
+    const finalTitle = activeConfig.defaultTitle;
     const finalNote = note.trim() || (hasAudioRecorded ? "🎙️ [Nota de voz grabada para auditoría GRINDE]" : "Anotación conceptual");
     onSave(selectedType, finalTitle, finalNote, worldX, worldY);
     onClose();
@@ -116,6 +111,73 @@ export const SemanticAnchorTooltip: React.FC<SemanticAnchorTooltipProps> = ({
       }, 1500);
     }
   };
+
+  const handleOpenModal = () => {
+    setStage("modal");
+    onModalOpen?.();
+  };
+
+  // 1. Stage "icon": Compact semi-opaque floating trigger (ADR 3.1 & Ergonomic 2-step anchor)
+  if (stage === "icon") {
+    const ICON_WIDTH = 48;
+    const ICON_HEIGHT = 48;
+    let iconLeft = screenX - ICON_WIDTH / 2;
+    let iconTop = screenY - ICON_HEIGHT - 12;
+
+    // If an entity was recognized, place the icon directly at its top-right corner
+    if (entityBounds && canvasScale !== undefined && canvasTranslateX !== undefined && canvasTranslateY !== undefined) {
+      const entityRight = entityBounds.xmax * canvasScale + canvasTranslateX;
+      const entityTop = entityBounds.ymin * canvasScale + canvasTranslateY;
+      iconLeft = entityRight - ICON_WIDTH / 2;
+      iconTop = entityTop - ICON_HEIGHT - 8;
+    }
+
+    // Ensure icon stays within bounds
+    iconLeft = Math.max(16, Math.min(windowWidth - ICON_WIDTH - 16, iconLeft));
+    iconTop = Math.max(65, Math.min(windowHeight - ICON_HEIGHT - 20, iconTop));
+
+    return (
+      <TouchableWithoutFeedback onPress={onClose}>
+        <View style={StyleSheet.absoluteFillObject} pointerEvents="box-none">
+          <TouchableOpacity
+            style={[styles.floatingAnchorBtn, { left: iconLeft, top: iconTop }]}
+            onPress={handleOpenModal}
+            activeOpacity={0.8}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          >
+            <View style={styles.floatingAnchorInner}>
+              <Text style={styles.floatingPlus}>＋</Text>
+              <Text style={styles.floatingPin}>📌</Text>
+            </View>
+          </TouchableOpacity>
+        </View>
+      </TouchableWithoutFeedback>
+    );
+  }
+
+  // 2. Stage "modal": Full attribute anchoring modal with title input removed
+  const CARD_WIDTH = 320;
+  const CARD_HEIGHT = 270;
+
+  // Smart floating positioning avoiding toolbar, screen edges and entity overlap
+  let left = screenX + 16;
+  let top = screenY - 50;
+
+  if (entityBounds && canvasScale !== undefined && canvasTranslateX !== undefined && canvasTranslateY !== undefined) {
+    const entityRight = entityBounds.xmax * canvasScale + canvasTranslateX;
+    const entityTop = entityBounds.ymin * canvasScale + canvasTranslateY;
+    left = entityRight + 12;
+    top = entityTop - 20;
+  }
+
+  if (left + CARD_WIDTH > windowWidth - 20) {
+    left = Math.max(16, screenX - CARD_WIDTH - 16);
+  }
+
+  if (top + CARD_HEIGHT > windowHeight - 70) {
+    top = windowHeight - CARD_HEIGHT - 70;
+  }
+  top = Math.max(70, top); // Keep clear of top toolbar (56dp + margin)
 
   return (
     <TouchableWithoutFeedback onPress={onClose}>
@@ -175,17 +237,7 @@ export const SemanticAnchorTooltip: React.FC<SemanticAnchorTooltipProps> = ({
               })}
             </View>
 
-            {/* Title input */}
-            <TextInput
-              style={styles.titleInput}
-              placeholder={activeConfig.defaultTitle}
-              placeholderTextColor="#64748B"
-              value={title}
-              onChangeText={setTitle}
-              autoFocus
-            />
-
-            {/* Note input */}
+            {/* Note input (only input maintained) */}
             <TextInput
               style={styles.noteInput}
               placeholder={activeConfig.hint}
@@ -194,6 +246,7 @@ export const SemanticAnchorTooltip: React.FC<SemanticAnchorTooltipProps> = ({
               onChangeText={setNote}
               multiline
               numberOfLines={2}
+              autoFocus
             />
 
             {/* Voice Dictation (Justin Sung Verbal Retrieval) */}
@@ -312,16 +365,37 @@ const styles = StyleSheet.create({
     color: "#94A3B8",
     fontWeight: "500",
   },
-  titleInput: {
-    backgroundColor: "#1E293B",
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#334155",
-    color: "#F8FAFC",
+  floatingAnchorBtn: {
+    position: "absolute",
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "rgba(15, 23, 42, 0.92)",
+    borderWidth: 2,
+    borderColor: "#38BDF8",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#38BDF8",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.85,
+    shadowRadius: 12,
+    elevation: 16,
+    zIndex: 999,
+  },
+  floatingAnchorInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  floatingPlus: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#38BDF8",
+    lineHeight: 24,
+  },
+  floatingPin: {
     fontSize: 13,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    marginBottom: 8,
+    marginLeft: 1,
   },
   noteInput: {
     backgroundColor: "#1E293B",

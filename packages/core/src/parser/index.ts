@@ -1,1 +1,1 @@
-export * from "./VisualASTEngine.js";
+export * from "./VisualASTEngine";

@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { StyleSheet, View, Text, TouchableOpacity, Pressable, Modal, TouchableWithoutFeedback } from "react-native";
-import { PlacedAttribute } from "../../types/canvas";
+import { PlacedAttribute, EntityBoundingBox } from "../../types/canvas";
 
 interface PlacedAttributeBadgesProps {
   attributes: PlacedAttribute[];
@@ -8,6 +8,14 @@ interface PlacedAttributeBadgesProps {
   canvasTranslateX: number;
   canvasTranslateY: number;
   hoveredAttribute?: PlacedAttribute | null;
+  activeAnchorEntityId?: string | null;
+  hoveredEntityBounds?: EntityBoundingBox | null;
+  activeEntityBounds?: EntityBoundingBox | null;
+  anchorTooltip?: {
+    visible: boolean;
+    worldX: number;
+    worldY: number;
+  } | null;
   hoverScreenX?: number;
   hoverScreenY?: number;
   onDeleteAttribute: (id: string) => void;
@@ -21,6 +29,10 @@ export const PlacedAttributeBadges: React.FC<PlacedAttributeBadgesProps> = ({
   canvasTranslateX,
   canvasTranslateY,
   hoveredAttribute,
+  activeAnchorEntityId,
+  hoveredEntityBounds,
+  activeEntityBounds,
+  anchorTooltip,
   hoverScreenX = 0,
   hoverScreenY = 0,
   onDeleteAttribute,
@@ -64,33 +76,77 @@ export const PlacedAttributeBadges: React.FC<PlacedAttributeBadgesProps> = ({
         const screenX = attr.worldX * canvasScale + canvasTranslateX;
         const screenY = attr.worldY * canvasScale + canvasTranslateY;
         const styleInfo = getAttributeStyle(attr.type);
+        const isHovered = hoveredAttribute?.id === attr.id;
+        const isAnchoring = activeAnchorEntityId === attr.id;
+        const hasHalo = isHovered || isAnchoring;
 
         return (
-          <Pressable
+          <View
             key={attr.id}
             style={[
-              styles.badgeContainer,
+              styles.badgeWrapper,
               {
                 left: screenX,
                 top: screenY,
-                backgroundColor: styleInfo.bgColor,
-                borderColor: styleInfo.borderColor,
                 transform: [{ scale: Math.min(1.2, Math.max(0.7, canvasScale)) }],
               },
             ]}
-            onPress={() => setSelectedAttr(attr)}
-            onHoverIn={() => onBadgeHover?.(attr, screenX, screenY)}
-            onHoverOut={() => onBadgeHover?.(null)}
-            onPointerEnter={() => onBadgeHover?.(attr, screenX, screenY)}
-            onPointerLeave={() => onBadgeHover?.(null)}
           >
-            <Text style={styles.badgeIcon}>{styleInfo.icon}</Text>
-            <Text style={[styles.badgeText, { color: styleInfo.textColor }]}>
-              {attr.title}
-            </Text>
-          </Pressable>
+            {/* Halo Perimetral / Resplandor Neón */}
+            {hasHalo && <View style={styles.haloAura} pointerEvents="none" />}
+
+            <Pressable
+              style={[
+                styles.badgeContainer,
+                {
+                  backgroundColor: styleInfo.bgColor,
+                  borderColor: hasHalo ? "#38BDF8" : styleInfo.borderColor,
+                  borderWidth: hasHalo ? 2 : 1.5,
+                },
+                hasHalo && styles.badgeHaloGlow,
+              ]}
+              onPress={() => setSelectedAttr(attr)}
+              onHoverIn={() => onBadgeHover?.(attr, screenX, screenY)}
+              onHoverOut={() => onBadgeHover?.(null)}
+              onPointerEnter={() => onBadgeHover?.(attr, screenX, screenY)}
+              onPointerLeave={() => onBadgeHover?.(null)}
+            >
+              <Text style={styles.badgeIcon}>{styleInfo.icon}</Text>
+              <Text style={[styles.badgeText, { color: styleInfo.textColor }]}>
+                {attr.title}
+              </Text>
+            </Pressable>
+          </View>
         );
       })}
+
+      {/* Halo Perimetral / Resplandor Neón sobre la palabra o entidad completa */}
+      {(() => {
+        const bounds = activeEntityBounds || hoveredEntityBounds;
+        if (!bounds) return null;
+
+        const left = bounds.xmin * canvasScale + canvasTranslateX;
+        const top = bounds.ymin * canvasScale + canvasTranslateY;
+        const width = (bounds.xmax - bounds.xmin) * canvasScale;
+        const height = (bounds.ymax - bounds.ymin) * canvasScale;
+
+        return (
+          <View
+            pointerEvents="none"
+            style={[
+              styles.wordEntityHalo,
+              {
+                left,
+                top,
+                width,
+                height,
+              },
+            ]}
+          >
+            <View style={styles.wordEntityInnerBorder} />
+          </View>
+        );
+      })()}
 
       {/* Air View / S-Pen Hover Affordance Floating Tooltip (Spec 4.3) */}
       {hoveredAttribute && (
@@ -189,8 +245,11 @@ export const PlacedAttributeBadges: React.FC<PlacedAttributeBadgesProps> = ({
 };
 
 const styles = StyleSheet.create({
-  badgeContainer: {
+  badgeWrapper: {
     position: "absolute",
+    zIndex: 5,
+  },
+  badgeContainer: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 10,
@@ -202,7 +261,49 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.35,
     shadowRadius: 4,
     elevation: 6,
-    zIndex: 5,
+  },
+  haloAura: {
+    position: "absolute",
+    top: -8,
+    left: -8,
+    right: -8,
+    bottom: -8,
+    borderRadius: 24,
+    borderWidth: 1.5,
+    borderColor: "rgba(56, 189, 248, 0.7)",
+    backgroundColor: "rgba(56, 189, 248, 0.16)",
+    shadowColor: "#38BDF8",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.95,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  badgeHaloGlow: {
+    borderColor: "#38BDF8",
+    shadowColor: "#38BDF8",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.95,
+    shadowRadius: 14,
+    elevation: 16,
+  },
+  wordEntityHalo: {
+    position: "absolute",
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: "#38BDF8",
+    backgroundColor: "rgba(56, 189, 248, 0.14)",
+    shadowColor: "#38BDF8",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.95,
+    shadowRadius: 14,
+    elevation: 14,
+    zIndex: 4,
+  },
+  wordEntityInnerBorder: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "rgba(56, 189, 248, 0.8)",
   },
   badgeIcon: {
     fontSize: 14,

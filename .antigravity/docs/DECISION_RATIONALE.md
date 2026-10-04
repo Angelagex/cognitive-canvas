@@ -95,3 +95,24 @@ Registro de Decisiones Arquitectónicas, Principios Pedagógicos y Trade-offs T�
 - Decisión: Incluir la métrica `cross_link_density_score` y la bandera `linear_thinking_risk` (< 0.20 de ratio cross-links / edges).
 - Rationale Pedagógico (Ausubel / Novak):
   * Reconciliación Integrativa: La asimilación de esquemas complejos exige que el aprendiz descubra relaciones entre ramas conceptuales lejanas. Si el mapa carece de conexiones transversales, Gemini emite un feedback correctivo indicando la presencia de pensamiento lineal no integrado.
+
+
+================================================================================
+6. PARSING LOCAL DE TINTA DIGITAL Y VISUAL AST (FRONTEND & CORE)
+================================================================================
+
+6.1 Decisión: Segmentación Espacial por Línea Base (Componentes Conexas) vs. Umbral Temporal Rígido (< 600 ms)
+- Contexto: Agrupamiento de trazos manuscritos en entidades lógicas (palabras, contenedores, conectores).
+- Decisión: Sustituir la regla temporal rígida (`timeDiff <= 600 ms`) por un algoritmo de Componentes Conexas (BFS) basado en alineación de línea base (eje Y) y proximidad inter-carácter horizontal ($\Delta x \le 42\text{ px}$), absorbiendo trazos retardados (*delayed strokes*) independientemente del tiempo transcurrido.
+- Rationale Biomecánico y Topológico:
+  * Variabilidad Biomecánica: Al escribir a mano, el ser humano realiza pausas naturales de 0.8 a 2.5 segundos para pensar, mover la muñeca o trazar sílabas complejas. Un umbral de 600 ms fracturaba palabras largas (ej. "Photography") en fragmentos semánticos rotos (`Pho`, `otography`).
+  * Integridad de la Topología: El docking magnético de flechas ($\le 30\text{ px}$), la contención en cajas jerárquicas y el anclaje semántico por Hover 800 ms operan sobre la caja envolvente (`bbox`) de la entidad completa. La fragmentación de palabras arruinaba el cálculo de distancias al romper los bordes de la entidad.
+  * Trazos Retardados (Delayed Strokes): Cruzar la `t`, tildar vocales o poner puntos sobre la `i` son trazos ejecutados segundos después. Deben absorberse automáticamente en el clúster espacial existente sin forzar una nueva entidad.
+
+6.2 Decisión: Motor AST Topológico Local vs. Google ML Kit Digital Ink Recognition
+- Contexto: Elección entre un modelo de reconocimiento de escritura (OCR) neuronal empaquetado vs. un motor sintáctico y topológico determinista en TypeScript.
+- Decisión: Mantener `VisualASTEngine` en TypeScript puro para la construcción del grafo del lienzo (topología, flechas compuestas, contención, cajas) y delegar el razonamiento semántico y lectura caligráfica multimodal a Gemini 2.0 Flash en la nube, prescindiendo de ML Kit en el núcleo del AST.
+- Rationale Arquitectónico:
+  * Disparidad de Propósito: ML Kit es un transcriptor OCR de texto plano a caracteres ASCII; desconoce la topología gráfica (no entiende flechas compuestas de tallo + punta, ni docking magnético, ni contención padre-hijo, ni iconos abstractos de GRINDE).
+  * Peso y Autonomía: ML Kit requiere dependencias nativas de Google Play Services y descarga de modelos binarios de 25-40 MB por idioma. `VisualASTEngine` corre en TypeScript puro (< 5 KB), se ejecuta en < 2 ms, funciona 100% offline y es universalmente testeable en Vitest y ejecutable en la tablet y en Lambdas sin dependencias externas.
+  * Visión Multimodal Nativa de Gemini 2.0 Flash: La lectura OCR exhaustiva y el entendimiento profundo de la caligrafía los realiza Gemini sobre el bitmap PNG de alta resolución. El motor local solo necesita saber qué trazos forman una unidad física, no su valor textual transcrito.

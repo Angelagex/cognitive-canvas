@@ -7,6 +7,8 @@
     "apps/*"
   ],
   "scripts": {
+    "tablet": "./scripts/install-app.sh",
+    "build:android": "./scripts/install-app.sh",
     "generate-entity": "tsx packages/scripts/src/generate-entity.ts",
     "prepare": ""
   },

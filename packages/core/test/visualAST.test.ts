@@ -92,6 +92,85 @@ describe("5-Level Digital Ink Parsing & 3-Layer Persistence (ARCHITECTURE_SPEC.m
     expect(separateEntity?.stroke_ids).toEqual(["s3"]);
   });
 
+  it("Level 2: should robustly cluster a word despite handwriting pauses and delayed t-crossing", () => {
+    // Letter 'P': x: 100..120, y: 200..230
+    const strkP: RawInkStroke = {
+      id: "p",
+      color: "#000",
+      width: 2,
+      timestamp: 1000,
+      points: [
+        { x: 100, y: 200 },
+        { x: 120, y: 230 },
+      ],
+    };
+
+    // Letter 'h': x: 130..145, y: 205..230 (drawn 200ms later)
+    const strkH: RawInkStroke = {
+      id: "h",
+      color: "#000",
+      width: 2,
+      timestamp: 1200,
+      points: [
+        { x: 130, y: 205 },
+        { x: 145, y: 230 },
+      ],
+    };
+
+    // Letter 't' stem: x: 155..165, y: 200..230 (drawn 2500ms later after a thinking pause!)
+    const strkTStem: RawInkStroke = {
+      id: "t_stem",
+      color: "#000",
+      width: 2,
+      timestamp: 3700,
+      points: [
+        { x: 160, y: 200 },
+        { x: 160, y: 230 },
+      ],
+    };
+
+    // Delayed t-crossing: x: 150..170, y: 210 (drawn at the end, 6000ms later!)
+    const strkTCross: RawInkStroke = {
+      id: "t_cross",
+      color: "#000",
+      width: 2,
+      timestamp: 9700,
+      points: [
+        { x: 150, y: 210 },
+        { x: 170, y: 210 },
+      ],
+    };
+
+    // A separate word "Camera": x: 260..290, y: 205..230 (>80px horizontal gap)
+    const strkCamera: RawInkStroke = {
+      id: "camera",
+      color: "#000",
+      width: 2,
+      timestamp: 11000,
+      points: [
+        { x: 260, y: 205 },
+        { x: 290, y: 230 },
+      ],
+    };
+
+    const result = engine.parseVisualAST([strkP, strkH, strkTStem, strkTCross, strkCamera]);
+
+    // Should yield exactly 2 entities: "Pht" word and "Camera" word
+    expect(result.entities).toHaveLength(2);
+
+    const wordEntity = result.entities.find((e) => e.stroke_ids.includes("p"));
+    expect(wordEntity).toBeDefined();
+    expect(wordEntity?.stroke_ids).toContain("p");
+    expect(wordEntity?.stroke_ids).toContain("h");
+    expect(wordEntity?.stroke_ids).toContain("t_stem");
+    expect(wordEntity?.stroke_ids).toContain("t_cross");
+    expect(wordEntity?.type).toBe("TEXT_BLOCK");
+
+    const cameraEntity = result.entities.find((e) => e.stroke_ids.includes("camera"));
+    expect(cameraEntity).toBeDefined();
+    expect(cameraEntity?.stroke_ids).toEqual(["camera"]);
+  });
+
   // -------------------------------------------------------------
   // LEVEL 3: COMPOSITE ARROWS
   // -------------------------------------------------------------

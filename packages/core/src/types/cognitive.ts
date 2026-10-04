@@ -3,10 +3,10 @@
  * Re-exports canonical contracts and provides compatibility bridges.
  */
 
-export * from "./visualAst.js";
-export * from "./persistence.js";
-export * from "./inkBridge.js";
-export * from "./compiledGraph.js";
+export * from "./visualAst";
+export * from "./persistence";
+export * from "./inkBridge";
+export * from "./compiledGraph";
 
 import {
   CompiledCognitiveMap,
@@ -15,13 +15,13 @@ import {
   RelationNature,
   AnkiFlashcard,
   COMPILER_JSON_SCHEMA,
-} from "./compiledGraph.js";
+} from "./compiledGraph";
 import {
   VisualEntity,
   ConnectorEdge,
   NormalizedBoundingBox,
   VisualEntityType,
-} from "./visualAst.js";
+} from "./visualAst";
 
 // Legacy Aliases for backwards compatibility with existing repositories & tests
 export type VisualBoundingBoxRect = NormalizedBoundingBox;

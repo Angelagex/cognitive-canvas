@@ -1,1 +1,1 @@
-export * from "./cognitive.js";
+export * from "./cognitive";

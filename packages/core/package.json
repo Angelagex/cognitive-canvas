@@ -2,10 +2,13 @@
   "name": "@cognitive-canvas/core",
   "type": "module",
   "version": "0.0.0",
+  "main": "src/index.ts",
   "scripts": {
     "test": "sst shell vitest"
   },
   "exports": {
+    "./parser": "./src/parser/index.ts",
+    "./types": "./src/types/index.ts",
     "./*": [
       "./src/*/index.ts",
       "./src/*.ts"

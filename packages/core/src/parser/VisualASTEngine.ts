@@ -69,7 +69,7 @@ export class VisualASTEngine {
     }));
 
     // -------------------------------------------------------------
-    // LEVEL 2: SPATIO-TEMPORAL CLUSTERING (< 600 ms)
+    // LEVEL 2: BASELINE ALIGNMENT & SPATIAL CONNECTED COMPONENTS
     // -------------------------------------------------------------
     const contentStrokes = classifiedStrokes.filter(
       (s) => s.classification.type === "TEXT" || s.classification.type === "ICON" || s.classification.type === "BOX"
@@ -95,42 +95,40 @@ export class VisualASTEngine {
       }
     }
 
-    // Cluster text and icon strokes temporally (< 600 ms) and spatially
+    // Cluster text and icon strokes via Graph Connected Components (Transitive Closure)
     const nonBoxStrokes = contentStrokes.filter((s) => s.classification.type !== "BOX");
     const visited = new Set<string>();
 
     for (let i = 0; i < nonBoxStrokes.length; i++) {
-      const current = nonBoxStrokes[i];
-      if (visited.has(current.stroke.id)) continue;
+      const startStroke = nonBoxStrokes[i];
+      if (visited.has(startStroke.stroke.id)) continue;
 
-      const clusterIds = [current.stroke.id];
-      const clusterPoints = [...current.stroke.points];
-      let clusterBbox = { ...current.bbox };
-      visited.add(current.stroke.id);
+      const clusterStrokes = [startStroke];
+      visited.add(startStroke.stroke.id);
 
-      let prevTimestamp = current.stroke.timestamp || 0;
+      // BFS to find all transitively connected strokes in the same word/entity
+      const queue = [startStroke];
+      while (queue.length > 0) {
+        const current = queue.shift()!;
 
-      for (let j = i + 1; j < nonBoxStrokes.length; j++) {
-        const candidate = nonBoxStrokes[j];
-        if (visited.has(candidate.stroke.id)) continue;
+        for (let j = 0; j < nonBoxStrokes.length; j++) {
+          const candidate = nonBoxStrokes[j];
+          if (visited.has(candidate.stroke.id)) continue;
 
-        const candidateTime = candidate.stroke.timestamp || 0;
-        const timeDiff = Math.abs(candidateTime - prevTimestamp);
-
-        // Check spatial proximity to existing cluster
-        const spatialDist = this.distanceBetweenBBoxes(clusterBbox, candidate.bbox);
-
-        // Spatio-temporal rule: interval <= 600 ms AND spatial distance <= 45 px
-        // Or pure spatial overlap regardless of time
-        const isSpatioTemporalNeighbor = (timeDiff <= 600 && spatialDist <= 45) || spatialDist <= 12;
-
-        if (isSpatioTemporalNeighbor) {
-          visited.add(candidate.stroke.id);
-          clusterIds.push(candidate.stroke.id);
-          clusterPoints.push(...candidate.stroke.points);
-          clusterBbox = this.mergeBBoxes(clusterBbox, candidate.bbox);
-          prevTimestamp = candidateTime;
+          if (this.areStrokesInSameEntity(current, candidate)) {
+            visited.add(candidate.stroke.id);
+            clusterStrokes.push(candidate);
+            queue.push(candidate);
+          }
         }
+      }
+
+      // Merge points and compute unified cluster bounding box
+      const clusterIds = clusterStrokes.map((s) => s.stroke.id);
+      const clusterPoints = clusterStrokes.flatMap((s) => s.stroke.points);
+      let clusterBbox = { ...clusterStrokes[0].bbox };
+      for (let k = 1; k < clusterStrokes.length; k++) {
+        clusterBbox = this.mergeBBoxes(clusterBbox, clusterStrokes[k].bbox);
       }
 
       rawClusters.push({
@@ -144,9 +142,15 @@ export class VisualASTEngine {
     // Convert raw clusters to VisualASTEntity
     const entities: VisualASTEntity[] = rawClusters.map((cluster, idx) => {
       const entityId = `entity_${idx + 1}`;
+      const boxW = cluster.bbox.xmax - cluster.bbox.xmin;
+      const boxH = cluster.bbox.ymax - cluster.bbox.ymin;
+      // Text words naturally flow horizontally (width >= height * 1.1).
+      // Compact, multi-stroke non-horizontal drawings are sketch icons.
+      const isIcon = !cluster.isBox && boxW < boxH * 1.1 && cluster.strokeIds.length >= 4;
+
       const type = cluster.isBox
         ? "CONTAINER_BOX"
-        : cluster.strokeIds.length > 2
+        : isIcon
         ? "SKETCH_ICON"
         : "TEXT_BLOCK";
 
@@ -309,6 +313,60 @@ export class VisualASTEngine {
   // -------------------------------------------------------------
   // HELPER GEOMETRY UTILITIES
   // -------------------------------------------------------------
+
+  /**
+   * Determines if two text/icon strokes belong to the same word or semantic entity
+   * based on Baseline Alignment, Horizontal Proximity, and Delayed Stroke Absorption.
+   */
+  private areStrokesInSameEntity(
+    a: { stroke: RawInkStroke; bbox: VisualBoundingBoxRect },
+    b: { stroke: RawInkStroke; bbox: VisualBoundingBoxRect }
+  ): boolean {
+    const boxA = a.bbox;
+    const boxB = b.bbox;
+
+    // Horizontal & Vertical gap between the two bounding boxes
+    const dx = Math.max(0, Math.max(boxA.xmin - boxB.xmax, boxB.xmin - boxA.xmax));
+    const dy = Math.max(0, Math.max(boxA.ymin - boxB.ymax, boxB.ymin - boxA.ymax));
+
+    // 1. Direct overlap or collision (e.g. crossing of 't', dot on 'i', diacritics, cursive ligature)
+    if (dx === 0 && dy <= 28) {
+      return true;
+    }
+    if (dy === 0 && dx <= 38) {
+      return true;
+    }
+
+    // 2. Delayed stroke / Accent / Diacritic absorption:
+    // One stroke is horizontally within the other's span, or close vertically
+    const isHorizontallyAligned =
+      (boxA.xmin >= boxB.xmin - 15 && boxA.xmin <= boxB.xmax + 15) ||
+      (boxB.xmin >= boxA.xmin - 15 && boxB.xmin <= boxA.xmax + 15);
+    if (isHorizontallyAligned && dy <= 25) {
+      return true;
+    }
+
+    // 3. Baseline alignment: share the same line of text
+    // The vertical overlap or vertical offset must be within normal character height
+    const heightA = boxA.ymax - boxA.ymin;
+    const heightB = boxB.ymax - boxB.ymin;
+    const maxAllowedDy = Math.max(16, Math.min(heightA, heightB) * 0.75);
+
+    // Characters in the same word typically have an inter-letter horizontal gap <= 42px
+    if (dy <= maxAllowedDy && dx <= 42) {
+      return true;
+    }
+
+    // 4. Temporal expansion: If drawn rapidly (< 650ms), allow slightly wider spatial distance (up to 55px)
+    const timeA = a.stroke.timestamp || 0;
+    const timeB = b.stroke.timestamp || 0;
+    const timeDiff = Math.abs(timeA - timeB);
+    if (timeDiff > 0 && timeDiff <= 650 && dy <= maxAllowedDy && dx <= 55) {
+      return true;
+    }
+
+    return false;
+  }
 
   private classifySingleStroke(stroke: RawInkStroke): {
     type: "LINE" | "ARROW_HEAD" | "BOX" | "TEXT" | "ICON";

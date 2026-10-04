@@ -51,6 +51,10 @@ export default function App() {
     handleAddAttribute,
     handleDeleteAttribute,
     hoveredAttribute,
+    activeAnchorEntity,
+    hoveredEntityBounds,
+    activeEntityBounds,
+    handleAnchorModalOpen,
     hoverScreenX,
     hoverScreenY,
     handleHover,
@@ -137,13 +141,17 @@ export default function App() {
           onHoverTimeout={handleHoverTimeout}
         />
 
-        {/* Badges de Atributos Cognitivos anclados al lienzo con soporte Air View */}
+        {/* Badges de Atributos Cognitivos anclados al lienzo con soporte Air View y Halo Perimetral */}
         <PlacedAttributeBadges
           attributes={placedAttributes}
           canvasScale={canvasScale}
           canvasTranslateX={canvasTranslateX}
           canvasTranslateY={canvasTranslateY}
           hoveredAttribute={hoveredAttribute}
+          activeAnchorEntityId={activeAnchorEntity?.id}
+          hoveredEntityBounds={hoveredEntityBounds}
+          activeEntityBounds={activeEntityBounds}
+          anchorTooltip={anchorTooltip}
           hoverScreenX={hoverScreenX}
           hoverScreenY={hoverScreenY}
           onDeleteAttribute={handleDeleteAttribute}
@@ -151,7 +159,7 @@ export default function App() {
           onBadgeHover={handleBadgeHover}
         />
 
-        {/* Tooltip flotante contextual de Anclaje Semántico (Hover Dwell 800ms / Botón S-Pen) */}
+        {/* Tooltip flotante contextual de Anclaje Semántico (Hover Dwell 800ms) */}
         {anchorTooltip?.visible && (
           <SemanticAnchorTooltip
             visible={anchorTooltip.visible}
@@ -159,6 +167,11 @@ export default function App() {
             screenY={anchorTooltip.screenY}
             worldX={anchorTooltip.worldX}
             worldY={anchorTooltip.worldY}
+            entityBounds={activeEntityBounds}
+            canvasScale={canvasScale}
+            canvasTranslateX={canvasTranslateX}
+            canvasTranslateY={canvasTranslateY}
+            onModalOpen={handleAnchorModalOpen}
             onSave={handleSaveAnchorTooltip}
             onClose={handleCloseAnchorTooltip}
           />

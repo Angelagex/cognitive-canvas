@@ -3,8 +3,8 @@
  * Based on MASTER_SPEC.md (Section 5.3) and DECISION_RATIONALE.md (Section 4.1)
  */
 
-import { VisualAST } from "./visualAst.js";
-import { CompiledCognitiveMap } from "./compiledGraph.js";
+import { VisualAST } from "./visualAst";
+import { CompiledCognitiveMap } from "./compiledGraph";
 
 /**
  * Atomic Vector Point captured from digital pen hardware (Wacom EMR / Apple Pencil)

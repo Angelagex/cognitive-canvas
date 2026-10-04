@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { NativeSyntheticEvent } from "react-native";
 import {
   BrushType,
@@ -12,12 +12,24 @@ import {
   EraserMode,
   HoverEvent,
   HoverTimeoutEvent,
+  EntityBoundingBox,
 } from "../types/canvas";
-import { CognitiveCompilerOutput } from "@cognitive-canvas/core/types";
+import {
+  CognitiveCompilerOutput,
+  RawInkStroke,
+  VisualASTLayer,
+  VisualASTEntity,
+  VisualASTEngine,
+} from "@cognitive-canvas/core";
 
 export const useCanvasState = () => {
   // Document metadata
   const [mapTitle, setMapTitle] = useState<string>("Mapa Mental - Redes Neuronales");
+
+  // Local Visual AST Engine (Phase 3: 5-level real-time topology & clustering)
+  const visualASTEngine = useMemo(() => new VisualASTEngine(), []);
+  const [visualAST, setVisualAST] = useState<VisualASTLayer>({ entities: [], connectors: [] });
+  const [rawStrokes, setRawStrokes] = useState<RawInkStroke[]>([]);
 
   // Tools & Styling
   const [activeBrush, setActiveBrush] = useState<BrushType>("pen");
@@ -86,13 +98,33 @@ export const useCanvasState = () => {
   const [compilation, setCompilation] = useState<CognitiveCompilerOutput | null>(null);
 
   // Event Callbacks
-  const handleStrokeEnd = useCallback((event: NativeSyntheticEvent<StrokeEndEvent>) => {
-    const { strokeCount: count, canUndo: undoPossible, canRedo: redoPossible } = event.nativeEvent;
-    setStrokeCount(count);
-    if (undoPossible !== undefined) setCanUndo(undoPossible);
-    else setCanUndo(count > 0);
-    if (redoPossible !== undefined) setCanRedo(redoPossible);
-  }, []);
+  const handleStrokeEnd = useCallback(
+    (event: NativeSyntheticEvent<StrokeEndEvent>) => {
+      const { strokeCount: count, canUndo: undoPossible, canRedo: redoPossible, strokes } = event.nativeEvent;
+      setStrokeCount(count);
+      if (undoPossible !== undefined) setCanUndo(undoPossible);
+      else setCanUndo(count > 0);
+      if (redoPossible !== undefined) setCanRedo(redoPossible);
+
+      if (strokes) {
+        setRawStrokes(strokes);
+        try {
+          // Passive context mapping from placed attributes to entity keys
+          const passiveMap: Record<string, string> = {};
+          placedAttributes.forEach((attr) => {
+            passiveMap[attr.id] = `${attr.type}: ${attr.title} - ${attr.note}`;
+          });
+
+          const ast = visualASTEngine.parseVisualAST(strokes, passiveMap);
+          setVisualAST(ast);
+          console.log(`[VisualASTEngine] Live AST updated: ${ast.entities.length} entities, ${ast.connectors.length} connectors`);
+        } catch (err) {
+          console.warn("[VisualASTEngine] Error parsing live strokes:", err);
+        }
+      }
+    },
+    [visualASTEngine, placedAttributes]
+  );
 
   const handleTransform = useCallback((event: NativeSyntheticEvent<TransformEvent>) => {
     const { scale, translateX, translateY } = event.nativeEvent;
@@ -138,17 +170,55 @@ export const useCanvasState = () => {
 
   // S-Pen Air View / Hover State (Affordance a 1-2 cm)
   const [hoveredAttribute, setHoveredAttribute] = useState<PlacedAttribute | null>(null);
+  const [hoveredEntityBounds, setHoveredEntityBounds] = useState<EntityBoundingBox | null>(null);
+  const [activeEntityBounds, setActiveEntityBounds] = useState<EntityBoundingBox | null>(null);
+  const [isAnchorModalOpen, setIsAnchorModalOpen] = useState<boolean>(false);
   const [hoverScreenX, setHoverScreenX] = useState<number>(0);
   const [hoverScreenY, setHoverScreenY] = useState<number>(0);
 
   const handleHover = useCallback((event: NativeSyntheticEvent<HoverEvent>) => {
-    const { worldX, worldY, screenX, screenY, isHovering } = event.nativeEvent;
-    console.log("[AirView JS] Hover:", { worldX, worldY, screenX, screenY, isHovering, attrCount: placedAttributes.length });
+    const { worldX, worldY, screenX, screenY, isHovering, entityBounds } = event.nativeEvent;
 
     if (!isHovering) {
       setHoveredAttribute(null);
+      setHoveredEntityBounds(null);
+      // If stylus exits hover and the modal is not open (floating icon stage), dismiss icon and halo
+      if (!isAnchorModalOpen) {
+        setAnchorTooltip(null);
+        setActiveAnchorEntity(null);
+        setActiveEntityBounds(null);
+      }
       return;
     }
+
+    setHoverScreenX(screenX);
+    setHoverScreenY(screenY);
+
+    // 1. Resolve entity bounds from live Visual AST (word/container entity) or native fallback
+    let resolvedEntityBounds: EntityBoundingBox | null = null;
+    const hitTolerance = 25; // 25dp tolerance
+    const astEntityMatch = visualAST.entities.find((ent: VisualASTEntity) => {
+      return (
+        worldX >= ent.bbox.xmin - hitTolerance &&
+        worldX <= ent.bbox.xmax + hitTolerance &&
+        worldY >= ent.bbox.ymin - hitTolerance &&
+        worldY <= ent.bbox.ymax + hitTolerance
+      );
+    });
+
+    if (astEntityMatch) {
+      resolvedEntityBounds = {
+        xmin: astEntityMatch.bbox.xmin,
+        ymin: astEntityMatch.bbox.ymin,
+        xmax: astEntityMatch.bbox.xmax,
+        ymax: astEntityMatch.bbox.ymax,
+      };
+    } else if (entityBounds) {
+      resolvedEntityBounds = entityBounds;
+    }
+
+    setHoveredEntityBounds(resolvedEntityBounds);
+
     // Check if hovering near or directly over any placed attribute using a uniform 14dp pill halo
     const match = placedAttributes.find((attr) => {
       const attrScreenX = attr.worldX * canvasScale + canvasTranslateX;
@@ -178,18 +248,21 @@ export const useCanvasState = () => {
       const HALO_MARGIN = 14;
       return distToEdge <= HALO_MARGIN;
     });
+
     if (match) {
-      console.log("[AirView JS] >>> HOVER MATCH FOUND:", match.title);
       setHoveredAttribute(match);
-      setHoverScreenX(screenX);
-      setHoverScreenY(screenY);
     } else {
       setHoveredAttribute(null);
+      // If stylus moved away from any entity or attribute, dismiss icon if modal is not open
+      if (!resolvedEntityBounds && !isAnchorModalOpen) {
+        setAnchorTooltip(null);
+        setActiveAnchorEntity(null);
+        setActiveEntityBounds(null);
+      }
     }
-  }, [placedAttributes, canvasScale, canvasTranslateX, canvasTranslateY]);
+  }, [placedAttributes, canvasScale, canvasTranslateX, canvasTranslateY, isAnchorModalOpen, visualAST]);
 
   const handleBadgeHover = useCallback((attr: PlacedAttribute | null, screenX?: number, screenY?: number) => {
-    console.log("[AirView Badge JS] Direct badge hover:", attr?.title);
     setHoveredAttribute(attr);
     if (attr && screenX !== undefined && screenY !== undefined) {
       setHoverScreenX(screenX + 80);
@@ -197,7 +270,8 @@ export const useCanvasState = () => {
     }
   }, []);
 
-  // Semantic Anchor Tooltip (Air View Hover Dwell 800ms / Barrel Button)
+  // Semantic Anchor Tooltip (Air View Hover Dwell 800ms)
+  const [activeAnchorEntity, setActiveAnchorEntity] = useState<PlacedAttribute | null>(null);
   const [anchorTooltip, setAnchorTooltip] = useState<{
     visible: boolean;
     screenX: number;
@@ -208,14 +282,45 @@ export const useCanvasState = () => {
 
   const handleHoverTimeout = useCallback(
     (event: NativeSyntheticEvent<HoverTimeoutEvent>) => {
-      const { worldX, worldY, screenX, screenY, dwellDurationMs } = event.nativeEvent;
+      const { worldX, worldY, screenX, screenY, dwellDurationMs, entityBounds } = event.nativeEvent;
       console.log("[SemanticAnchor] Hover timeout dwell (800ms) triggered:", {
         worldX,
         worldY,
         screenX,
         screenY,
         dwellDurationMs,
+        entityBounds,
       });
+
+      // Resolve entity bounds from live Visual AST first
+      let resolvedEntityBounds: EntityBoundingBox | null = null;
+      const hitTolerance = 25;
+      const astEntityMatch = visualAST.entities.find((ent: VisualASTEntity) => {
+        return (
+          worldX >= ent.bbox.xmin - hitTolerance &&
+          worldX <= ent.bbox.xmax + hitTolerance &&
+          worldY >= ent.bbox.ymin - hitTolerance &&
+          worldY <= ent.bbox.ymax + hitTolerance
+        );
+      });
+
+      if (astEntityMatch) {
+        resolvedEntityBounds = {
+          xmin: astEntityMatch.bbox.xmin,
+          ymin: astEntityMatch.bbox.ymin,
+          xmax: astEntityMatch.bbox.xmax,
+          ymax: astEntityMatch.bbox.ymax,
+        };
+      } else if (entityBounds) {
+        resolvedEntityBounds = entityBounds;
+      } else if (hoveredEntityBounds) {
+        resolvedEntityBounds = hoveredEntityBounds;
+      }
+
+      // Lock in the hovered attribute and entity bounds so the halo perimetral persists
+      setActiveAnchorEntity(hoveredAttribute || null);
+      setActiveEntityBounds(resolvedEntityBounds);
+      setIsAnchorModalOpen(false); // starts in floating icon stage
       setAnchorTooltip({
         visible: true,
         screenX,
@@ -224,30 +329,27 @@ export const useCanvasState = () => {
         worldY,
       });
     },
-    []
+    [hoveredAttribute, hoveredEntityBounds, visualAST]
   );
 
+  // Barrel button: No anchor icon or halo triggered
   const handleBarrelButton = useCallback(
     (event: NativeSyntheticEvent<BarrelButtonEvent>) => {
       const { x, y, worldX, worldY } = event.nativeEvent;
-      console.log("[SemanticAnchor] S-Pen Barrel button pressed:", { x, y, worldX, worldY });
-      const screenX = x;
-      const screenY = y;
-      const calcWorldX = worldX !== undefined ? worldX : (screenX - canvasTranslateX) / canvasScale;
-      const calcWorldY = worldY !== undefined ? worldY : (screenY - canvasTranslateY) / canvasScale;
-      setAnchorTooltip({
-        visible: true,
-        screenX,
-        screenY,
-        worldX: calcWorldX,
-        worldY: calcWorldY,
-      });
+      console.log("[SemanticAnchor] S-Pen Barrel button pressed (anchor trigger disabled):", { x, y, worldX, worldY });
     },
-    [canvasScale, canvasTranslateX, canvasTranslateY]
+    []
   );
 
   const handleCloseAnchorTooltip = useCallback(() => {
     setAnchorTooltip(null);
+    setActiveAnchorEntity(null);
+    setActiveEntityBounds(null);
+    setIsAnchorModalOpen(false);
+  }, []);
+
+  const handleAnchorModalOpen = useCallback(() => {
+    setIsAnchorModalOpen(true);
   }, []);
 
   const handleSaveAnchorTooltip = useCallback(
@@ -262,6 +364,9 @@ export const useCanvasState = () => {
       };
       setPlacedAttributes((prev) => [...prev, newAttr]);
       setAnchorTooltip(null);
+      setActiveAnchorEntity(null);
+      setActiveEntityBounds(null);
+      setIsAnchorModalOpen(false);
     },
     []
   );
@@ -445,6 +550,11 @@ export const useCanvasState = () => {
     handleAddAttribute,
     handleDeleteAttribute,
     hoveredAttribute,
+    activeAnchorEntity,
+    hoveredEntityBounds,
+    activeEntityBounds,
+    isAnchorModalOpen,
+    handleAnchorModalOpen,
     hoverScreenX,
     hoverScreenY,
     handleHover,
@@ -467,5 +577,7 @@ export const useCanvasState = () => {
     handleResetZoom,
     handleToggleStylusOnly,
     handleCompile,
+    visualAST,
+    rawStrokes,
   };
 };

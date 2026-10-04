@@ -6,6 +6,7 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Matrix
 import android.graphics.Paint
+import android.graphics.RectF
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
@@ -168,6 +169,7 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
     private var lastHoverWorldY = 0f
     private var lastHoverDpScreenX = 0f
     private var lastHoverDpScreenY = 0f
+    private var lastHoverEntityBounds: RectF? = null
 
     private val hoverDwellRunnable = Runnable {
         if (isHoverDwellActive && !hoverDwellTriggered) {
@@ -175,7 +177,7 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
             try {
                 performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
             } catch (_: Exception) {}
-            notifyHoverTimeout(lastHoverWorldX, lastHoverWorldY, lastHoverDpScreenX, lastHoverDpScreenY, 800)
+            notifyHoverTimeout(lastHoverWorldX, lastHoverWorldY, lastHoverDpScreenX, lastHoverDpScreenY, 800, lastHoverEntityBounds)
         }
     }
 
@@ -183,6 +185,7 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
         hoverDwellHandler.removeCallbacks(hoverDwellRunnable)
         isHoverDwellActive = false
         hoverDwellTriggered = false
+        lastHoverEntityBounds = null
     }
 
     private fun triggerDrawAndHold() {
@@ -273,12 +276,45 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
         return brush
     }
 
+    fun serializeStrokes(): com.facebook.react.bridge.WritableArray {
+        val array = Arguments.createArray()
+        val density = context.resources.displayMetrics.density
+        for ((idx, stroke) in completedStrokes.withIndex()) {
+            val strokeMap = Arguments.createMap()
+            strokeMap.putString("id", "stroke_${idx + 1}")
+            strokeMap.putString("color", String.format("#%06X", 0xFFFFFF and strokeColor))
+            strokeMap.putDouble("width", (stroke.brush.size / density).toDouble())
+
+            val inputs = stroke.inputs
+            val count = inputs.size
+            val pointsArray = Arguments.createArray()
+            val startT = if (count > 0) inputs.get(0).elapsedTimeMillis else 0L
+            if (count > 0) {
+                strokeMap.putDouble("timestamp", startT.toDouble())
+            }
+
+            for (i in 0 until count) {
+                val pt = inputs.get(i)
+                val ptMap = Arguments.createMap()
+                ptMap.putDouble("x", (pt.x / density).toDouble())
+                ptMap.putDouble("y", (pt.y / density).toDouble())
+                ptMap.putDouble("p", pt.pressure.toDouble())
+                ptMap.putDouble("t", (pt.elapsedTimeMillis - startT).toDouble())
+                pointsArray.pushMap(ptMap)
+            }
+            strokeMap.putArray("points", pointsArray)
+            array.pushMap(strokeMap)
+        }
+        return array
+    }
+
     private fun notifyStrokeCountChanged() {
         val reactContext = context as? ReactContext ?: return
         val event = Arguments.createMap().apply {
             putInt("strokeCount", completedStrokes.size)
             putBoolean("canUndo", completedStrokes.isNotEmpty())
             putBoolean("canRedo", undoneStrokes.isNotEmpty())
+            putArray("strokes", serializeStrokes())
         }
         reactContext.getJSModule(RCTEventEmitter::class.java)?.receiveEvent(
             id,
@@ -326,8 +362,8 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
         )
     }
 
-    private fun notifyHoverTimeout(worldX: Float, worldY: Float, screenX: Float, screenY: Float, durationMs: Int) {
-        android.util.Log.d("AirViewHover", "notifyHoverTimeout -> worldX=$worldX worldY=$worldY screenX=$screenX screenY=$screenY durationMs=$durationMs")
+    private fun notifyHoverTimeout(worldX: Float, worldY: Float, screenX: Float, screenY: Float, durationMs: Int, entityBounds: RectF? = null) {
+        android.util.Log.d("AirViewHover", "notifyHoverTimeout -> worldX=$worldX worldY=$worldY screenX=$screenX screenY=$screenY durationMs=$durationMs bounds=$entityBounds")
         val reactContext = context as? ReactContext ?: return
         val event = Arguments.createMap().apply {
             putDouble("worldX", worldX.toDouble())
@@ -335,6 +371,14 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
             putDouble("screenX", screenX.toDouble())
             putDouble("screenY", screenY.toDouble())
             putInt("dwellDurationMs", durationMs)
+            if (entityBounds != null) {
+                putMap("entityBounds", Arguments.createMap().apply {
+                    putDouble("xmin", entityBounds.left.toDouble())
+                    putDouble("ymin", entityBounds.top.toDouble())
+                    putDouble("xmax", entityBounds.right.toDouble())
+                    putDouble("ymax", entityBounds.bottom.toDouble())
+                })
+            }
         }
         reactContext.getJSModule(RCTEventEmitter::class.java)?.receiveEvent(
             id,
@@ -538,6 +582,94 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
         return super.onTouchEvent(event)
     }
 
+    private fun getStrokeBounds(stroke: Stroke): RectF? {
+        val inputs = stroke.inputs
+        val count = inputs.size
+        if (count == 0) return null
+        val density = context.resources.displayMetrics.density
+        var minX = Float.MAX_VALUE
+        var maxX = -Float.MAX_VALUE
+        var minY = Float.MAX_VALUE
+        var maxY = -Float.MAX_VALUE
+        for (i in 0 until count) {
+            val pt = inputs.get(i)
+            val px = pt.x / density
+            val py = pt.y / density
+            if (px < minX) minX = px
+            if (px > maxX) maxX = px
+            if (py < minY) minY = py
+            if (py > maxY) maxY = py
+        }
+        return RectF(minX, minY, maxX, maxY)
+    }
+
+    private fun findEntityClusterAt(worldX: Float, worldY: Float): RectF? {
+        if (completedStrokes.isEmpty()) return null
+
+        val strokeBoundsList = mutableListOf<Pair<Stroke, RectF>>()
+        for (stroke in completedStrokes) {
+            val b = getStrokeBounds(stroke)
+            if (b != null) {
+                strokeBoundsList.add(Pair(stroke, b))
+            }
+        }
+        if (strokeBoundsList.isEmpty()) return null
+
+        // 1. Find if (worldX, worldY) is on or near any stroke (hit tolerance 28dp)
+        val hitMargin = 28f
+        val hitIndices = mutableListOf<Int>()
+        for (idx in strokeBoundsList.indices) {
+            val b = strokeBoundsList[idx].second
+            if (worldX >= b.left - hitMargin && worldX <= b.right + hitMargin &&
+                worldY >= b.top - hitMargin && worldY <= b.bottom + hitMargin) {
+                hitIndices.add(idx)
+            }
+        }
+        if (hitIndices.isEmpty()) return null
+
+        // 2. Expand cluster to include all adjacent strokes in the same handwritten word/concept (within 45dp)
+        val clusterIndices = mutableSetOf<Int>()
+        val queue = ArrayDeque<Int>()
+        for (idx in hitIndices) {
+            clusterIndices.add(idx)
+            queue.add(idx)
+        }
+
+        val clusterProximity = 45f
+        while (queue.isNotEmpty()) {
+            val currentIdx = queue.removeFirst()
+            val currentBounds = strokeBoundsList[currentIdx].second
+
+            for (otherIdx in strokeBoundsList.indices) {
+                if (clusterIndices.contains(otherIdx)) continue
+                val otherBounds = strokeBoundsList[otherIdx].second
+
+                val dx = maxOf(0f, maxOf(currentBounds.left - otherBounds.right, otherBounds.left - currentBounds.right))
+                val dy = maxOf(0f, maxOf(currentBounds.top - otherBounds.bottom, otherBounds.top - currentBounds.bottom))
+                if (dx <= clusterProximity && dy <= clusterProximity) {
+                    clusterIndices.add(otherIdx)
+                    queue.add(otherIdx)
+                }
+            }
+        }
+
+        // 3. Compute merged bounding box covering the entire entity
+        var minX = Float.MAX_VALUE
+        var maxX = -Float.MAX_VALUE
+        var minY = Float.MAX_VALUE
+        var maxY = -Float.MAX_VALUE
+        for (idx in clusterIndices) {
+            val b = strokeBoundsList[idx].second
+            if (b.left < minX) minX = b.left
+            if (b.right > maxX) maxX = b.right
+            if (b.top < minY) minY = b.top
+            if (b.bottom > maxY) maxY = b.bottom
+        }
+
+        val padding = 10f
+        return RectF(minX - padding, minY - padding, maxX + padding, maxY + padding)
+    }
+
     fun handleStylusHover(event: MotionEvent) {
         val location = IntArray(2)
         getLocationOnScreen(location)
@@ -564,7 +696,10 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
                     lastHoverDpScreenX = dpScreenX
                     lastHoverDpScreenY = dpScreenY
 
-                    notifyHover(worldX, worldY, dpScreenX, dpScreenY, true)
+                    val entityBounds = findEntityClusterAt(worldX, worldY)
+                    lastHoverEntityBounds = entityBounds
+
+                    notifyHover(worldX, worldY, dpScreenX, dpScreenY, true, entityBounds)
 
                     // 800 ms Dwell Timer tracking (tolerance <= 15 dp as per ADR 3.1)
                     val tolerancePx = 15f * density
@@ -580,12 +715,12 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
                     }
                 } else {
                     cancelHoverDwell()
-                    notifyHover(0f, 0f, 0f, 0f, false)
+                    notifyHover(0f, 0f, 0f, 0f, false, null)
                 }
             }
             MotionEvent.ACTION_HOVER_EXIT -> {
                 cancelHoverDwell()
-                notifyHover(0f, 0f, 0f, 0f, false)
+                notifyHover(0f, 0f, 0f, 0f, false, null)
             }
         }
     }
@@ -607,8 +742,8 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
         return true
     }
 
-    private fun notifyHover(worldX: Float, worldY: Float, screenX: Float, screenY: Float, isHovering: Boolean) {
-        android.util.Log.d("AirViewHover", "notifyHover -> worldX=$worldX worldY=$worldY screenX=$screenX screenY=$screenY isHovering=$isHovering")
+    private fun notifyHover(worldX: Float, worldY: Float, screenX: Float, screenY: Float, isHovering: Boolean, entityBounds: RectF? = null) {
+        android.util.Log.d("AirViewHover", "notifyHover -> worldX=$worldX worldY=$worldY screenX=$screenX screenY=$screenY isHovering=$isHovering bounds=$entityBounds")
         val reactContext = context as? ReactContext ?: return
         val event = Arguments.createMap().apply {
             putDouble("worldX", worldX.toDouble())
@@ -616,6 +751,14 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
             putDouble("screenX", screenX.toDouble())
             putDouble("screenY", screenY.toDouble())
             putBoolean("isHovering", isHovering)
+            if (entityBounds != null) {
+                putMap("entityBounds", Arguments.createMap().apply {
+                    putDouble("xmin", entityBounds.left.toDouble())
+                    putDouble("ymin", entityBounds.top.toDouble())
+                    putDouble("xmax", entityBounds.right.toDouble())
+                    putDouble("ymax", entityBounds.bottom.toDouble())
+                })
+            }
         }
         reactContext.getJSModule(RCTEventEmitter::class.java)?.receiveEvent(
             id,

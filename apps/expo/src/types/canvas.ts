@@ -1,3 +1,5 @@
+import { RawInkStroke } from "@cognitive-canvas/core/types";
+
 export type BrushType =
   | "pen"
   | "marker"
@@ -17,6 +19,7 @@ export interface StrokeEndEvent {
   strokeCount: number;
   canUndo?: boolean;
   canRedo?: boolean;
+  strokes?: RawInkStroke[];
 }
 
 export interface TransformEvent {
@@ -46,12 +49,20 @@ export interface PlacedAttribute {
   worldY: number;
 }
 
+export interface EntityBoundingBox {
+  xmin: number;
+  ymin: number;
+  xmax: number;
+  ymax: number;
+}
+
 export interface HoverEvent {
   worldX: number;
   worldY: number;
   screenX: number;
   screenY: number;
   isHovering: boolean;
+  entityBounds?: EntityBoundingBox | null;
 }
 
 export interface HoverTimeoutEvent {
@@ -61,5 +72,6 @@ export interface HoverTimeoutEvent {
   screenY: number;
   dwellDurationMs: number;
   targetEntityId?: string;
+  entityBounds?: EntityBoundingBox | null;
 }
 
