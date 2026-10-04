@@ -11,11 +11,12 @@ node_modules/
 dist/
 web-build/
 
-# Android Native Build Output
-android/app/build/
-android/.gradle/
-android/app/.cxx/
-android/build/
+# Android Native Build Output & SDK config
+**/android/app/build/
+**/android/.gradle/
+**/android/app/.cxx/
+**/android/build/
+**/local.properties
 *.apk
 *.aab
 
