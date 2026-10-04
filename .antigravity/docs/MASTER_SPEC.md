@@ -63,7 +63,7 @@ B. Ciencia Cognitiva del Aprendizaje Complejo:
 
 
 ================================================================================
-3. DISEÑO DE INTERFAZ Y DISTRIBUCIÓN ESPACIAL (PANTALLA 10.9")
+3. DISEÑO DE INTERFAZ, DISTRIBUCIÓN ESPACIAL Y HERRAMIENTAS
 ================================================================================
 
 La interfaz está diseñada para orientación horizontal (Landscape) en pantallas de 10.9 pulgadas:
@@ -73,6 +73,7 @@ La interfaz está diseñada para orientación horizontal (Landscape) en pantalla
 +------------------------------------------------------------------------------+
 | Barra de Herramientas Estilo Goodnotes (56dp)                                |
 | [Pluma] [Resaltador] [Borrador] [Lazo] [Formas] [Atributo Pasivo] [Imagen]   |
+| [Láser] [Ventana Zoom]                                                       |
 | Paleta Rápida: (Color 1, Color 2, Color 3)  |  Grosores: (Fino, Medio, Grueso|
 +------------------------------------------------------------------------------+
 |                                                                              |
@@ -86,20 +87,39 @@ La interfaz está diseñada para orientación horizontal (Landscape) en pantalla
 | [Modo Solo Stylus]  [Fondo: Puntos/Milimetrado/Liso]  [Zoom: 100%] [Centrar] |
 +------------------------------------------------------------------------------+
 
-Detalle de Componentes:
-- Header Superior (48dp): Navegación entre mapas, título y botón destacado "Compilar Mapa".
+3.1 Componentes Principales:
+- Header Superior (48dp):
+  * Selector de libretas/bóvedas y título editable del mapa actual.
+  * Buscador global de texto manuscrito integrado con OCR local.
+  * Botones Deshacer y Rehacer con historial ilimitado.
+  * Botón principal de acción: [Compilar Mapa].
 - Barra de Herramientas Principal (56dp):
-  * Pluma (Pen): Sensible a presión y velocidad con suavizado de curvas Bezier.
-  * Resaltador: Tinta translúcida con composición visual detrás de la tinta negra.
-  * Borrador: Modos por trazo completo (Stroke) o por píxel.
-  * Lazo: Selección libre con filtros para mover o escalar grupos de trazos.
-  * Formas: Regularización automática al mantener quieto el trazo durante 400 ms.
-  * Atributo Pasivo: Herramienta para asignar metadatos a trazos y figuras.
-  * Paleta Rápida: 3 accesos directos de color y 3 de grosor de trazo.
+  * Pluma (Pen): Sensible a presión y velocidad con interpolación de curvas Bezier.
+  * Resaltador: Tinta translúcida con renderizado estricto detrás de la tinta negra (behind-ink composite).
+  * Borrador: Modos por trazo completo (Stroke) o por píxel, con filtro "Borrar solo resaltador".
+  * Lazo (Lasso): Selección libre con filtros selectivos (solo texto, solo formas, solo imágenes) para trasladar o redimensionar.
+  * Formas: Regularización geométrica automática al mantener quieto el trazo por 400 ms.
+  * Atributo Pasivo: Herramienta manual para anclar metadatos.
+  * Inserción de Imágenes: Importación multimedia como referencia visual.
+  * Paleta Rápida: 3 accesos directos configurables de color y 3 de grosor de trazo.
 - Barra Inferior Flotante (36dp):
-  * Modo Solo Stylus: Bloquea el dibujo con dedos para evitar toques accidentales.
-  * Configuración de fondo de lienzo (puntos, cuadrícula o blanco liso).
-  * Control y reseteo de zoom.
+  * Modo Solo Stylus: Desactiva eventos de un solo dedo para dibujo, garantizando rechazo de palma total a nivel de UI.
+  * Selector de fondo: Cuadrícula de puntos (dot-grid), milimetrado o blanco puro.
+  * Control y reseteo de zoom con opción de ajuste global (Fit to Screen).
+
+3.2 Herramientas de Flujo de Trabajo Avanzado (Workflow Enhancements):
+1. Ventana de Zoom con Auto-Avance (Zoom Window):
+   - Área ampliada de escritura en la zona inferior para caligrafía de alta precisión.
+   - Rectángulo guía en el canvas global con desplazamiento automático continuo al aproximar el trazo al margen derecho.
+2. Puntero Láser Efímero (Laser Pointer Tool):
+   - Trazo de alta visibilidad para auto-explicación (repaso Feynman) que se disuelve automáticamente tras 1.5 segundos sin alterar el árbol de trazos.
+3. Motor de Capas Básico (Layer Engine):
+   - Capa 0 (Inmutable/Referencia): Imágenes y fondos bloqueables inmunes al borrador.
+   - Capa 1 (Semántica): Nodos, trazos e iconos vectoriales.
+   - Capa 2 (Anotaciones): Resaltadores y marcas temporales de estudio.
+4. Búsqueda Indexada de Tinta Manuscrita (In-Canvas Handwriting Search):
+   - Barra de búsqueda de texto conectada a la indexación de Digital Ink Recognition local.
+   - Centrado dinámico de cámara (auto-pan y zoom) hacia la caja delimitadora de la palabra encontrada.
 
 
 ================================================================================
@@ -120,7 +140,7 @@ Para no interrumpir el flujo de pensamiento durante el dibujo:
 
 
 ================================================================================
-5. SUBSISTEMA DE TINTA DIGITAL (INK PARSING Y PERSISTENCIA)
+5. SUBSISTEMA DE TINTA DIGITAL (INK PARSING, GESTOS Y PERSISTENCIA)
 ================================================================================
 
 5.1 Motor Local de Segmentación y Topología (Visual AST):
@@ -129,8 +149,16 @@ Antes de llamar a la IA, el motor local organiza los trazos en un árbol sintác
 2. Agrupamiento espacio-temporal (Stroke Clustering): Fusiona trazos realizados a corta distancia y con intervalo menor a 600 ms en una sola entidad lógica (palabra o icono).
 3. Formas compuestas: Identifica flechas uniendo el tallo y la punta en una primitiva con dirección.
 4. Topología espacial: Si un nodo está dentro de una caja cerrada, infiere relación de contención jerárquica. Si hay texto escrito junto a una flecha, lo convierte en la etiqueta de relación (ej. "inhibe").
+5. Docking magnético: Los extremos de las flechas se acoplan al borde de la caja del nodo más cercano (distancia <= 30px).
 
-5.2 Formato de Persistencia Local (.cmn / JSON):
+5.2 Reconocimiento de Gestos Dinámicos con Stylus (Ink Gestures):
+El motor nativo intercepta patrones gestuales en tiempo real antes de persistir los trazos:
+1. Gesto de Borrado (Scratch-out): Un patrón en zigzag horizontal rápido de alta frecuencia (mínimo 3 oscilaciones en un área delimitada) sobre cualquier entidad o palabra elimina automáticamente los trazos subyacentes sin necesidad de conmutar al borrador.
+2. Gesto de Selección (Draw-to-Lasso): Trazar un lazo cerrado alrededor de un conjunto de trazos activa la selección flotante para traslación o reescalado inmediato.
+3. Gesto de Inserción de Espacio (Canvas Break): Trazar una línea recta y mantener un instante hacia abajo o a la derecha desplaza los clústeres adyacentes para abrir espacio en el lienzo sin romper la topología del grafo.
+4. Auto-Snapping Geométrico: Mantener quieta la punta del S-Pen durante 400 ms al finalizar cualquier figura abierta o cerrada la regulariza en una primitiva vectorial perfecta (recta, elipse, rectángulo o flecha dirigida).
+
+5.3 Formato de Persistencia Local (.cmn / JSON):
 Cada mapa mental se guarda localmente en un archivo estructurado en tres capas independientes:
 
 {
@@ -190,7 +218,19 @@ Cada mapa mental se guarda localmente en un archivo estructurado en tres capas i
 
 
 ================================================================================
-6. SYSTEM PROMPT DE PRODUCCIÓN PARA GEMINI 2.0 FLASH
+6. PIPELINE DE COMPILACIÓN COGNITIVA (PAYLOAD HÍBRIDO)
+================================================================================
+
+Al presionar [Compilar Mapa], el cliente ejecuta:
+1. Renderizado en memoria del canvas a PNG de alta resolución.
+2. Subida directa del PNG a un bucket S3 mediante URL pre-firmada.
+3. Llamada al endpoint POST /compile-map enviando el s3_image_key y el JSON del visual_ast_layer.
+4. La Lambda de SST invoca la API de Gemini 2.0 Flash con el System Prompt y el JSON Schema estricto.
+5. El resultado compila el grafo cognitivo y lo guarda en compiled_cognitive_layer, desplegando el Drawer lateral en la tablet.
+
+
+================================================================================
+7. SYSTEM PROMPT DE PRODUCCIÓN PARA GEMINI 2.0 FLASH
 ================================================================================
 
 A continuación se define la instrucción exacta que el backend enviará al modelo:
@@ -245,7 +285,7 @@ Genera desafíos cognitivos basados en la ciencia del aprendizaje:
 
 
 ================================================================================
-7. ESQUEMA FORMAL DE RESPUESTA (JSON SCHEMA)
+8. ESQUEMA FORMAL DE RESPUESTA (JSON SCHEMA)
 ================================================================================
 
 {
@@ -420,14 +460,14 @@ Genera desafíos cognitivos basados en la ciencia del aprendizaje:
 
 
 ================================================================================
-8. PANEL LATERAL DE RESULTADOS (DRAWER TRAS COMPILACIÓN)
+9. PANEL LATERAL DE RESULTADOS (DRAWER TRAS COMPILACIÓN)
 ================================================================================
 
 Al recibir el grafo compilado desde AWS Lambda, la app despliega un Drawer lateral derecho de 380dp con 3 pestañas:
 
 1. Pestaña 1 (Auditoría GRINDE):
    - Semáforo de pensamiento lineal (alerta visual si linear_thinking_risk es true).
-   - Indicador numérico de densidad de enlaces cruzados.
+   - Indicador numérico de densidad de enlaces cruzados (cross-links).
    - Caja de retroalimentación pedagógica formulada por la IA para mejorar el modelo mental.
 
 2. Pestaña 2 (Taxonomía PACER):
