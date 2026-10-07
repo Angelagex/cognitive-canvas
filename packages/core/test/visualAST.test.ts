@@ -803,5 +803,620 @@ describe("5-Level Digital Ink Parsing & 3-Layer Persistence (ARCHITECTURE_SPEC.m
     expect(result.entities[0].type).toBe("TEXT_BLOCK");
     expect(result.connectors).toHaveLength(0);
   });
+
+  it("should cluster 'Photography' as a single TEXT_BLOCK when P is drawn with a closed loop and t has a delayed flat crossbar with a nearby connector", () => {
+    const strokes: RawInkStroke[] = [
+      // P as a closed loop stroke (width: 55, height: 70)
+      {
+        id: "P_closed",
+        color: "#000",
+        width: 3,
+        points: [
+          { x: 650, y: 230 },
+          { x: 705, y: 250 },
+          { x: 705, y: 290 },
+          { x: 650, y: 300 },
+          { x: 650, y: 230 },
+        ],
+      },
+      // h
+      { id: "h_stroke", color: "#000", width: 3, points: [{ x: 720, y: 220 }, { x: 720, y: 320 }, { x: 745, y: 260 }, { x: 755, y: 320 }] },
+      // o
+      { id: "o1_stroke", color: "#000", width: 3, points: [{ x: 770, y: 280 }, { x: 790, y: 250 }, { x: 805, y: 280 }, { x: 790, y: 320 }, { x: 770, y: 280 }] },
+      // t stem
+      { id: "t_stem", color: "#000", width: 3, points: [{ x: 825, y: 230 }, { x: 825, y: 320 }] },
+      // o
+      { id: "o2_stroke", color: "#000", width: 3, points: [{ x: 845, y: 280 }, { x: 865, y: 250 }, { x: 880, y: 280 }, { x: 865, y: 320 }, { x: 845, y: 280 }] },
+      // g
+      { id: "g_stroke", color: "#000", width: 3, points: [{ x: 895, y: 280 }, { x: 915, y: 250 }, { x: 930, y: 280 }, { x: 915, y: 350 }] },
+      // r
+      { id: "r_stroke", color: "#000", width: 3, points: [{ x: 945, y: 260 }, { x: 945, y: 320 }, { x: 965, y: 260 }] },
+      // a
+      { id: "a_stroke", color: "#000", width: 3, points: [{ x: 980, y: 280 }, { x: 1000, y: 250 }, { x: 1015, y: 280 }, { x: 1015, y: 320 }] },
+      // p
+      { id: "p_stroke", color: "#000", width: 3, points: [{ x: 1030, y: 260 }, { x: 1030, y: 350 }, { x: 1055, y: 290 }] },
+      // h
+      { id: "h2_stroke", color: "#000", width: 3, points: [{ x: 1070, y: 220 }, { x: 1070, y: 320 }, { x: 1095, y: 260 }, { x: 1105, y: 320 }] },
+      // y
+      { id: "y_stroke", color: "#000", width: 3, points: [{ x: 1120, y: 260 }, { x: 1135, y: 320 }, { x: 1150, y: 260 }, { x: 1130, y: 350 }] },
+      // Delayed flat crossbar on 't' (width: 25, height: 4)
+      { id: "t_crossbar", color: "#000", width: 3, points: [{ x: 815, y: 265 }, { x: 840, y: 265 }] },
+      // Nearby arrow connector pointing away from the word
+      { id: "arrow_shaft", color: "#000", width: 3, points: [{ x: 1200, y: 280 }, { x: 1400, y: 280 }] },
+      { id: "arrow_tip", color: "#000", width: 3, points: [{ x: 1385, y: 270 }, { x: 1400, y: 280 }, { x: 1385, y: 290 }] },
+    ];
+
+    const result = engine.parseVisualAST(strokes);
+    const photoEntity = result.entities.find((e) => e.stroke_ids.includes("P_closed"));
+    expect(photoEntity).toBeDefined();
+    expect(photoEntity?.type).toBe("TEXT_BLOCK");
+    expect(photoEntity?.stroke_ids).toContain("t_crossbar");
+    expect(photoEntity?.stroke_ids).toContain("P_closed");
+    expect(photoEntity?.stroke_ids).toHaveLength(12); // P, h, o, t_stem, o, g, r, a, p, h, y, t_crossbar
+
+    // The arrow is separate
+    expect(result.connectors).toHaveLength(1);
+    expect(result.connectors[0].type).toBe("ARROW");
+    expect(result.connectors[0].stroke_ids).toContain("arrow_shaft");
+    expect(result.connectors[0].stroke_ids).toContain("arrow_tip");
+  });
+
+  // -------------------------------------------------------------
+  // USER REAL-WORLD SCENARIO: DEMANDA, PRECIO, OFERTA CAUSAL LOOP
+  // -------------------------------------------------------------
+  it("should detect causal loop when connecting Demanda, Precio, and Oferta with 3 lines", () => {
+    // 1. Demanda at (100, 100)
+    const demandaStroke: RawInkStroke = {
+      id: "strk_demanda",
+      color: "#000",
+      width: 2,
+      points: [
+        { x: 90, y: 90 },
+        { x: 120, y: 110 },
+      ],
+    };
+
+    // 2. Precio at (400, 100)
+    const precioStroke: RawInkStroke = {
+      id: "strk_precio",
+      color: "#000",
+      width: 2,
+      points: [
+        { x: 390, y: 90 },
+        { x: 420, y: 110 },
+      ],
+    };
+
+    // 3. Oferta at (250, 350)
+    const ofertaStroke: RawInkStroke = {
+      id: "strk_oferta",
+      color: "#000",
+      width: 2,
+      points: [
+        { x: 240, y: 340 },
+        { x: 270, y: 360 },
+      ],
+    };
+
+    // Connector 1: Demanda to Precio (horizontal, 260px)
+    const conn1: RawInkStroke = {
+      id: "line_demanda_precio",
+      color: "#000",
+      width: 2,
+      points: [
+        { x: 130, y: 100 },
+        { x: 380, y: 100 },
+      ],
+    };
+
+    // Connector 2: Precio to Oferta (diagonal, ~260px)
+    const conn2: RawInkStroke = {
+      id: "line_precio_oferta",
+      color: "#000",
+      width: 2,
+      points: [
+        { x: 390, y: 120 },
+        { x: 270, y: 340 },
+      ],
+    };
+
+    // Connector 3: Oferta to Demanda (diagonal, ~260px)
+    const conn3: RawInkStroke = {
+      id: "line_oferta_demanda",
+      color: "#000",
+      width: 2,
+      points: [
+        { x: 240, y: 340 },
+        { x: 120, y: 120 },
+      ],
+    };
+
+    const result = engine.parseVisualAST([
+      demandaStroke,
+      precioStroke,
+      ofertaStroke,
+      conn1,
+      conn2,
+      conn3,
+    ]);
+
+    // Must NOT be mistaken for a CONTAINER_BOX
+    expect(result.entities.filter((e) => e.type === "CONTAINER_BOX")).toHaveLength(0);
+
+    // All 3 words must be separate entities
+    expect(result.entities).toHaveLength(3);
+
+    // Must have 3 connectors
+    expect(result.connectors).toHaveLength(3);
+
+    // Must detect the 3-node causal loop!
+    expect(result.causal_loops).toBeDefined();
+    expect(result.causal_loops).toHaveLength(1);
+    expect(result.causal_loops![0].node_count).toBe(3);
+    expect(result.causal_loops![0].loop_type).toBe("ASSOCIATIVE");
+    expect(result.causal_loops![0].is_directed).toBe(false);
+  });
+
+  it("should classify loop as REINFORCING or BALANCING when directed arrows or inhibition are used", () => {
+    // 3 Nodes
+    const nA: RawInkStroke = { id: "nA", color: "#000", width: 2, points: [{ x: 100, y: 100 }, { x: 120, y: 120 }] };
+    const nB: RawInkStroke = { id: "nB", color: "#000", width: 2, points: [{ x: 400, y: 100 }, { x: 420, y: 120 }] };
+    const nC: RawInkStroke = { id: "nC", color: "#000", width: 2, points: [{ x: 250, y: 350 }, { x: 270, y: 370 }] };
+
+    // 2 Forward Arrows + 1 Inhibitory Connector (C -| A)
+    // Shaft A -> B
+    const sAB: RawInkStroke = { id: "sAB", color: "#000", width: 2, points: [{ x: 130, y: 100 }, { x: 380, y: 100 }] };
+    const hAB: RawInkStroke = { id: "hAB", color: "#000", width: 2, points: [{ x: 365, y: 90 }, { x: 380, y: 100 }, { x: 365, y: 110 }] };
+
+    // Shaft B -> C
+    const sBC: RawInkStroke = { id: "sBC", color: "#000", width: 2, points: [{ x: 390, y: 120 }, { x: 270, y: 340 }] };
+    const hBC: RawInkStroke = { id: "hBC", color: "#000", width: 2, points: [{ x: 280, y: 330 }, { x: 270, y: 340 }, { x: 270, y: 325 }] };
+
+    // Inhibitory Shaft C -| A with T-bar cap at end
+    const sCA: RawInkStroke = { id: "sCA", color: "#000", width: 2, points: [{ x: 240, y: 340 }, { x: 130, y: 130 }] };
+    const capCA: RawInkStroke = { id: "capCA", color: "#000", width: 2, points: [{ x: 120, y: 140 }, { x: 140, y: 120 }] };
+
+    const result = engine.parseVisualAST([nA, nB, nC, sAB, hAB, sBC, hBC, sCA, capCA]);
+
+    expect(result.causal_loops).toBeDefined();
+    expect(result.causal_loops).toHaveLength(1);
+    expect(result.causal_loops![0].node_count).toBe(3);
+    // 1 inhibitory link -> Balancing loop (homeostatic negative feedback)
+    expect(result.causal_loops![0].loop_type).toBe("BALANCING");
+  });
+
+  it("should detect realistic scratch-out over a wide handwritten word with tall letters", () => {
+    // Word "demanda" (width 220px, height 70px)
+    const wordStroke: RawInkStroke = {
+      id: "strk_demanda_word",
+      color: "#000",
+      width: 2,
+      points: [
+        { x: 100, y: 200 },
+        { x: 120, y: 270 },
+        { x: 180, y: 220 },
+        { x: 240, y: 260 },
+        { x: 320, y: 210 },
+      ],
+    };
+
+    // Quick horizontal zigzag across the center of the word: 4 reversals, height only 20px
+    const scratchStroke: RawInkStroke = {
+      id: "strk_quick_zigzag",
+      color: "#f00",
+      width: 3,
+      points: [
+        { x: 120, y: 235 },
+        { x: 280, y: 235 },
+        { x: 130, y: 245 },
+        { x: 270, y: 245 },
+        { x: 140, y: 240 },
+        { x: 260, y: 240 },
+      ],
+    };
+
+    const cleanWord: RawInkStroke = {
+      id: "strk_clean_other",
+      color: "#000",
+      width: 2,
+      points: [
+        { x: 500, y: 200 },
+        { x: 520, y: 230 },
+        { x: 540, y: 210 },
+        { x: 560, y: 235 },
+      ],
+    };
+
+    const result = engine.parseVisualAST([wordStroke, scratchStroke, cleanWord]);
+
+    // Word should be erased, only cleanWord remains
+    expect(result.entities).toHaveLength(1);
+    expect(result.entities[0].stroke_ids).toContain("strk_clean_other");
+  });
+
+  it("should recognize high sample rate (120Hz/240Hz) arrowheads with 25+ points", () => {
+    // Shaft: (100, 200) to (300, 200)
+    const shaft: RawInkStroke = {
+      id: "dense_shaft",
+      color: "#000",
+      width: 2,
+      points: [
+        { x: 100, y: 200 },
+        { x: 300, y: 200 },
+      ],
+    };
+
+    // Dense 120Hz arrowhead: 24 points in a V shape near (300, 200)
+    const denseTipPoints = [
+      { x: 280, y: 185 }, { x: 283, y: 187 }, { x: 286, y: 189 }, { x: 290, y: 192 },
+      { x: 293, y: 195 }, { x: 297, y: 198 }, { x: 300, y: 200 }, // apex
+      { x: 297, y: 202 }, { x: 294, y: 205 }, { x: 291, y: 208 }, { x: 287, y: 211 },
+      { x: 284, y: 213 }, { x: 280, y: 215 },
+    ];
+    const denseTip: RawInkStroke = {
+      id: "dense_tip",
+      color: "#000",
+      width: 2,
+      points: denseTipPoints,
+    };
+
+    const result = engine.parseVisualAST([shaft, denseTip]);
+
+    expect(result.connectors).toHaveLength(1);
+    expect(result.connectors[0].type).toBe("ARROW");
+    expect(result.connectors[0].directionality).toBe("FORWARD");
+  });
+
+  // -------------------------------------------------------------
+  // FEATURE: INFLUENCE SIGNS (+ / -), POLARITY & 1-HOP CONTEXT WINDOW
+  // -------------------------------------------------------------
+  it("should recognize handwritten '+' and '-' influence signs adjacent to connectors and assign polarity", () => {
+    // 2 Nodes: "Inversion" at (100, 200) and "Ventas" at (400, 200)
+    const nodeA: RawInkStroke = {
+      id: "node_inversion",
+      color: "#000",
+      width: 2,
+      points: [{ x: 90, y: 190 }, { x: 120, y: 210 }],
+    };
+    const nodeB: RawInkStroke = {
+      id: "node_ventas",
+      color: "#000",
+      width: 2,
+      points: [{ x: 390, y: 190 }, { x: 420, y: 210 }],
+    };
+
+    // Shaft from (120, 200) to (380, 200)
+    const shaft: RawInkStroke = {
+      id: "shaft_ab",
+      color: "#000",
+      width: 2,
+      points: [{ x: 130, y: 200 }, { x: 380, y: 200 }],
+    };
+    // Arrow tip
+    const tip: RawInkStroke = {
+      id: "tip_ab",
+      color: "#000",
+      width: 2,
+      points: [{ x: 365, y: 190 }, { x: 380, y: 200 }, { x: 365, y: 210 }],
+    };
+
+    // Handwritten '+' sign near the midpoint of the shaft at (250, 175)
+    // Horizontal stroke
+    const plusH: RawInkStroke = {
+      id: "plus_h",
+      color: "#000",
+      width: 2,
+      points: [{ x: 242, y: 175 }, { x: 258, y: 175 }],
+    };
+    // Vertical stroke
+    const plusV: RawInkStroke = {
+      id: "plus_v",
+      color: "#000",
+      width: 2,
+      points: [{ x: 250, y: 167 }, { x: 250, y: 183 }],
+    };
+
+    const result = engine.parseVisualAST([nodeA, nodeB, shaft, tip, plusH, plusV]);
+
+    expect(result.connectors).toHaveLength(1);
+    const conn = result.connectors[0];
+    expect(conn.polarity).toBe("POSITIVE");
+    expect(conn.source_entity_id).toBe("entity_1");
+    expect(conn.target_entity_id).toBe("entity_2");
+
+    // The '+' strokes must be absorbed by the connector and NOT become standalone entities
+    expect(result.entities).toHaveLength(2);
+  });
+
+  it("should synthesize 1-hop semantic context window with connected neighbors and influence signs", () => {
+    const nodeA: RawInkStroke = {
+      id: "nodeA",
+      color: "#000",
+      width: 2,
+      points: [{ x: 100, y: 100 }, { x: 130, y: 120 }],
+    };
+    const nodeB: RawInkStroke = {
+      id: "nodeB",
+      color: "#000",
+      width: 2,
+      points: [{ x: 400, y: 100 }, { x: 430, y: 120 }],
+    };
+    const shaft: RawInkStroke = {
+      id: "shaft",
+      color: "#000",
+      width: 2,
+      points: [{ x: 140, y: 110 }, { x: 390, y: 110 }],
+    };
+
+    // Isolated '-' minus sign near shaft at (260, 90)
+    const minusSign: RawInkStroke = {
+      id: "minus_sign",
+      color: "#000",
+      width: 2,
+      points: [{ x: 250, y: 92 }, { x: 270, y: 92 }],
+    };
+
+    const result = engine.parseVisualAST([nodeA, nodeB, shaft, minusSign], {
+      entity_1: "Inversión en marketing",
+    });
+
+    expect(result.connectors[0].polarity).toBe("NEGATIVE");
+
+    const ent1 = result.entities.find((e) => e.id === "entity_1");
+    expect(ent1).toBeDefined();
+    expect(ent1?.context_window).toBeDefined();
+    expect(ent1?.context_window).toContain("Inversión en marketing");
+    expect(ent1?.context_window).toContain("influye en entity_2 (-)");
+
+    const ent2 = result.entities.find((e) => e.id === "entity_2");
+    expect(ent2).toBeDefined();
+    expect(ent2?.context_window).toBeDefined();
+    expect(ent2?.context_window).toContain("recibe de Inversión en marketing (-)");
+  });
+
+  it("should classify loop polarity as BALANCING (-) with an odd number of negative signs and REINFORCING (+) with even", () => {
+    // 3 nodes
+    const nA: RawInkStroke = { id: "nA", color: "#000", width: 2, points: [{ x: 100, y: 100 }, { x: 120, y: 120 }] };
+    const nB: RawInkStroke = { id: "nB", color: "#000", width: 2, points: [{ x: 400, y: 100 }, { x: 420, y: 120 }] };
+    const nC: RawInkStroke = { id: "nC", color: "#000", width: 2, points: [{ x: 250, y: 350 }, { x: 270, y: 370 }] };
+
+    // Connectors forming a cycle A -> B -> C -> A
+    // AB with arrow
+    const sAB: RawInkStroke = { id: "sAB", color: "#000", width: 2, points: [{ x: 130, y: 100 }, { x: 380, y: 100 }] };
+    const hAB: RawInkStroke = { id: "hAB", color: "#000", width: 2, points: [{ x: 365, y: 90 }, { x: 380, y: 100 }, { x: 365, y: 110 }] };
+    // BC with arrow
+    const sBC: RawInkStroke = { id: "sBC", color: "#000", width: 2, points: [{ x: 390, y: 120 }, { x: 270, y: 340 }] };
+    const hBC: RawInkStroke = { id: "hBC", color: "#000", width: 2, points: [{ x: 280, y: 330 }, { x: 270, y: 340 }, { x: 270, y: 325 }] };
+    // CA with arrow
+    const sCA: RawInkStroke = { id: "sCA", color: "#000", width: 2, points: [{ x: 240, y: 340 }, { x: 130, y: 130 }] };
+    const hCA: RawInkStroke = { id: "hCA", color: "#000", width: 2, points: [{ x: 140, y: 140 }, { x: 130, y: 130 }, { x: 145, y: 125 }] };
+
+    // Minus sign on CA: horizontal stroke near sCA
+    const minusCA: RawInkStroke = {
+      id: "minus_ca",
+      color: "#000",
+      width: 2,
+      points: [{ x: 175, y: 220 }, { x: 195, y: 220 }],
+    };
+
+    const result = engine.parseVisualAST([nA, nB, nC, sAB, hAB, sBC, hBC, sCA, hCA, minusCA]);
+
+    expect(result.causal_loops).toHaveLength(1);
+    const loop = result.causal_loops![0];
+    expect(loop.node_count).toBe(3);
+    // 1 negative link on CA => Balancing Loop (-)
+    expect(loop.loop_type).toBe("BALANCING");
+    expect(loop.polarity_sign).toBe("-");
+  });
+
+  it("should cluster 'Photography' into a single TEXT_BLOCK entity at 35% zoom (canvasScale = 0.35)", () => {
+    // At 35% zoom, world coordinates are scaled by ~2.85x
+    const zoomFactor = 1 / 0.35; // ~2.857
+    const scalePt = (pt: { x: number; y: number }) => ({
+      x: Math.round(pt.x * zoomFactor),
+      y: Math.round(pt.y * zoomFactor),
+    });
+
+    // P: stem + closed loop
+    const P_stem: RawInkStroke = {
+      id: "P_stem_z35",
+      color: "#000",
+      width: 4,
+      points: [
+        scalePt({ x: 650, y: 220 }),
+        scalePt({ x: 650, y: 300 }),
+        scalePt({ x: 650, y: 380 }),
+      ],
+    };
+    const P_loop: RawInkStroke = {
+      id: "P_loop_z35",
+      color: "#000",
+      width: 4,
+      points: [
+        scalePt({ x: 650, y: 220 }),
+        scalePt({ x: 685, y: 220 }),
+        scalePt({ x: 695, y: 250 }),
+        scalePt({ x: 685, y: 280 }),
+        scalePt({ x: 650, y: 280 }),
+      ],
+    };
+
+    // h: stem + arch
+    const h_stem: RawInkStroke = {
+      id: "h_stem_z35",
+      color: "#000",
+      width: 4,
+      points: [scalePt({ x: 710, y: 220 }), scalePt({ x: 710, y: 380 })],
+    };
+    const h_arch: RawInkStroke = {
+      id: "h_arch_z35",
+      color: "#000",
+      width: 4,
+      points: [
+        scalePt({ x: 710, y: 300 }),
+        scalePt({ x: 730, y: 280 }),
+        scalePt({ x: 745, y: 310 }),
+        scalePt({ x: 745, y: 380 }),
+      ],
+    };
+
+    // o: loop
+    const o_loop: RawInkStroke = {
+      id: "o_loop_z35",
+      color: "#000",
+      width: 4,
+      points: [
+        scalePt({ x: 760, y: 330 }),
+        scalePt({ x: 780, y: 280 }),
+        scalePt({ x: 795, y: 330 }),
+        scalePt({ x: 780, y: 380 }),
+        scalePt({ x: 760, y: 330 }),
+      ],
+    };
+
+    // t: stem + delayed flat crossbar
+    const t_stem: RawInkStroke = {
+      id: "t_stem_z35",
+      color: "#000",
+      width: 4,
+      points: [scalePt({ x: 815, y: 240 }), scalePt({ x: 815, y: 380 })],
+    };
+    const t_cross: RawInkStroke = {
+      id: "t_cross_z35",
+      color: "#000",
+      width: 4,
+      points: [scalePt({ x: 800, y: 280 }), scalePt({ x: 835, y: 280 })],
+    };
+
+    // r: stem + hook
+    const r_stem: RawInkStroke = {
+      id: "r_stem_z35",
+      color: "#000",
+      width: 4,
+      points: [scalePt({ x: 855, y: 290 }), scalePt({ x: 855, y: 380 })],
+    };
+    const r_hook: RawInkStroke = {
+      id: "r_hook_z35",
+      color: "#000",
+      width: 4,
+      points: [scalePt({ x: 855, y: 310 }), scalePt({ x: 875, y: 290 })],
+    };
+
+    // y: descender + slash
+    const y_desc: RawInkStroke = {
+      id: "y_desc_z35",
+      color: "#000",
+      width: 4,
+      points: [scalePt({ x: 890, y: 290 }), scalePt({ x: 920, y: 440 })],
+    };
+    const y_slash: RawInkStroke = {
+      id: "y_slash_z35",
+      color: "#000",
+      width: 4,
+      points: [scalePt({ x: 920, y: 290 }), scalePt({ x: 900, y: 360 })],
+    };
+
+    const strokes = [P_stem, P_loop, h_stem, h_arch, o_loop, t_stem, t_cross, r_stem, r_hook, y_desc, y_slash];
+    const result = engine.parseVisualAST(strokes, {}, 0.35);
+
+    // No stroke should become a CONTAINER_BOX
+    expect(result.entities.filter((e) => e.type === "CONTAINER_BOX")).toHaveLength(0);
+
+    // No stroke should fracture into a connector
+    expect(result.connectors).toHaveLength(0);
+
+    // All strokes must cluster into a single TEXT_BLOCK entity
+    expect(result.entities).toHaveLength(1);
+    expect(result.entities[0].type).toBe("TEXT_BLOCK");
+    expect(result.entities[0].stroke_ids).toHaveLength(strokes.length);
+  });
+
+  it("should not fracture continuous hooked 'h' and 'y' strokes into ARROW connectors", () => {
+    // Single-stroke h: downstem then acute turn up and arch down (hook turn looks like arrowhead)
+    const single_h: RawInkStroke = {
+      id: "single_h",
+      color: "#000",
+      width: 2,
+      points: [
+        { x: 100, y: 100 },
+        { x: 100, y: 180 },
+        { x: 105, y: 140 }, // turn up (acute)
+        { x: 120, y: 130 },
+        { x: 135, y: 180 },
+      ],
+    };
+
+    // Single-stroke y: descender with curled tail hook
+    const single_y: RawInkStroke = {
+      id: "single_y",
+      color: "#000",
+      width: 2,
+      points: [
+        { x: 145, y: 130 },
+        { x: 160, y: 220 },
+        { x: 145, y: 215 }, // curl hook
+        { x: 135, y: 195 },
+      ],
+    };
+
+    const result = engine.parseVisualAST([single_h, single_y]);
+
+    // Should NOT become ARROW connectors
+    expect(result.connectors).toHaveLength(0);
+    // Should cluster into 1 TEXT_BLOCK
+    expect(result.entities).toHaveLength(1);
+    expect(result.entities[0].type).toBe("TEXT_BLOCK");
+    expect(result.entities[0].stroke_ids).toContain("single_h");
+    expect(result.entities[0].stroke_ids).toContain("single_y");
+  });
+
+  it("should cluster full 'photography' with single-stroke hooked H's and Y into 1 entity with 0 connectors", () => {
+    // Realistic S-pen multi-point strokes where H1 is between P (loop) and O (loop),
+    // and H2 is between P (loop) and Y (curved descender)
+    const strokes: RawInkStroke[] = [
+      // P: stem + loop (closed loop)
+      { id: "p1_stem", color: "#000", width: 3, points: [{ x: 100, y: 100 }, { x: 100, y: 180 }] },
+      { id: "p1_loop", color: "#000", width: 3, points: [{ x: 100, y: 100 }, { x: 125, y: 120 }, { x: 100, y: 140 }, { x: 100, y: 100 }] },
+      // h1: single stroke downstem and arch
+      { id: "h1_stroke", color: "#000", width: 3, points: [{ x: 135, y: 90 }, { x: 135, y: 180 }, { x: 140, y: 140 }, { x: 155, y: 130 }, { x: 165, y: 180 }] },
+      // o1: closed loop
+      { id: "o1_loop", color: "#000", width: 3, points: [{ x: 175, y: 130 }, { x: 195, y: 130 }, { x: 195, y: 175 }, { x: 175, y: 175 }, { x: 175, y: 130 }] },
+      // t: stem + cross
+      { id: "t_stem", color: "#000", width: 3, points: [{ x: 210, y: 100 }, { x: 210, y: 180 }] },
+      { id: "t_cross", color: "#000", width: 3, points: [{ x: 200, y: 130 }, { x: 225, y: 130 }] },
+      // o2: closed loop
+      { id: "o2_loop", color: "#000", width: 3, points: [{ x: 235, y: 130 }, { x: 255, y: 130 }, { x: 255, y: 175 }, { x: 235, y: 175 }, { x: 235, y: 130 }] },
+      // g: loop + descender
+      { id: "g_loop", color: "#000", width: 3, points: [{ x: 265, y: 130 }, { x: 285, y: 130 }, { x: 285, y: 175 }, { x: 265, y: 175 }, { x: 265, y: 130 }] },
+      { id: "g_desc", color: "#000", width: 3, points: [{ x: 285, y: 150 }, { x: 285, y: 210 }, { x: 265, y: 220 }] },
+      // r: stem + hook
+      { id: "r_stem", color: "#000", width: 3, points: [{ x: 300, y: 130 }, { x: 300, y: 180 }] },
+      { id: "r_hook", color: "#000", width: 3, points: [{ x: 300, y: 145 }, { x: 320, y: 135 }] },
+      // a: loop + tail
+      { id: "a_loop", color: "#000", width: 3, points: [{ x: 330, y: 130 }, { x: 350, y: 130 }, { x: 350, y: 175 }, { x: 330, y: 175 }, { x: 330, y: 130 }] },
+      { id: "a_tail", color: "#000", width: 3, points: [{ x: 350, y: 145 }, { x: 350, y: 180 }] },
+      // p2: stem + loop
+      { id: "p2_stem", color: "#000", width: 3, points: [{ x: 365, y: 130 }, { x: 365, y: 210 }] },
+      { id: "p2_loop", color: "#000", width: 3, points: [{ x: 365, y: 130 }, { x: 385, y: 145 }, { x: 365, y: 165 }, { x: 365, y: 130 }] },
+      // h2: single stroke downstem and arch
+      { id: "h2_stroke", color: "#000", width: 3, points: [{ x: 395, y: 90 }, { x: 395, y: 180 }, { x: 400, y: 140 }, { x: 415, y: 130 }, { x: 425, y: 180 }] },
+      // y: slash + curved descender with tail hook
+      { id: "y_slash", color: "#000", width: 3, points: [{ x: 435, y: 130 }, { x: 450, y: 170 }] },
+      { id: "y_desc", color: "#000", width: 3, points: [{ x: 460, y: 130 }, { x: 440, y: 210 }, { x: 425, y: 200 }] },
+    ];
+
+    const result = engine.parseVisualAST(strokes);
+
+    // Must have exactly 0 connectors
+    expect(result.connectors).toHaveLength(0);
+    // Must cluster into exactly 1 TEXT_BLOCK entity containing all strokes
+    expect(result.entities).toHaveLength(1);
+    expect(result.entities[0].type).toBe("TEXT_BLOCK");
+    expect(result.entities[0].stroke_ids).toHaveLength(strokes.length);
+    expect(result.entities[0].stroke_ids).toContain("h1_stroke");
+    expect(result.entities[0].stroke_ids).toContain("h2_stroke");
+    expect(result.entities[0].stroke_ids).toContain("y_desc");
+  });
 });
+
 

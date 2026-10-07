@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { StyleSheet, View, Text, TouchableOpacity, Pressable, Modal, TouchableWithoutFeedback } from "react-native";
 import { PlacedAttribute, EntityBoundingBox } from "../../types/canvas";
+import type { VisualASTEntity } from "@cognitive-canvas/core";
 
 interface PlacedAttributeBadgesProps {
   attributes: PlacedAttribute[];
@@ -11,6 +12,8 @@ interface PlacedAttributeBadgesProps {
   activeAnchorEntityId?: string | null;
   hoveredEntityBounds?: EntityBoundingBox | null;
   activeEntityBounds?: EntityBoundingBox | null;
+  hoveredEntity?: VisualASTEntity | null;
+  unclusteredStrokesInEntity?: Array<{ id: string; bbox: EntityBoundingBox }> | null;
   anchorTooltip?: {
     visible: boolean;
     worldX: number;
@@ -32,6 +35,8 @@ export const PlacedAttributeBadges: React.FC<PlacedAttributeBadgesProps> = ({
   activeAnchorEntityId,
   hoveredEntityBounds,
   activeEntityBounds,
+  hoveredEntity,
+  unclusteredStrokesInEntity,
   anchorTooltip,
   hoverScreenX = 0,
   hoverScreenY = 0,
@@ -144,9 +149,44 @@ export const PlacedAttributeBadges: React.FC<PlacedAttributeBadgesProps> = ({
             ]}
           >
             <View style={styles.wordEntityInnerBorder} />
+            {hoveredEntity && (
+              <View style={styles.entityTagBadge}>
+                <Text style={styles.entityTagText}>
+                  {hoveredEntity.type === "CONTAINER_BOX" ? "📦 CAJA" : "🏷️ " + hoveredEntity.type} • {hoveredEntity.stroke_ids.length} trazos
+                </Text>
+              </View>
+            )}
           </View>
         );
       })()}
+
+      {/* Resaltado de Nodos / Trazos NO Agrupados dentro de la Entidad (Debug de Agrupamiento) */}
+      {unclusteredStrokesInEntity && unclusteredStrokesInEntity.map((unclustered) => {
+        const left = unclustered.bbox.xmin * canvasScale + canvasTranslateX;
+        const top = unclustered.bbox.ymin * canvasScale + canvasTranslateY;
+        const width = (unclustered.bbox.xmax - unclustered.bbox.xmin) * canvasScale;
+        const height = (unclustered.bbox.ymax - unclustered.bbox.ymin) * canvasScale;
+
+        return (
+          <View
+            key={`unclustered_${unclustered.id}`}
+            pointerEvents="none"
+            style={[
+              styles.unclusteredStrokeHalo,
+              {
+                left,
+                top,
+                width: Math.max(18, width),
+                height: Math.max(18, height),
+              },
+            ]}
+          >
+            <View style={styles.unclusteredTagBadge}>
+              <Text style={styles.unclusteredTagText}>⚠️ No agrupado</Text>
+            </View>
+          </View>
+        );
+      })}
 
       {/* Air View / S-Pen Hover Affordance Floating Tooltip (Spec 4.3) */}
       {hoveredAttribute && (
@@ -304,6 +344,52 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     borderWidth: 1,
     borderColor: "rgba(56, 189, 248, 0.8)",
+  },
+  entityTagBadge: {
+    position: "absolute",
+    top: -22,
+    left: 0,
+    backgroundColor: "#0F172A",
+    borderColor: "#38BDF8",
+    borderWidth: 1,
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 4,
+  },
+  entityTagText: {
+    color: "#38BDF8",
+    fontSize: 10,
+    fontWeight: "700",
+  },
+  unclusteredStrokeHalo: {
+    position: "absolute",
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderStyle: "dashed",
+    borderColor: "#F59E0B",
+    backgroundColor: "rgba(245, 158, 11, 0.14)",
+    zIndex: 6,
+  },
+  unclusteredTagBadge: {
+    position: "absolute",
+    bottom: -18,
+    left: 0,
+    backgroundColor: "#78350F",
+    borderColor: "#F59E0B",
+    borderWidth: 1,
+    borderRadius: 4,
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+  },
+  unclusteredTagText: {
+    color: "#FDE68A",
+    fontSize: 9,
+    fontWeight: "700",
   },
   badgeIcon: {
     fontSize: 14,

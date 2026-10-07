@@ -14,6 +14,7 @@ import {
   SelectionChangedEvent,
   HoverEvent,
   HoverTimeoutEvent,
+  FingerTapEvent,
 } from "../types/canvas";
 
 export * from "../types/canvas";
@@ -42,6 +43,7 @@ export interface JetpackInkCanvasProps extends ViewProps {
   onSelectionChanged?: (event: NativeSyntheticEvent<SelectionChangedEvent>) => void;
   onHover?: (event: NativeSyntheticEvent<HoverEvent>) => void;
   onHoverTimeout?: (event: NativeSyntheticEvent<HoverTimeoutEvent>) => void;
+  onFingerTap?: (event: NativeSyntheticEvent<FingerTapEvent>) => void;
 }
 
 interface NativeJetpackInkViewProps extends ViewProps {
@@ -68,6 +70,7 @@ interface NativeJetpackInkViewProps extends ViewProps {
   onSelectionChanged?: (event: NativeSyntheticEvent<SelectionChangedEvent>) => void;
   onHover?: (event: NativeSyntheticEvent<HoverEvent>) => void;
   onHoverTimeout?: (event: NativeSyntheticEvent<HoverTimeoutEvent>) => void;
+  onFingerTap?: (event: NativeSyntheticEvent<FingerTapEvent>) => void;
 }
 
 const NativeJetpackInkView = requireNativeComponent<NativeJetpackInkViewProps>("JetpackInkView");
@@ -96,6 +99,7 @@ export const JetpackInkCanvas: React.FC<JetpackInkCanvasProps> = ({
   onSelectionChanged,
   onHover,
   onHoverTimeout,
+  onFingerTap,
   style,
   ...rest
 }) => {
@@ -126,6 +130,7 @@ export const JetpackInkCanvas: React.FC<JetpackInkCanvasProps> = ({
         onSelectionChanged={onSelectionChanged}
         onHover={onHover}
         onHoverTimeout={onHoverTimeout}
+        onFingerTap={onFingerTap}
         {...rest}
       />
     </View>

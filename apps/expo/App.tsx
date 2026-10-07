@@ -53,6 +53,8 @@ export default function App() {
     hoveredAttribute,
     activeAnchorEntity,
     hoveredEntityBounds,
+    hoveredEntity,
+    unclusteredStrokesInEntity,
     activeEntityBounds,
     handleAnchorModalOpen,
     hoverScreenX,
@@ -61,6 +63,7 @@ export default function App() {
     handleBadgeHover,
     anchorTooltip,
     handleHoverTimeout,
+    handleFingerTap,
     handleCloseAnchorTooltip,
     handleSaveAnchorTooltip,
     canvasScale,
@@ -139,6 +142,7 @@ export default function App() {
           onSelectionChanged={handleSelectionChanged}
           onHover={handleHover}
           onHoverTimeout={handleHoverTimeout}
+          onFingerTap={handleFingerTap}
         />
 
         {/* Badges de Atributos Cognitivos anclados al lienzo con soporte Air View y Halo Perimetral */}
@@ -151,6 +155,8 @@ export default function App() {
           activeAnchorEntityId={activeAnchorEntity?.id}
           hoveredEntityBounds={hoveredEntityBounds}
           activeEntityBounds={activeEntityBounds}
+          hoveredEntity={hoveredEntity}
+          unclusteredStrokesInEntity={unclusteredStrokesInEntity}
           anchorTooltip={anchorTooltip}
           hoverScreenX={hoverScreenX}
           hoverScreenY={hoverScreenY}

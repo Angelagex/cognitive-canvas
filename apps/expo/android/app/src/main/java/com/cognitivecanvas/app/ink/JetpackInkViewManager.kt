@@ -119,7 +119,8 @@ class JetpackInkViewManager : SimpleViewManager<JetpackInkView>() {
             "topBarrelButton" to mapOf("registrationName" to "onBarrelButton"),
             "topSelectionChanged" to mapOf("registrationName" to "onSelectionChanged"),
             "topHover" to mapOf("registrationName" to "onHover"),
-            "topHoverTimeout" to mapOf("registrationName" to "onHoverTimeout")
+            "topHoverTimeout" to mapOf("registrationName" to "onHoverTimeout"),
+            "topFingerTap" to mapOf("registrationName" to "onFingerTap")
         )
     }
 

@@ -133,6 +133,9 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
 
     private var cachedBrush: Brush? = null
     private var isTwoFingerGesture = false
+    private var fingerDownX = 0f
+    private var fingerDownY = 0f
+    private var fingerDownTime = 0L
 
     // Background Paint Styles
     private val dotPaint = Paint().apply {
@@ -159,6 +162,12 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
         triggerDrawAndHold()
     }
 
+    // Stroke Finish Notification Debounce (eliminates UI-thread serialization lag during fast handwriting)
+    private val strokeFinishDebounceHandler = Handler(Looper.getMainLooper())
+    private val strokeFinishDebounceRunnable = Runnable {
+        notifyStrokeCountChanged()
+    }
+
     // S-Pen Hover Dwell for Semantic Anchoring (ADR 3.1 & Master Spec 4)
     private val hoverDwellHandler = Handler(Looper.getMainLooper())
     private var hoverDwellAnchorRawX = 0f
@@ -170,6 +179,8 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
     private var lastHoverDpScreenX = 0f
     private var lastHoverDpScreenY = 0f
     private var lastHoverEntityBounds: RectF? = null
+    private var lastHoverDispatchTime = 0L
+    private val HOVER_THROTTLE_INTERVAL_MS = 32L // Max 30 FPS over React Native bridge
 
     private val hoverDwellRunnable = Runnable {
         if (isHoverDwellActive && !hoverDwellTriggered) {
@@ -223,23 +234,169 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
         inProgressStrokesView.addFinishedStrokesListener(object : InProgressStrokesFinishedListener {
             override fun onStrokesFinished(strokes: Map<InProgressStrokeId, Stroke>) {
                 val shouldSnap = brushType == "shapes" || isStrokeSnapped
-                val finalStrokes = if (shouldSnap) {
-                    strokes.values.map { stroke ->
-                        shapeDetector.detectAndSnap(stroke) ?: stroke
+                val finalStrokes = mutableListOf<Stroke>()
+
+                for (stroke in strokes.values) {
+                    if (isScratchOutStroke(stroke)) {
+                        val erased = handleScratchOut(stroke)
+                        if (erased) {
+                            android.util.Log.d("JetpackInkView", "Scratch-out gesture detected! Erased entity.")
+                            strokeFinishDebounceHandler.removeCallbacks(strokeFinishDebounceRunnable)
+                            notifyStrokeCountChanged()
+                            continue // Scratch stroke deleted the entity, do not keep scratch stroke
+                        }
                     }
-                } else {
-                    strokes.values
+                    val snapped = if (shouldSnap) {
+                        shapeDetector.detectAndSnap(stroke) ?: stroke
+                    } else {
+                        stroke
+                    }
+                    finalStrokes.add(snapped)
                 }
 
-                completedStrokes.addAll(finalStrokes)
-                undoneStrokes.clear() // New stroke clears redo history
+                if (finalStrokes.isNotEmpty()) {
+                    completedStrokes.addAll(finalStrokes)
+                    undoneStrokes.clear() // New stroke clears redo history
+                }
+
                 synchronized(strokesToHandOff) {
                     strokesToHandOff.addAll(strokes.keys)
                 }
                 postInvalidateOnAnimation()
-                notifyStrokeCountChanged()
+                strokeFinishDebounceHandler.removeCallbacks(strokeFinishDebounceRunnable)
+                strokeFinishDebounceHandler.postDelayed(strokeFinishDebounceRunnable, 100L)
             }
         })
+    }
+
+    private fun isScratchOutStroke(stroke: Stroke): Boolean {
+        val inputs = stroke.inputs
+        val count = inputs.size
+        if (count < 6) return false
+
+        val density = context.resources.displayMetrics.density
+        var minX = Float.MAX_VALUE
+        var maxX = -Float.MAX_VALUE
+        var minY = Float.MAX_VALUE
+        var maxY = -Float.MAX_VALUE
+
+        var totalLength = 0f
+        var xReversals = 0
+        var yReversals = 0
+        var prevDx = 0f
+        var prevDy = 0f
+
+        val minDelta = 4f * density // 4dp movement threshold to filter jitter
+
+        for (i in 0 until count) {
+            val pt = inputs.get(i)
+            if (pt.x < minX) minX = pt.x
+            if (pt.x > maxX) maxX = pt.x
+            if (pt.y < minY) minY = pt.y
+            if (pt.y > maxY) maxY = pt.y
+
+            if (i > 0) {
+                val prevPt = inputs.get(i - 1)
+                val dx = pt.x - prevPt.x
+                val dy = pt.y - prevPt.y
+                totalLength += kotlin.math.hypot(dx, dy)
+
+                if (kotlin.math.abs(dx) >= minDelta) {
+                    if (prevDx != 0f && (dx > 0) != (prevDx > 0)) {
+                        xReversals++
+                    }
+                    prevDx = dx
+                }
+                if (kotlin.math.abs(dy) >= minDelta) {
+                    if (prevDy != 0f && (dy > 0) != (prevDy > 0)) {
+                        yReversals++
+                    }
+                    prevDy = dy
+                }
+            }
+        }
+
+        val widthDp = (maxX - minX) / density
+        val heightDp = (maxY - minY) / density
+        val totalLengthDp = totalLength / density
+
+        // A scratch-out has at least 3 direction reversals (zigzag)
+        val isHorizontalZigZag = xReversals >= 3 && totalLengthDp >= 45f && widthDp >= 20f
+        val isVerticalZigZag = yReversals >= 3 && totalLengthDp >= 45f && heightDp >= 20f
+
+        return isHorizontalZigZag || isVerticalZigZag
+    }
+
+    private fun handleScratchOut(scratchStroke: Stroke): Boolean {
+        val scratchBounds = getStrokeBounds(scratchStroke) ?: return false
+
+        // Find which strokes in completedStrokes intersect with scratchBounds
+        val hitStrokes = mutableListOf<Stroke>()
+        for (stroke in completedStrokes) {
+            val b = getStrokeBounds(stroke) ?: continue
+            val interLeft = maxOf(scratchBounds.left, b.left)
+            val interRight = minOf(scratchBounds.right, b.right)
+            val interTop = maxOf(scratchBounds.top, b.top)
+            val interBottom = minOf(scratchBounds.bottom, b.bottom)
+
+            if (interRight > interLeft && interBottom > interTop) {
+                val strokeW = b.right - b.left
+                val strokeH = b.bottom - b.top
+                val interW = interRight - interLeft
+                val interH = interBottom - interTop
+
+                val centerX = (b.left + b.right) / 2f
+                val centerY = (b.top + b.bottom) / 2f
+                val centerInScratch = centerX >= scratchBounds.left && centerX <= scratchBounds.right &&
+                                      centerY >= scratchBounds.top && centerY <= scratchBounds.bottom
+
+                if (centerInScratch || (interW >= strokeW * 0.3f && interH >= 10f) || interW >= 20f) {
+                    hitStrokes.add(stroke)
+                }
+            }
+        }
+
+        if (hitStrokes.isEmpty()) return false
+
+        // Expand to the full cluster so the entire handwritten entity/word is erased
+        val strokesToDelete = mutableSetOf<Stroke>()
+        strokesToDelete.addAll(hitStrokes)
+
+        // Cluster proximity: any strokes within 40dp of hit strokes belong to the same entity
+        val queue = ArrayDeque<Stroke>()
+        queue.addAll(hitStrokes)
+        val clusterProximity = 40f
+
+        while (queue.isNotEmpty()) {
+            val curr = queue.removeFirst()
+            val currBounds = getStrokeBounds(curr) ?: continue
+
+            for (other in completedStrokes) {
+                if (strokesToDelete.contains(other)) continue
+                val otherBounds = getStrokeBounds(other) ?: continue
+
+                val dx = maxOf(0f, maxOf(currBounds.left - otherBounds.right, otherBounds.left - currBounds.right))
+                val dy = maxOf(0f, maxOf(currBounds.top - otherBounds.bottom, otherBounds.top - currBounds.bottom))
+
+                if (dx <= clusterProximity && dy <= clusterProximity) {
+                    strokesToDelete.add(other)
+                    queue.add(other)
+                }
+            }
+        }
+
+        completedStrokes.removeAll(strokesToDelete)
+        undoneStrokes.addAll(strokesToDelete)
+
+        try {
+            performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+        } catch (_: Exception) {
+            try {
+                performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+            } catch (_: Exception) {}
+        }
+
+        return true
     }
 
     private fun getOrCreateBrush(): Brush {
@@ -387,6 +544,21 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
         )
     }
 
+    private fun notifyFingerTap(worldX: Float, worldY: Float, screenX: Float, screenY: Float) {
+        val reactContext = context as? ReactContext ?: return
+        val event = Arguments.createMap().apply {
+            putDouble("worldX", worldX.toDouble())
+            putDouble("worldY", worldY.toDouble())
+            putDouble("screenX", screenX.toDouble())
+            putDouble("screenY", screenY.toDouble())
+        }
+        reactContext.getJSModule(RCTEventEmitter::class.java)?.receiveEvent(
+            id,
+            "topFingerTap",
+            event
+        )
+    }
+
     override fun onInterceptTouchEvent(ev: MotionEvent?): Boolean {
         parent?.requestDisallowInterceptTouchEvent(true)
         return true
@@ -403,6 +575,32 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
             stylusHandler.isStylus(event, it)
         }
         val isHardwareEraser = stylusHandler.isStylusEraser(event) || stylusHandler.isBarrelButtonPressed(event)
+
+        // Single Finger Tap detection (Word selection & Attribute Pin trigger)
+        if (!isStylusTouch && !isHardwareEraser && event.pointerCount == 1) {
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    fingerDownX = event.x
+                    fingerDownY = event.y
+                    fingerDownTime = System.currentTimeMillis()
+                }
+                MotionEvent.ACTION_UP -> {
+                    val dist = hypot(event.x - fingerDownX, event.y - fingerDownY)
+                    val elapsed = System.currentTimeMillis() - fingerDownTime
+                    val density = context.resources.displayMetrics.density
+                    if (dist < 18f * density && elapsed < 350L && !transformManager.isUserInteracting && !isTwoFingerGesture) {
+                        val dpX = event.x / density
+                        val dpY = event.y / density
+                        val dpTx = transformManager.canvasTranslateX / density
+                        val dpTy = transformManager.canvasTranslateY / density
+                        val scale = transformManager.canvasScale
+                        val worldX = (dpX - dpTx) / scale
+                        val worldY = (dpY - dpTy) / scale
+                        notifyFingerTap(worldX, worldY, dpX, dpY)
+                    }
+                }
+            }
+        }
 
         // Multi-finger gestures (undo/redo, canvas pinch & pan) are STRICTLY for finger touches!
         // Never allow a stylus or barrel button event to feed the scale or gesture detectors.
@@ -615,8 +813,9 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
         }
         if (strokeBoundsList.isEmpty()) return null
 
-        // 1. Find if (worldX, worldY) is on or near any stroke (hit tolerance 28dp)
-        val hitMargin = 28f
+        // 1. Find if (worldX, worldY) is on or near any stroke (hit tolerance 28dp in screen coordinates)
+        val zoomFactor = 1f / transformManager.canvasScale
+        val hitMargin = 28f * zoomFactor
         val hitIndices = mutableListOf<Int>()
         for (idx in strokeBoundsList.indices) {
             val b = strokeBoundsList[idx].second
@@ -627,7 +826,7 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
         }
         if (hitIndices.isEmpty()) return null
 
-        // 2. Expand cluster to include all adjacent strokes in the same handwritten word/concept (within 45dp)
+        // 2. Expand cluster to include all adjacent strokes in the same handwritten word/concept (within 45dp in screen coords)
         val clusterIndices = mutableSetOf<Int>()
         val queue = ArrayDeque<Int>()
         for (idx in hitIndices) {
@@ -635,7 +834,7 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
             queue.add(idx)
         }
 
-        val clusterProximity = 45f
+        val clusterProximity = 45f * zoomFactor
         while (queue.isNotEmpty()) {
             val currentIdx = queue.removeFirst()
             val currentBounds = strokeBoundsList[currentIdx].second
@@ -696,10 +895,16 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
                     lastHoverDpScreenX = dpScreenX
                     lastHoverDpScreenY = dpScreenY
 
-                    val entityBounds = findEntityClusterAt(worldX, worldY)
-                    lastHoverEntityBounds = entityBounds
+                    val now = SystemClock.uptimeMillis()
+                    val isEnter = event.actionMasked == MotionEvent.ACTION_HOVER_ENTER
+                    val shouldDispatch = isEnter || (now - lastHoverDispatchTime >= HOVER_THROTTLE_INTERVAL_MS)
 
-                    notifyHover(worldX, worldY, dpScreenX, dpScreenY, true, entityBounds)
+                    if (shouldDispatch) {
+                        lastHoverDispatchTime = now
+                        val entityBounds = findEntityClusterAt(worldX, worldY)
+                        lastHoverEntityBounds = entityBounds
+                        notifyHover(worldX, worldY, dpScreenX, dpScreenY, true, entityBounds)
+                    }
 
                     // 800 ms Dwell Timer tracking (tolerance <= 15 dp as per ADR 3.1)
                     val tolerancePx = 15f * density
@@ -743,7 +948,6 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
     }
 
     private fun notifyHover(worldX: Float, worldY: Float, screenX: Float, screenY: Float, isHovering: Boolean, entityBounds: RectF? = null) {
-        android.util.Log.d("AirViewHover", "notifyHover -> worldX=$worldX worldY=$worldY screenX=$screenX screenY=$screenY isHovering=$isHovering bounds=$entityBounds")
         val reactContext = context as? ReactContext ?: return
         val event = Arguments.createMap().apply {
             putDouble("worldX", worldX.toDouble())

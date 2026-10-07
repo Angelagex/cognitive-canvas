@@ -75,3 +75,10 @@ export interface HoverTimeoutEvent {
   entityBounds?: EntityBoundingBox | null;
 }
 
+export interface FingerTapEvent {
+  worldX: number;
+  worldY: number;
+  screenX: number;
+  screenY: number;
+}
+

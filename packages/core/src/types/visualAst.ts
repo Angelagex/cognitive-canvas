@@ -50,6 +50,7 @@ export interface VisualEntity {
   transcribed_text?: string;
   semantic_anchor?: SemanticAnchor | null;
   passive_context?: string | null;
+  context_window?: string | null; // Feature: 1-hop semantic context window
   child_ids?: string[]; // Level 4: Hierarchical containment inside CONTAINER_BOX
   is_scratched_out?: boolean; // Feature 6: In-AST scratch-out flag
 }
@@ -77,6 +78,7 @@ export interface ConnectorEdge {
   label?: string; // Adjacent handwritten relational label (e.g. "inhibe", "restringe a")
   is_curved?: boolean; // Feature 2: Curved Bézier or Elbow connector
   geometry_type?: ConnectorGeometryType; // Feature 2: Structural geometry
+  polarity?: "POSITIVE" | "NEGATIVE" | "UNKNOWN"; // Feature: Influence signs ('+' | '-')
 }
 
 /**
@@ -85,6 +87,9 @@ export interface ConnectorEdge {
 export interface CausalLoop {
   cycle_ids: string[]; // Ordered entity IDs forming the closed loop: [A, B, C, A]
   node_count: number;
+  loop_type?: "REINFORCING" | "BALANCING" | "ASSOCIATIVE";
+  is_directed?: boolean;
+  polarity_sign?: "+" | "-" | null; // Reinforcing (+/R), Balancing (-/B)
 }
 
 /**
