@@ -14,6 +14,10 @@ myApi.route("POST /canvases/{id}/compile", {
   timeout: "60 seconds",
 });
 
+// S3 Pre-Signed Upload URL Endpoint for Canvas PNG Captures
+myApi.route("POST /canvases/{id}/upload-url", "packages/functions/src/uploadUrl.handler");
+myApi.route("GET /canvases/{id}/upload-url", "packages/functions/src/uploadUrl.handler");
+
 // Canvas Entity Routes
 myApi.route("POST /canvases", "packages/functions/src/canvas/create.handler");
 myApi.route("GET /canvases/{id}", "packages/functions/src/canvas/get.handler");

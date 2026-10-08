@@ -3,11 +3,8 @@ import { CompilationRepository } from "@cognitive-canvas/core/compilation";
 
 export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   try {
-    const limit = event.queryStringParameters?.limit
-      ? parseInt(event.queryStringParameters.limit)
-      : 10;
-    const cursor = event.queryStringParameters?.cursor;
-    const result = await CompilationRepository.list(limit, cursor);
+    const canvasId = event.queryStringParameters?.canvasId || "";
+    const result = await CompilationRepository.listByCanvas(canvasId);
     return {
       statusCode: 200,
       body: JSON.stringify(result),

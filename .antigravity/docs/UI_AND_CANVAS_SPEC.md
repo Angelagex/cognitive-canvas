@@ -14,29 +14,37 @@
 ## 2. Distribución Espacial de la Interfaz (Layout)
 
 ### A. Barra Superior (Header - 48dp)
-- **Izquierda:** Menú de libretas/bóvedas de mapas y título editable del mapa actual.
+- **Izquierda:** Menú de acciones del documento `[...]` y título del mapa actual.
+  - **Editor de Título Ergonómico:** En reposo muestra el nombre del documento con botón `✏️`. Al editar, muestra un `TextInput` enfocado con botones explícitos de confirmación `[✓]` y cancelación `[✕]`, con guardado automático al desenfocar (*onBlur*).
 - **Centro-Derecha:** Botones `Deshacer` y `Rehacer` con historial ilimitado de trazos.
-- **Extremo Derecho:** Botón de acción principal `[⚡ Compilar Mapa]` (despliega el panel lateral de auditoría).
+- **Extremo Derecho:** Botón de acción principal `[⚡ Compilar Mapa]` (despliega el panel lateral de auditoría) y selector de plantilla de papel.
 
-### B. Barra de Herramientas Principal (Estilo Goodnotes - 56dp)
-Ubicada horizontalmente debajo del header:
-- **Selector de Herramientas (Izquierda):**
+### B. Barra de Herramientas Flotante (Dock Vertical Lateral - Ancho 56dp)
+Ubicada verticalmente en el lateral izquierdo o derecho (conmutable dinámicamente mediante botón `⇄` y recordada en preferencias del usuario) para maximizar la superficie útil vertical de dibujo en tablets Landscape:
+- **Conmutador de Lado:** Botón superior `⇄` para alternar la barra entre el flanco izquierdo y derecho.
+- **Herramientas Principales:**
   1. `Pluma / Pen`: Trazos sensibles a presión y velocidad.
-  2. `Resaltador / Highlighter`: Trazos translúcidos que renderizan por debajo de la tinta negra.
-  3. `Borrador / Eraser`: Modos borrado por trazo completo (*Stroke*) o por píxel.
-  4. `Lazo / Lasso`: Selección libre para mover, escalar y duplicar clústeres de trazos.
-  5. `Formas / Shapes`: Detección automática al mantener quieto el trazo (rectas, flechas, elipses).
-  6. `Atributo Pasivo`: Selector manual para anclar metadatos.
-  7. `Imágenes`: Importación de archivos multimedia como soporte.
-- **Controles Rápidos (Derecha):**
-  - 3 accesos directos a paleta de color favorita.
-  - 3 accesos directos a grosor de plumilla (fino, medio, grueso).
+  2. `Resaltador / Highlighter`: Trazos translúcidos con mezcla multiplicativa.
+  3. `Borrador / Eraser`: Conmutador de modo (trazo completo *Stroke* vs. *Precision Eraser*).
+  4. `Lazo / Lasso`: Selección libre para mover y manipular clústeres.
+  5. `Formas / Shapes`: Regularización geométrica de líneas, elipses y flechas.
+- **Popovers Contextuales y Desplegables:**
+  - **Selector de Grosor Único:** Botón compacto que despliega un popover flotante (`StrokeWidthPopover`) con 5 calibres milimétricos (fino a extra grueso).
+  - **Paleta de Color Rápida:** Botón de color activo que despliega un popover flotante (`ColorPickerPopover`) con 12 tonos armónicos de alta visibilidad.
+  - **Plantilla de Papel:** Popover flotante (`PaperTemplatePopover`) para alternar entre lienzo en blanco, cuadrícula de puntos (*dot grid*) y líneas pautadas.
 
-### C. Lienzo Central (Canvas Infinito)
+### C. Navegación Unificada de Documentos y Bóveda
+- **Modal de Acciones Integrado (`DocumentActionsModal`):**
+  - Integra la visualización de la Bóveda de Mapas directamente en la misma vista modal, eliminando modales anidados o solapados.
+  - Botón de retroceso fluido `[← Menú]` para regresar a las opciones del documento sin cerrar el modal.
+  - Modal de confirmación de acción peligrosa (*Danger confirmation*) al limpiar o descartar el lienzo para evitar pérdida accidental de trabajo.
+
+### D. Lienzo Central (Canvas Infinito)
 - Zoom continuo (10% a 1000%) y Pan inercial de dos dedos.
+- Renderizado de trazos por GPU a 120Hz con `androidx.ink`.
 - Fondos intercambiables: Blanco puro, cuadrícula de puntos (*dot grid*), milimetrado.
 
-### D. Barra Inferior Flotante (Footer)
+### E. Barra Inferior Flotante (Footer)
 - Selector de modo: `Solo Stylus` (bloquea toques accidentales de dedos en dibujo).
 - Nivel de zoom actual con reset a 100% y botón de ajuste global (*Fit to Screen*).
 

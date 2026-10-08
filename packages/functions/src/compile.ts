@@ -159,9 +159,12 @@ export const handler: Handler = async (event) => {
       await CognitiveEdgeRepository.batchCreate(edgeInputs);
     }
 
+    // Extract flashcards from either learning_engine_outputs (Master Spec canonical) or legacy flat array
+    const flashcards = output.learning_engine_outputs?.anki_flashcards || output.anki_flashcards || [];
+
     // Batch persist Anki flashcards (Strictly EVIDENCE / REFERENCE non-deducible nodes)
-    if (output.anki_flashcards && output.anki_flashcards.length > 0) {
-      const flashcardInputs = output.anki_flashcards.map((card, idx) => ({
+    if (flashcards.length > 0) {
+      const flashcardInputs = flashcards.map((card: any, idx: number) => ({
         id: `card_${compilationId}_${idx}`,
         canvasId: canvas_id,
         compilationId: compilationId,
@@ -169,11 +172,19 @@ export const handler: Handler = async (event) => {
         cardType: card.card_type,
         front: card.front,
         back: card.back,
-        clozeText: card.cloze_text,
+        clozeText: card.cloze_text || card.front,
         deckName: "CognitiveCanvas",
         syncedToAnki: false,
       }));
       await FlashcardRepository.batchCreate(flashcardInputs);
+    }
+
+    // Populate fallback flat fields for backward compatibility if only learning_engine_outputs was returned
+    if (output.learning_engine_outputs && !output.anki_flashcards) {
+      output.anki_flashcards = output.learning_engine_outputs.anki_flashcards;
+      output.high_road_transfer_prompts = output.learning_engine_outputs.high_road_transfer_prompts as any;
+      output.derring_effect_challenges = output.learning_engine_outputs.derring_effect_challenges as any;
+      output.contrasting_cases_icc = output.learning_engine_outputs.contrasting_cases_icc as any;
     }
 
     // Update canvas status to COMPILED

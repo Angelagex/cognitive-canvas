@@ -3,13 +3,12 @@
 Basado en: `MASTER_SPEC.md`, `DECISION_RATIONALE.md` y `UI_AND_CANVAS_SPEC.md`.
 
 ---
-
 ## 📊 RESUMEN EJECUTIVO DE ESTADO
 - **Fase 1: Infraestructura & Tipos Compartidos:** 100% Completada (Contratos formalizados).
-- **Fase 2: Motor Nativo de Tinta Digital (120Hz / S-Pen):** 85% Completada (Jetpack Ink, RDP shapes, flechas compuestas, borrador de precisión, S-Pen Air View funcionando en hardware real).
-- **Fase 3: Motor Local Visual AST & Persistencia (.cmn):** 80% Completada (Motor de 5 niveles conectado en tiempo real al lienzo con serialización de trazos normalizada por densidad; falta persistencia a disco .cmn en Expo FileSystem y alineación de SemanticAnchor).
-- **Fase 4: Backend Serverless SST & Compilador Gemini 2.0 Flash:** 70% Completada (Lambda y DynamoDB funcionales; falta sincronizar prompt/schema con Master Spec Sección 7-8 y pre-signed URLs en S3).
-- **Fase 5: UI/UX, Auditoría GRINDE & Práctica Deliberada (Anki/ICC):** 60% Completada (Toolbar Goodnotes, lienzo infinito, Air View tooltip y Drawer funcional; falta adaptar a schema v2, gestos avanzados y AnkiConnect RPC).
+- **Fase 2: Motor Nativo de Tinta Digital (120Hz / S-Pen):** 95% Completada (Jetpack Ink, RDP shapes, flechas compuestas, borrador de precisión, S-Pen Air View, gesto Scratch-out, Draw-and-Hold Snapping 450ms en hardware real).
+- **Fase 3: Motor Local Visual AST & Persistencia (.cmn):** 100% Completada (Motor de 5 niveles en tiempo real, persistencia bidireccional .cmn en Expo FileSystem, puente nativo de carga/restauración de trazos en Jetpack Ink, auto-guardado 1.5s, Bóveda unificada y refactorización modular Facade).
+- **Fase 4: Backend Serverless SST & Compilador Gemini 2.0 Flash:** 75% Completada (Infraestructura SST v3, DynamoDB, S3, esquemas JSON formales alineados con Master Spec 7-8; en ejecución: endpoints de presigned S3 y robustez multimodal).
+- **Fase 5: UI/UX, Auditoría GRINDE & Práctica Deliberada (Anki/ICC):** 80% Completada (Dock flotante configurable izquierda/derecha, popovers modulares, editor de título editable con confirmación, Bóveda integrada con navegación fluida, modal de confirmación de borrado, soporte de renderizado para intervenciones estructuradas).
 
 ---
 
@@ -17,7 +16,7 @@ Basado en: `MASTER_SPEC.md`, `DECISION_RATIONALE.md` y `UI_AND_CANVAS_SPEC.md`.
 - **Script de Build & Install Automático:** `scripts/install-app.sh`
   - Ejecución rápida desde la raíz: `npm run tablet` o `npm run build:android`.
   - Detección de dispositivo por ADB (Samsung Galaxy Tab S10 Lite `SM-X400`).
-  - Compilación incremental con Gradle (`./gradlew installDebug` ~14s) e inicio automático de la app en la pantalla de la tablet (`am start -n com.cognitivecanvas.app/.MainActivity`).
+  - Compilación incremental con Gradle (`./gradlew installDebug` ~14-20s) e inicio automático de la app en la pantalla de la tablet (`am start -n com.cognitivecanvas.app/.MainActivity`).
 
 ---
 
@@ -27,111 +26,95 @@ Basado en: `MASTER_SPEC.md`, `DECISION_RATIONALE.md` y `UI_AND_CANVAS_SPEC.md`.
 - [x] **1.1 Contrato del Visual AST (`visualAst.ts`):**
   - Entidades agrupadas (`VisualEntity`) con cajas normalizadas `NormalizedBoundingBox`.
   - Conectores dirigidos (`ConnectorEdge`) con acoplamiento magnético y etiquetas.
-  - Objeto tipado `SemanticAnchor` (`MECHANISM`, `ANALOGY`, `EVIDENCE`) con transcripción de voz y notas de usuario.
+  - Objeto tipado `SemanticAnchor` (`MECHANISM`, `ANALOGY`, `EVIDENCE`) con notas de contexto.
 - [x] **1.2 Contrato de Persistencia Local (`persistence.ts`):**
   - Estructura desacoplada en 3 capas: `raw_ink_layer`, `visual_ast_layer`, `compiled_cognitive_layer`.
   - Formato de documento `.cmn` con metadatos de mapa y bóveda.
 - [x] **1.3 Contrato del Puente Nativo (`inkBridge.ts`):**
-  - Interfaz de comandos nativos `InkCanvasRef` (`setTool`, `exportHighResPng`, `exportRawInk`, etc.).
-  - Eventos de hardware: `StrokeEndEvent`, `TransformEvent`, `BarrelButtonEvent`, `HoverEvent` y `HoverTimeoutEvent` (800 ms dwell).
+  - Interfaz de comandos nativos `InkCanvasRef` (`loadedStrokesJson`, `loadStrokesTrigger`, `clearTrigger`, etc.).
+  - Eventos de hardware: `StrokeEndEvent`, `TransformEvent`, `BarrelButtonEvent`, `HoverEvent`, `HoverTimeoutEvent`, `FingerTapEvent`.
 - [x] **1.4 Contrato de IA Gemini 2.0 Flash (`compiledGraph.ts`):**
   - Interfaces estrictas 1:1 con el JSON Schema de la Master Spec: `MapMetadata`, `CompiledNode`, `CompiledEdge`, `GrindeAudit` y `LearningEngineOutputs`.
-  - Validación con suite de pruebas unitarias (`schema.test.ts` y `visualAST.test.ts`).
+  - Validación con suite de pruebas unitarias (`schema.test.ts` y `visualAST.test.ts`, 32/32 tests pasando).
 
 ---
 
-### FASE 2: MOTOR DE TINTA NATIVO Y HARDWARE S-PEN (EN PROGRESO 🟡 - 85%)
+### FASE 2: MOTOR DE TINTA NATIVO Y HARDWARE S-PEN (COMPLETADA EN SU BASE ✅ - 95%)
 - [x] **2.1 Pipeline de Baja Latencia (Jetpack Ink 120Hz):**
-  - Integración nativa de `androidx.ink` con `InProgressStrokesView` y `GLFrontBufferedRenderer`.
+  - Integración nativa de `androidx.ink` con `InProgressStrokesView` y `ViewStrokeRenderer`.
   - Rechazo de palma a nivel de hardware Wacom EMR (`StylusInputHandler`).
-  - Detección del botón físico de barril del S-Pen.
+  - Detección del botón físico de barril del S-Pen y modo Solo Stylus conmutable.
 - [x] **2.2 Reconocimiento Geométrico (Shape Detection):**
   - Algoritmo Ramer-Douglas-Peucker (RDP) para simplificación poligonal.
   - Cociente isoperimétrico ($Q = 4\pi A / P^2$) para discriminar círculos de polígonos/rectángulos.
   - Detección de flechas por análisis de ángulo de pliegue (> 75°) con cabezal delta simétrico interpolado.
 - [x] **2.3 Herramientas de Dibujo Esenciales:**
-  - Pluma con sensibilidad a presión y velocidad.
-  - Resaltador translúcido y selector de grosor/color.
+  - Pluma con sensibilidad a presión Wacom EMR y velocidad.
+  - Resaltador translúcido y selector de grosor/color con retención de color por trazo (`strokeColorMap`).
   - Borrador dual (Stroke Eraser por trazo completo + Precision Eraser por segmento).
-  - Selección por Lazo con algoritmo *Point-in-Polygon* y traslación en tiempo real.
+  - Selección por Lazo con algoritmo *Point-in-Polygon* y traslación/recoloreado en tiempo real.
 - [x] **2.4 S-Pen Air View (Proximidad 1–2 cm):**
   - Intercepción global de `MotionEvent.TOOL_TYPE_STYLUS` en `MainActivity.kt`.
-  - Normalización de píxeles físicos a DP.
+  - Normalización de píxeles físicos a DP con throttling de 30 FPS en bridge.
   - Halo perimetral uniforme ceñido a la píldora (*Distance-to-Box* de 14 dp).
-- [ ] **2.5 Tareas de Fase 2 & Gestos Dinámicos de Tinta (Spec 5.2):**
-  - [x] **Temporizador de Hover 800 ms (`onHoverTimeout`):** Disparar evento nativo tras 800 ms de quietud ($\le 15\text{px}$) del S-Pen + Haptic feedback + apertura de `SemanticAnchorTooltip` en 2 pasos (ADR 3.1 & Master Spec 4).
-  - [ ] **Exportación PNG de Alta Resolución (`exportHighResPng`):** Renderizar bitmap nativo fuera de pantalla para subida a S3.
-  - [ ] **Herramienta Puntero Láser Efímero:** Trazo visual que desaparece tras 1.5 segundos.
-  - [ ] **5.2.1 Gesto de Borrado (Scratch-out):** Detección nativa en `JetpackInkView` de patrón en zigzag horizontal rápido de alta frecuencia ($\ge 3$ oscilaciones en área acotada) para eliminar trazos subyacentes sin conmutar de herramienta.
-  - [ ] **5.2.2 Gesto de Selección (Draw-to-Lasso):** Detección de bucle cerrado automático al dibujar que active la selección flotante y halo de transformación sin necesidad de pulsar la herramienta Lazo.
-  - [ ] **5.2.3 Gesto de Inserción de Espacio (Canvas Break):** Trazo de línea recta horizontal/vertical sostenida hacia abajo o derecha que empuja los clústeres adyacentes del grafo abriendo espacio en el lienzo.
-  - [ ] **5.2.4 Auto-Snapping Geométrico (Hold-to-Snap 400 ms):** Dwell de 400 ms con la punta del S-Pen quieta al finalizar cualquier figura en modo Pluma normal para regularizarla vectorialmente en recta, elipse, rectángulo o flecha dirigida sin cambiar a modo Formas.
+- [x] **2.5 Gestos Dinámicos de Tinta en Hardware:**
+  - [x] **Temporizador de Hover 800 ms (`onHoverTimeout`):** Detección nativa con Haptic feedback para inspección de entidades.
+  - [x] **Gesto de Borrado (Scratch-out):** Detección nativa en `JetpackInkView` de patrón en zigzag (3+ oscilaciones, 45dp) con expansión por proximidad (40dp) para eliminar palabras completas.
+  - [x] **Auto-Snapping Geométrico (Draw-and-Hold 450 ms):** Dwell de 450 ms con punta sostenida para regularizar trazos con haptic feedback sin cambiar a modo Formas.
+  - [ ] **Puntero Láser Efímero:** Trazo visual que desaparece tras 1.5 segundos.
+  - [ ] **Exportación PNG de Alta Resolución (`exportHighResPng`):** Bitmap nativo fuera de pantalla listo para subida a S3.
 
 ---
 
-### FASE 3: PARSING LOCAL (VISUAL AST) Y PERSISTENCIA .CMN (EN PROGRESO 🟡 - 80%)
-> [!IMPORTANT]
-> **Dependencia Arquitectónica Bloqueante para Anclaje Semántico Canónico:**  
-> Las interacciones de anclaje de atributos semánticos, el halo perimetral ceñido a palabras completas y el hover dwell sobre entidades complejas dependen directamente del grafo unificado de entidades (`VisualASTEntity[]` y `ConnectorEdge[]`) producido por el **Motor Local de Segmentación y Topología de 5 Niveles** (`VisualASTEngine.ts`).  
-> El clustering heurístico espacial implementado temporalmente en Kotlin (`findEntityClusterAt`) fue una aproximación paliativa inicial; para que una entidad compuesta por múltiples trazos (como una palabra escrita a mano o una caja con título) sea reconocida de forma robusta e invariable, el motor `VisualASTEngine` debe ejecutarse en tiempo real ante cada trazo finalizado (`onStrokeEnd`). Por tanto, la funcionalidad avanzada de anclaje semántico queda formalmente enlazada a la culminación de esta integración.
-
-- [x] **3.1 Motor Avanzado de 5 Niveles y Topología Causal (`VisualASTEngine.ts` en `packages/core`):**
-  - Nivel 1: Clasificación de trazos (cajas cerradas, líneas/conectores rectos/curvos/codo, puntas de flecha, tapas en T, texto, iconos y gestos scratch-out).
-  - Nivel 2: Agrupamiento adaptativo por línea base ($\tilde{H}$) y componentes conexas (elimina la restricción temporal rígida de 600 ms, absorbe trazos retardados y poda entidades tachadas).
-  - Nivel 3: Flechas compuestas unificadas (rectas, curvas Bézier, codos ortogonales), conectores inhibitorios ($\bot$), flechas bidireccionales ($\leftrightarrow$) y ensamblado de contenedores multi-trazo (3 a 6 líneas formando polígonos cerrados).
-  - Nivel 4: Contención jerárquica (nodos y palabras dentro de `CONTAINER_BOX` mono y multi-trazo).
-  - Nivel 5: Acoplamiento magnético a nodos más cercanos (<= 100 px), enlace de etiquetas textuales intermedias, detección de bucles causales ($A \to B \to C \to A$) y cálculo de métricas de red (raíces, sumideros y enlaces cruzados).
-  - Suite de pruebas completa: 16/16 tests pasando en `visualAST.test.ts` (100% pasando en Vitest).
-- [ ] **3.2 Tareas de Integración & Puente en Tiempo Real (Foco Actual):**
-  - [x] **Conexión en Tiempo Real del Visual AST con el Lienzo (`useCanvasState` + `serializeStrokes` / `onStrokeEnd`):**
-    * *Diagnóstico superado:* Serialización de trazos (`RawInkStroke[]`) desde Android hacia JS en `onStrokeEnd` completada con normalización de densidad.
-    * *Integración:* `VisualASTEngine.parseVisualAST()` conectado en tiempo real en `useCanvasState` con sincronización de `visualASTLayer` activo.
-    * *Impacto directo:* La detección de hover y el Halo perimetral operan sobre las `VisualEntity` reales calculadas por el motor AST, agrupando palabras completas (`TEXT_BLOCK`), figuras (`CONTAINER_BOX`) y flechas dirigidas (`ARROW`).
-  - [ ] **Alineación de Entidades Semánticas:** Refactorizar `VisualASTEngine` para que produzca objetos `SemanticAnchor` tipados (`MECHANISM`, `ANALOGY`, `EVIDENCE`).
-  - [x] **Servicio de Persistencia Local (`StorageService.ts`):**
-    - Guardar y cargar archivos `.cmn` (JSON 3 capas) en `expo-file-system`.
-    - Auto-guardado con debounce de 2 segundos tras finalizar trazo o editar metadatos.
-    - Carga/recuperación automática de mapa al iniciar la app (`last_active_map.txt`).
-    - Indicador visual en `TopHeader` (`.cmn al día` / `Guardando...`).
-  - [x] **Micro-Tooltip de Entrada de Atributo (Ergonomía de 2 Pasos):**
-    - Flujo de 2 pasos: Hover Dwell 800 ms activa Halo Perimetral persistente en la entidad + micro-icono flotante semi-opaco (`＋📌`).
-    - Al pulsar el micro-icono se despliega el modal simplificado (un solo input para nota/contexto y botón de dictado rápido de voz `SpeechRecognizer`), manteniendo el halo focalizado hasta guardar o cancelar.
+### FASE 3: PARSING LOCAL (VISUAL AST) Y PERSISTENCIA .CMN (COMPLETADA ✅ - 100%)
+- [x] **3.1 Motor Avanzado de 5 Niveles y Topología Causal (`VisualASTEngine.ts`):**
+  - Modularizado bajo `packages/core/src/parser/` (clasificación, agrupamiento adaptativo $\tilde{H}$, conectores, contención, bucles causales).
+  - Suite de 32 tests unitarios pasando en Vitest.
+- [x] **3.2 Conexión en Tiempo Real del Visual AST con el Lienzo:**
+  - Serialización de trazos normalizados en `onStrokeEnd` con decimation (1.5dp) y debounce de 280ms para escritura rápida fluida a 120Hz.
+  - Caché $O(1)$ de bounding boxes de trazos para eliminar latencia de renderizado.
+- [x] **3.3 Servicio de Persistencia Local Bidireccional (`StorageService.ts`):**
+  - Guardado y carga atómica de archivos canónicos `.cmn` (JSON 3 capas) en Expo FileSystem.
+  - Auto-guardado debounced de 1.5 segundos con control de estado modificado (*dirty state*).
+  - Reconstrucción nativa de trazos en Kotlin (`JetpackInkView.kt` -> `loadStrokesFromJson`) usando `InputToolType.STYLUS` y `MutableStrokeInputBatch`.
+  - Carga segura con *flush-save* automático al cambiar de mapa y restauración del último mapa activo al abrir la app.
+  - Gestión de preferencias del usuario (`user_preferences.json`).
+- [x] **3.4 Arquitectura Modular y Limpia (Refactorización Facade):**
+  - `useCanvasState.ts` desacoplado en 6 sub-hooks (`useCanvasTools`, `useCanvasViewport`, `useCanvasDocument`, `useCanvasAst`, `useCanvasHover`, `useCognitiveCompilation`).
+  - Popovers de toolbar extraídos en componentes independientes (`StrokeWidthPopover`, `ColorPickerPopover`, `PaperTemplatePopover`, `ContextualToolPill`).
 
 ---
 
-### FASE 4: PIPELINE SERVERLESS EN AWS & GEMINI 2.0 FLASH (EN PROGRESO 🟡 - 70%)
-- [x] **4.1 Infraestructura Serverless (SST v3 / Ion):**
+### FASE 4: PIPELINE SERVERLESS EN AWS & GEMINI 2.0 FLASH (EN EJECUCIÓN INMEDIATA ⏩ - 75%)
+- [x] **4.1 Infraestructura Serverless Base (SST v3 / Ion):**
   - Bucket S3 (`Storage`) para imágenes del lienzo.
   - DynamoDB (`Database`) para persistir mapas, compilaciones y nodos.
   - Lambda de compilación (`packages/functions/src/compile.ts`).
-- [ ] **4.2 Tareas Pendientes de Fase 4:**
-  - [ ] **Sincronización del System Prompt:** Reemplazar el prompt actual en `compilerPrompt.ts` por el texto oficial de producción de la Master Spec (Sección 7).
-  - [ ] **Sincronización del JSON Schema:** Actualizar el schema de la Lambda al `COMPILER_JSON_SCHEMA` estricto (Sección 8, con `learning_engine_outputs` y `map_metadata`).
-  - [ ] **Flujo de Pre-Signed URLs:** Implementar endpoint para generar URL pre-firmada de subida a S3 desde la tablet, evitando transferir imágenes pesadas por la Lambda.
+- [ ] **4.2 Tareas de Fase 4 (En Ejecución Inmediata):**
+  - [x] **Sincronización del System Prompt Oficial:** Prompt en `compilerPrompt.ts` alineado con Master Spec Sección 7 (Justin Sung GRINDE, PACER, deducción no inerte).
+  - [x] **Sincronización del JSON Schema Estricto:** Tipos y `COMPILER_JSON_SCHEMA` formalizados con `learning_engine_outputs` y campos de compatibilidad retroactiva.
+  - [ ] **Robustez de Extracción y Persistencia en Lambda:** Actualizar `compile.ts` para persistir tanto flashcards planas como `learning_engine_outputs`, y almacenar `non_verbal_balance_score`.
+  - [ ] **Flujo de Pre-Signed URLs:** Implementar endpoint (`uploadUrl.ts`) para generar URL pre-firmada de subida a S3 desde la tablet para la captura PNG, evitando cuellos de botella en la Lambda.
+  - [ ] **Conexión Real Tablet -> SST Backend:** Conectar `useCognitiveCompilation` en la tablet para enviar el `VisualASTLayer` real y recibir la auditoría de aprendizaje de Justin Sung en el Drawer.
 
 ---
 
-### FASE 5: UI/UX, AUDITORÍA GRINDE & INTEGRACIÓN ANKI (EN PROGRESO 🟡 - 60%)
+### FASE 5: UI/UX, AUDITORÍA GRINDE & INTEGRACIÓN ANKI (EN PROGRESO 🟡 - 80%)
 - [x] **5.1 Interfaz Base de Lienzo:**
-  - Barra estilo Goodnotes (56dp), paleta rápida y barra inferior flotante (36dp).
-  - Lienzo infinito con pan, pinch-to-zoom (10% a 1000%) y ajuste de fondo (puntos/milimetrado/liso).
-  - Air View tarjeta flotante con atributos de causalidad/analogía.
-- [x] **5.2 Drawer Lateral de Compilación:**
-  - Pestañas para Auditoría GRINDE y Clasificación PACER.
-  - Integración básica con cliente AnkiConnect.
-- [ ] **5.3 Tareas Pendientes de Fase 5:**
-  - [ ] **Actualización del Drawer a Schema v2:**
-    - Pestaña 1: Semáforo de pensamiento lineal con `linear_thinking_risk` y score de densidad de cross-links.
-    - Pestaña 2: Filtros interactivos por colores PACER (Azul/Verde/Púrpura/Naranja/Gris) sobre el mapa.
-    - Pestaña 3: Tarjetas interactivas de Desafíos de Transferencia Lejana (*High-Road*), Efecto Derring (*Error Rectification*) y Casos Contrastantes (*ICC*).
+  - Dock vertical flotante conmutador izquierda/derecha con memoria de posición.
+  - Editor de título integrado en Header con confirmación explícita y descarte.
+  - Bóveda de documentos integrada en el modal de acciones con navegación `← Menú`.
+  - Modal de confirmación de borrado seguro (*danger confirmation*).
+  - Componente `RetrievalPanel` con renderizado flexible de intervenciones de alto orden (`learning_engine_outputs`).
+- [ ] **5.2 Tareas Pendientes de Fase 5:**
+  - [ ] **Filtros por colores PACER interactivos en lienzo:** Resaltar u ocultar entidades según clasificación PACER.
   - [ ] **Sincronización AnkiConnect:**
-    - Sincronización estricta respetando el filtro anti-rote (solo nodos Evidence/Reference con `deducible_from_context: false`).
-    - Alerta de límite semanal saludable (máximo 100-150 tarjetas).
+    - Exportación de flashcards a la app Anki en Android vía AnkiDroid API / AnkiConnect Wi-Fi.
 
 ---
 
 ## 🎯 PRÓXIMOS PASOS PRIORITARIOS (ORDEN DE EJECUCIÓN)
-1. [COMPLETADO ✅] **Conexión en Tiempo Real de `VisualASTEngine` y Puente de Tinta:** Trazos normalizados por densidad, serializados en cada evento con caché O(1) de bounds, decimation de 240Hz a 120Hz fluido y parseados por el motor de 5 niveles en tiempo real.
-2. [COMPLETADO ✅] **Servicio de Persistencia Local (`StorageService.ts`):** Guardar y cargar archivos `.cmn` (JSON 3 capas) en `expo-file-system` con auto-guardado debounced de 2 segundos, recuperación al abrir la app e indicador en `TopHeader`.
-3. [EN FOCO ACTUAL ⏩] **Sincronización del Backend SST (`compile.ts` y `compilerPrompt.ts`):** Actualizar con el System Prompt oficial de producción y JSON Schema estricto de Gemini 2.0 Flash (Master Spec Sec 7-8) + Pre-Signed URLs en S3.
-4. [SIGUIENTE 🔜] **Alineación de Entidades Semánticas y Gestos Avanzados de Tinta (Spec 5.2):** Refactorizar `VisualASTEngine` para objetos `SemanticAnchor` tipados y gestos nativos (scratch-out, draw-to-lasso, hold-to-snap).
+1. [COMPLETADO ✅] **Persistencia Bidireccional `.cmn` y Restauración Nativa:** Trazos y documentos restaurados sin pérdida en Android con cambio de mapas en la Bóveda.
+2. [COMPLETADO ✅] **Refactorización y Componentización:** `useCanvasState` y `GoodnotesToolbar` limpios, modulares y desacoplados. Git index limpio.
+3. [EN EJECUCIÓN ⏩] **Robustecer Lambda de Compilación SST (`compile.ts`):** Soporte completo para `learning_engine_outputs`, `non_verbal_balance_score` y endpoint de pre-signed URL en S3 (`uploadUrl.ts`).
+4. [SIGUIENTE 🔜] **Conexión de Compilación Real en la Tablet:** Conectar `useCognitiveCompilation` en `apps/expo` para enviar el AST real a la API y desplegar la auditoría GRINDE en el Drawer.

@@ -169,17 +169,25 @@ export const RetrievalPanel: React.FC<RetrievalPanelProps> = ({ compilation }) =
         {activeTab === "transfer" && (
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Prompts de Transferencia (High-Road)</Text>
-            {high_road_transfer_prompts.map((prompt, idx) => (
+            {high_road_transfer_prompts.map((prompt: any, idx) => (
               <View key={idx} style={styles.promptItem}>
                 <Text style={styles.promptNumber}>#{idx + 1}</Text>
-                <Text style={styles.promptText}>{prompt}</Text>
+                <Text style={styles.promptText}>
+                  {typeof prompt === "string"
+                    ? prompt
+                    : `${prompt.unstructured_scenario || ""}${prompt.guiding_question ? `\n\n❓ ${prompt.guiding_question}` : ""}`}
+                </Text>
               </View>
             ))}
 
             <Text style={[styles.cardTitle, { marginTop: 16 }]}>Desafíos Derring Effect</Text>
-            {derring_effect_challenges.map((challenge, idx) => (
+            {derring_effect_challenges.map((challenge: any, idx) => (
               <View key={idx} style={styles.challengeItem}>
-                <Text style={styles.challengeText}>⚠️ {challenge}</Text>
+                <Text style={styles.challengeText}>
+                  {typeof challenge === "string"
+                    ? `⚠️ ${challenge}`
+                    : `⚠️ ${challenge.flawed_premise || ""}${challenge.corrective_task ? `\n\n🛠️ Tarea: ${challenge.corrective_task}` : ""}${challenge.canonical_solution ? `\n\n✅ Solución canónica: ${challenge.canonical_solution}` : ""}`}
+                </Text>
               </View>
             ))}
           </View>
@@ -189,7 +197,7 @@ export const RetrievalPanel: React.FC<RetrievalPanelProps> = ({ compilation }) =
         {activeTab === "cases" && (
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Casos Contrastantes (ICC Matrix)</Text>
-            {contrasting_cases_icc.map((item, idx) => (
+            {contrasting_cases_icc.map((item: any, idx) => (
               <View key={idx} style={styles.caseItem}>
                 <View style={styles.caseBoxRow}>
                   <View style={styles.caseBox}>
@@ -202,7 +210,9 @@ export const RetrievalPanel: React.FC<RetrievalPanelProps> = ({ compilation }) =
                   </View>
                 </View>
                 <Text style={styles.invariantTitle}>Regla Invariante:</Text>
-                <Text style={styles.invariantText}>{item.underlying_invariant_prompt}</Text>
+                <Text style={styles.invariantText}>
+                  {item.invariant_discovery_prompt || item.underlying_invariant_prompt}
+                </Text>
               </View>
             ))}
           </View>

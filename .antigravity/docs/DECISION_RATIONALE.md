@@ -160,3 +160,38 @@ Registro de Decisiones Arquitectónicas, Principios Pedagógicos y Trade-offs T�
 - Decisión: Detectar trazos con $\ge 4$ inversiones rápidas de dirección horizontal ($dx$) en un área densa, identificándolos como `SCRATCH_OUT`. Las entidades cuyo bounding box tenga $\ge 35\%$ de solapamiento con el tachado son marcadas como `is_scratched_out: true` y podadas del AST activo.
 - Rationale de Experiencia de Usuario:
   * Flujo de Pensamiento sin Fricción: El usuario tacha una palabra con un zig-zag rápido del S-Pen y continúa pensando sin interrumpir el flujo cambiando de modo de herramienta. El Visual AST ignora la entidad podada, impidiendo que contamine el grafo cognitivo o las tarjetas de Anki.
+
+
+================================================================================
+7. HIDRATACIÓN NATIVA, PERSISTENCIA Y REFACTORIZACIÓN MODULAR (FRONTEND & NATIVE)
+================================================================================
+
+7.1 Decisión: Reconstrucción e Hidratación de Trazos Nativos en Jetpack Ink (`loadStrokesFromJson`)
+- Contexto: Al guardar y restaurar mapas mentales en formato `.cmn`, el motor nativo de Android (`JetpackInkView.kt`) debe reconstruir los trazos con idéntica fidelidad, color y sensibilidad a presión que cuando fueron dibujados originalmente.
+- Decisión: Implementar la deserialización directa en Kotlin recreando instancias de `androidx.ink.strokes.Stroke` a través de `MutableStrokeInputBatch` y `StrokeInput.create(px, py, t, InputToolType.STYLUS, 0f, pressure, 0f, 0f)`.
+- Rationale Técnico:
+  * Preservación del Pipeline 120Hz: Al reinsertar los trazos directamente en el buffer nativo de Jetpack Ink (`strokes.add(stroke)`), el lienzo conserva la capacidad de selección con lazo, borrado por trazo o precisión, y renderizado por GPU sin intermediación del hilo de JavaScript.
+  * Mapeo de Color por Trazo (`strokeColorMap`): Cada trazo persistido conserva su color hexadecimal original asignado en el diccionario nativo, evitando que al recargar un documento todos los trazos adopten el color del pincel actualmente seleccionado.
+
+7.2 Decisión: Ciclo de Vida Atómico con Flush-Save en Bóveda y Último Mapa Activo
+- Contexto: Pérdida potencial de trazos al cambiar de mapa mental o reiniciar la aplicación, así como contaminación cruzada de trazos dibujados entre distintos mapas.
+- Decisión: Implementar una estrategia de persistencia atómica:
+  1. *Flush-Save* antes de descarga: Al abrir un mapa en la Bóveda o pulsar "Nuevo Mapa", el hook fuerza un guardado inmediato y síncrono del documento activo actual en `.cmn`.
+  2. Limpieza y Rehidratación Segura: Se vacía el lienzo nativo (`clearCanvas()`), se resetea el historial de deshacer/rehacer y se inyecta el JSON de trazos del nuevo mapa vía `loadStrokesTrigger`.
+  3. Memoria de Último Mapa Activo: `StorageService` almacena el `lastActiveMapId` en `user_preferences.json`, permitiendo que al reiniciar la aplicación se reanude automáticamente la sesión en el mapa correspondiente sin presentar un lienzo en blanco.
+
+7.3 Decisión: Arquitectura Modular Limpia (Patrón Facade en Hooks y Popovers Modulares)
+- Contexto: Crecimiento de archivos monolíticos (`useCanvasState.ts` superó 1,140 líneas y `GoodnotesToolbar.tsx` superó 890 líneas), generando alto acoplamiento y dificultad para depurar el ciclo de vida de React Native.
+- Decisión: Desacoplar `useCanvasState` en 6 sub-hooks cohesivos (< 300 líneas cada uno) bajo un Facade transparente, y modularizar la barra de herramientas extrayendo sus popovers:
+  * Sub-hooks: `useCanvasTools`, `useCanvasViewport`, `useCanvasDocument`, `useCanvasAst`, `useCanvasHover`, `useCognitiveCompilation`.
+  * Popovers: `StrokeWidthPopover`, `ColorPickerPopover`, `PaperTemplatePopover`, `ContextualToolPill`.
+- Rationale de Mantenibilidad y Rendimiento:
+  * Aislamiento de Re-renders: Los cambios frecuentes de viewport (zoom/pan) o hover no invalidan la lógica de persistencia de documentos ni la compilación de AST.
+  * 100% Retrocompatibilidad: El API devuelto por `useCanvasState` se mantiene intacto hacia `App.tsx`, garantizando estabilidad total sin regresiones en las 32 pruebas unitarias de `packages/core`.
+
+7.4 Decisión: Dock Lateral Flotante Conmutable (Left/Right) con Ahorro de Eje Vertical
+- Contexto: En tablets de 10.9" en orientación Landscape (horizontal), la barra superior tradicional de dos filas (Header + Toolbar horizontal) restaba más de 100dp de altura útil de dibujo.
+- Decisión: Convertir la barra de herramientas en un dock vertical flotante conmutador de lado izquierdo/derecho mediante un botón rápido `⇄`, persistiendo la preferencia en `user_preferences.json`.
+- Rationale Ergonómico:
+  * Máximo Espacio Vertical: Se recupera toda la altura vertical para el lienzo de trabajo.
+  * Accesibilidad para Zurdos y Diestros: El usuario zurdo puede situar las herramientas en el lateral derecho para evitar toques accidentales con la mano de apoyo mientras dibuja en el centro, y viceversa.

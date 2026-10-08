@@ -3,11 +3,11 @@ import { FlashcardRepository } from "@cognitive-canvas/core/flashcard";
 
 export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   try {
-    const limit = event.queryStringParameters?.limit
-      ? parseInt(event.queryStringParameters.limit)
-      : 10;
-    const cursor = event.queryStringParameters?.cursor;
-    const result = await FlashcardRepository.list(limit, cursor);
+    const compilationId = event.queryStringParameters?.compilationId;
+    const canvasId = event.queryStringParameters?.canvasId;
+    const result = compilationId
+      ? await FlashcardRepository.listByCompilation(compilationId)
+      : await FlashcardRepository.listByCanvas(canvasId || "");
     return {
       statusCode: 200,
       body: JSON.stringify(result),
