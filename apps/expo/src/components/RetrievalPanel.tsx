@@ -1,9 +1,8 @@
 import React, { useState } from "react";
 import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, Alert } from "react-native";
-import { CognitiveCompilerOutput } from "@cognitive-canvas/core/types";
+import * as FileSystem from "expo-file-system";
+import { CognitiveCompilerOutput, PacerClassification } from "@cognitive-canvas/core/types";
 import { ankiClient } from "../services/AnkiConnectClient";
-
-import { PacerClassification } from "@cognitive-canvas/core/types";
 import { PACER_COLORS } from "./canvas/PacerOverlayLayer";
 
 interface RetrievalPanelProps {
@@ -38,6 +37,28 @@ export const RetrievalPanel: React.FC<RetrievalPanelProps> = ({
   };
 
   const cards = compilation?.anki_flashcards || compilation?.learning_engine_outputs?.anki_flashcards || [];
+
+  const handleExportTsv = async () => {
+    if (!compilation || cards.length === 0) {
+      Alert.alert("Sin tarjetas", "No hay tarjetas de memoria para exportar.");
+      return;
+    }
+    try {
+      const title = compilation.map_metadata?.title || "Mapa Mental";
+      const tsvContent = ankiClient.exportToTsv(cards, title);
+      const fileName = `anki_${Date.now()}.txt`;
+      const filePath = `${FileSystem.documentDirectory}${fileName}`;
+      await FileSystem.writeAsStringAsync(filePath, tsvContent, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+      Alert.alert(
+        "Exportación AnkiDroid Exitosa",
+        `Se guardaron ${cards.length} tarjetas en:\n${filePath}\n\nPuedes importarlo desde AnkiDroid (Menú → Importar → Archivo de texto).`
+      );
+    } catch (err: any) {
+      Alert.alert("Error de exportación", err?.message || String(err));
+    }
+  };
 
   const handleSyncAnki = async () => {
     if (!compilation || cards.length === 0) {
@@ -292,15 +313,26 @@ export const RetrievalPanel: React.FC<RetrievalPanelProps> = ({
               />
             </View>
 
-            <TouchableOpacity
-              style={[styles.syncButton, isSyncing && styles.syncButtonDisabled]}
-              onPress={handleSyncAnki}
-              disabled={isSyncing}
-            >
-              <Text style={styles.syncButtonText}>
-                {isSyncing ? "Sincronizando..." : `Inyectar ${anki_flashcards.length} Tarjetas a Anki`}
-              </Text>
-            </TouchableOpacity>
+            <View style={{ flexDirection: "row", gap: 8 }}>
+              <TouchableOpacity
+                style={[styles.syncButton, { flex: 1 }, isSyncing && styles.syncButtonDisabled]}
+                onPress={handleSyncAnki}
+                disabled={isSyncing}
+              >
+                <Text style={styles.syncButtonText}>
+                  {isSyncing ? "Sincronizando..." : `Wi-Fi AnkiConnect (${anki_flashcards.length})`}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.syncButton, { flex: 1, backgroundColor: "#0284C7" }]}
+                onPress={handleExportTsv}
+              >
+                <Text style={styles.syncButtonText}>
+                  💾 Exportar AnkiDroid (.txt)
+                </Text>
+              </TouchableOpacity>
+            </View>
 
             <Text style={styles.statusText}>{syncStatus}</Text>
 

@@ -82,13 +82,16 @@ export class AnkiConnectClient {
 
     for (const card of flashcards) {
       try {
-        if (card.card_type === "CLOZE" && card.cloze_text) {
+        const isCloze = card.card_type === "CLOZE";
+        const clozeContent = card.cloze_text || (card.front.includes("{{c") ? card.front : null);
+
+        if (isCloze && clozeContent) {
           await this.addNote({
             deckName,
             modelName: "Cloze",
             fields: {
-              Text: card.cloze_text,
-              Extra: `Target Node: ${card.target_node_id}`,
+              Text: clozeContent,
+              Extra: `Target Node: ${card.target_node_id || card.source_node_id}`,
             },
           });
         } else if (card.front && card.back) {
@@ -109,6 +112,28 @@ export class AnkiConnectClient {
     }
 
     return { synced, failed };
+  }
+
+  /**
+   * Generates a standard TSV (Tab-Separated Values) format for direct Anki / AnkiDroid text import
+   */
+  public exportToTsv(flashcards: AnkiFlashcard[], title: string = "CognitiveCanvas"): string {
+    const lines = [
+      `#separator:tab`,
+      `#html:true`,
+      `#tags:cognitive-canvas grinde-pacer ${title.replace(/\s+/g, "-")}`,
+    ];
+
+    for (const card of flashcards) {
+      if (card.card_type === "CLOZE") {
+        const text = card.cloze_text || card.front;
+        lines.push(`${text}\t\tcognitive-canvas`);
+      } else {
+        lines.push(`${card.front}\t${card.back}\tcognitive-canvas`);
+      }
+    }
+
+    return lines.join("\n");
   }
 }
 

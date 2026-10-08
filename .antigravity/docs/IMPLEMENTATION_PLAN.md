@@ -8,7 +8,7 @@ Basado en: `MASTER_SPEC.md`, `DECISION_RATIONALE.md` y `UI_AND_CANVAS_SPEC.md`.
 - **Fase 2: Motor Nativo de Tinta Digital (120Hz / S-Pen):** 95% Completada (Jetpack Ink, RDP shapes, flechas compuestas, borrador de precisión, S-Pen Air View, gesto Scratch-out, Draw-and-Hold Snapping 450ms en hardware real).
 - **Fase 3: Motor Local Visual AST & Persistencia (.cmn):** 100% Completada (Motor de 5 niveles en tiempo real, persistencia bidireccional .cmn en Expo FileSystem, puente nativo de carga/restauración de trazos en Jetpack Ink, auto-guardado 1.5s, Bóveda unificada y refactorización modular Facade).
 - **Fase 4: Backend Serverless SST & Compilador Gemini 2.0 Flash:** 95% Completada (Integración híbrida completada: `CompilationService` conectado a backend SST y evaluador local grounded en el Visual AST real del usuario, pre-signed URLs en S3, persistencia de auditoría y Anki).
-- **Fase 5: UI/UX, Auditoría GRINDE & Práctica Deliberada (Anki/ICC):** 85% Completada (Dock flotante configurable izquierda/derecha, popovers modulares, editor de título con confirmación, Bóveda integrada con navegación fluida, Drawer conectado y renderizando resultados reales del mapa con Anki, transferencias de vía alta y matriz ICC).
+- **Fase 5: UI/UX, Auditoría GRINDE & Práctica Deliberada (Anki/ICC):** 100% Completada (Dock flotante configurable, popovers modulares, editor de título, Bóveda integrada, Drawer conectado con auditoría GRINDE en vivo, capa interactiva PACER en lienzo, sincronización AnkiConnect Wi-Fi y exportador de texto AnkiDroid).
 
 ---
 
@@ -99,17 +99,18 @@ Basado en: `MASTER_SPEC.md`, `DECISION_RATIONALE.md` y `UI_AND_CANVAS_SPEC.md`.
 
 ---
 
-### FASE 5: UI/UX, AUDITORÍA GRINDE & INTEGRACIÓN ANKI (EN PROGRESO 🟡 - 92%)
+### FASE 5: UI/UX, AUDITORÍA GRINDE & INTEGRACIÓN ANKI (COMPLETADA ✅ - 100%)
 - [x] **5.1 Interfaz Base de Lienzo:**
   - Dock vertical flotante conmutador izquierda/derecha con memoria de posición.
   - Editor de título integrado en Header con confirmación explícita y descarte.
   - Bóveda de documentos integrada en el modal de acciones con navegación `← Menú`.
   - Modal de confirmación de borrado seguro (*danger confirmation*).
   - Componente `RetrievalPanel` con renderizado flexible de intervenciones de alto orden (`learning_engine_outputs`).
-- [ ] **5.2 Tareas de Fase 5 (En Foco Actual):**
+- [x] **5.2 Tareas de Fase 5 (Completadas):**
   - [x] **Filtros por colores PACER interactivos en lienzo y drawer:** Implementada capa de superposición `PacerOverlayLayer.tsx` sobre el lienzo con cajas delimitadoras translúcidas y badges según el color oficial de la Master Spec Sec 9 (Conceptual: Azul, Procedimental: Verde, Analógico: Púrpura, Evidencia: Naranja, Referencia: Gris), y pestaña interactiva PACER en `RetrievalPanel.tsx` con conteos, chips filtrables y alternancia de visibilidad en lienzo.
-  - [ ] **Sincronización AnkiConnect & AnkiDroid:**
-    - Exportación de flashcards a la app Anki en Android vía AnkiDroid API / AnkiConnect Wi-Fi.
+  - [x] **Sincronización AnkiConnect & AnkiDroid:**
+    - Conexión por red local Wi-Fi vía JSON-RPC a AnkiConnect Desktop (puerto 8765).
+    - Generador y exportador nativo de archivos de texto TSV (`exportToTsv`) compatible directamente con la app móvil AnkiDroid en Android.
 
 ---
 
@@ -118,4 +119,5 @@ Basado en: `MASTER_SPEC.md`, `DECISION_RATIONALE.md` y `UI_AND_CANVAS_SPEC.md`.
 2. [COMPLETADO ✅] **Refactorización y Componentización:** `useCanvasState` y `GoodnotesToolbar` limpios, modulares y desacoplados. Git index limpio.
 3. [COMPLETADO ✅] **Backend SST & Compilador Híbrido (`compile.ts`, `uploadUrl.ts`, `CompilationService.ts`):** Pre-signed URLs en S3 y compilación cognitiva conectada al AST real del usuario.
 4. [COMPLETADO ✅] **Filtros por Colores PACER en el Lienzo:** Capa `PacerOverlayLayer` y pestaña PACER con filtrado interactivo en tiempo real en la tablet.
-5. [EN EJECUCIÓN ⏩] **Sincronización AnkiConnect / AnkiDroid:** Exportación fluida de flashcards de Evidencia/Referencia directamente a la colección de Anki.
+5. [COMPLETADO ✅] **Sincronización AnkiConnect / AnkiDroid:** Exportación fluida de flashcards de Evidencia/Referencia directamente a la colección de Anki y archivos TSV para AnkiDroid.
+6. [SIGUIENTE 🔜] **Validación en Hardware Real (Galaxy Tab S10 Lite):** Probar el flujo completo de dibujo, compilación, visualización de cajas PACER sobre el lienzo y exportación a Anki en la tablet física. Puntero Láser Efímero (Fase 2.5).
