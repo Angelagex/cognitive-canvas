@@ -76,6 +76,14 @@ export const ContextualToolPill: React.FC<ContextualToolPillProps> = ({
     );
   }
 
+  if (activeBrush === "laser") {
+    return (
+      <View style={[styles.contextualPill, positionStyle, { top: 235 }]}>
+        <Text style={[styles.lassoBadgeText, { color: "#EF4444" }]}>🔴 Láser Efímero (1.5s)</Text>
+      </View>
+    );
+  }
+
   return null;
 };
 

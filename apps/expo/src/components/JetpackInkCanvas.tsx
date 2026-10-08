@@ -5,6 +5,7 @@ import {
   NativeSyntheticEvent,
   StyleSheet,
   View,
+  NativeModules,
 } from "react-native";
 import {
   BrushType,
@@ -15,9 +16,22 @@ import {
   HoverEvent,
   HoverTimeoutEvent,
   FingerTapEvent,
+  HighResPngExportResult,
 } from "../types/canvas";
 
 export * from "../types/canvas";
+
+/**
+ * Captures high-resolution offscreen PNG bitmap from native Jetpack Ink view
+ * @param scaleMultiplier Scaling factor (default 2.0x for crisp Retina/DPI output)
+ */
+export async function exportHighResPng(scaleMultiplier = 2.0): Promise<HighResPngExportResult> {
+  const { JetpackInkModule } = NativeModules;
+  if (!JetpackInkModule?.exportHighResPng) {
+    throw new Error("JetpackInkModule is not available on this platform.");
+  }
+  return await JetpackInkModule.exportHighResPng({ scaleMultiplier });
+}
 
 export interface JetpackInkCanvasProps extends ViewProps {
   strokeColor?: string;

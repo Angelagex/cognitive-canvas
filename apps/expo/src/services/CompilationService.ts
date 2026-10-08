@@ -11,6 +11,8 @@ import {
   ContrastingCasesICC,
 } from "@cognitive-canvas/core/types";
 import { PlacedAttribute } from "../types/canvas";
+import { exportHighResPng } from "../components/JetpackInkCanvas";
+import * as FileSystem from "expo-file-system";
 
 export interface CompileParams {
   canvasId: string;
@@ -303,6 +305,22 @@ export async function compileCognitiveMap(params: CompileParams): Promise<Cognit
       console.log(`[CompilationService] 🌐 Invoking SST Backend at ${apiUrl}...`);
       const passiveDict = buildPassiveContextDictionary(params.visualAST, params.placedAttributes);
 
+      // Attempt high-res offscreen canvas capture if imageBase64 was not explicitly provided
+      let imageBase64 = params.imageBase64;
+      if (!imageBase64) {
+        try {
+          const capture = await exportHighResPng(2.0);
+          if (capture?.uri) {
+            imageBase64 = await FileSystem.readAsStringAsync(capture.uri, {
+              encoding: FileSystem.EncodingType.Base64,
+            });
+            console.log(`[CompilationService] 📸 High-res canvas image captured (${capture.width}x${capture.height})`);
+          }
+        } catch {
+          // Fall back without image payload if offscreen capture is unavailable
+        }
+      }
+
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 20000); // 20s timeout
 
@@ -314,7 +332,7 @@ export async function compileCognitiveMap(params: CompileParams): Promise<Cognit
           canvas_id: params.canvasId,
           visual_ast_layer: params.visualAST,
           passive_context_dictionary: passiveDict,
-          image_base64: params.imageBase64,
+          image_base64: imageBase64,
         }),
       });
 

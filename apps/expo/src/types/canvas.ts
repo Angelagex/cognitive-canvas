@@ -7,7 +7,16 @@ export type BrushType =
   | "eraser"
   | "pan"
   | "lasso"
-  | "shapes";
+  | "shapes"
+  | "laser";
+
+export interface HighResPngExportResult {
+  uri: string;
+  path: string;
+  width: number;
+  height: number;
+  sizeBytes: number;
+}
 
 export type PassiveAttributeType = "ANALOGY" | "CAUSAL_MECHANISM" | "EVIDENCE";
 

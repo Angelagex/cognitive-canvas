@@ -35,6 +35,12 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.math.hypot
 
+data class LaserStroke(
+    val stroke: Stroke,
+    val birthTime: Long = SystemClock.uptimeMillis(),
+    val durationMs: Long = 1500L
+)
+
 class JetpackInkView(context: Context) : FrameLayout(context) {
 
     companion object {
@@ -73,6 +79,20 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
     private val inProgressStrokesView = InProgressStrokesView(context)
     private val completedStrokes = CopyOnWriteArrayList<Stroke>()
     private val undoneStrokes = CopyOnWriteArrayList<Stroke>()
+    private val activeLaserStrokes = CopyOnWriteArrayList<LaserStroke>()
+    private var isLaserPointerActive = false
+    private var laserHeadWorldX = 0f
+    private var laserHeadWorldY = 0f
+    private val laserDotPaint = Paint().apply {
+        color = Color.parseColor("#EF4444")
+        style = Paint.Style.FILL
+        isAntiAlias = true
+    }
+    private val laserGlowPaint = Paint().apply {
+        color = Color.parseColor("#FCA5A5")
+        style = Paint.Style.FILL
+        isAntiAlias = true
+    }
     private val activeStrokeIds = ConcurrentHashMap<Int, InProgressStrokeId>()
     private val strokesToHandOff = mutableSetOf<InProgressStrokeId>()
 
@@ -241,6 +261,18 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
 
         inProgressStrokesView.addFinishedStrokesListener(object : InProgressStrokesFinishedListener {
             override fun onStrokesFinished(strokes: Map<InProgressStrokeId, Stroke>) {
+                if (brushType == "laser") {
+                    val birthTime = SystemClock.uptimeMillis()
+                    for (stroke in strokes.values) {
+                        activeLaserStrokes.add(LaserStroke(stroke = stroke, birthTime = birthTime, durationMs = 1500L))
+                    }
+                    synchronized(strokesToHandOff) {
+                        strokesToHandOff.addAll(strokes.keys)
+                    }
+                    postInvalidateOnAnimation()
+                    return
+                }
+
                 val shouldSnap = brushType == "shapes" || isStrokeSnapped
                 val finalStrokes = mutableListOf<Stroke>()
 
@@ -421,6 +453,8 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
 
             val colorToUse = if (brushType == "highlighter") {
                 Color.argb(120, Color.red(strokeColor), Color.green(strokeColor), Color.blue(strokeColor))
+            } else if (brushType == "laser") {
+                Color.parseColor("#EF4444")
             } else {
                 strokeColor
             }
@@ -429,6 +463,8 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
                 strokeWidth * 2.2f
             } else if (brushType == "marker") {
                 strokeWidth * 1.4f
+            } else if (brushType == "laser") {
+                strokeWidth * 1.2f
             } else {
                 strokeWidth
             }
@@ -768,6 +804,13 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
                 dwellAnchorY = event.y
                 dwellPointerId = pointerId
 
+                if (brushType == "laser") {
+                    isLaserPointerActive = true
+                    laserHeadWorldX = (event.x - transformManager.canvasTranslateX) / transformManager.canvasScale
+                    laserHeadWorldY = (event.y - transformManager.canvasTranslateY) / transformManager.canvasScale
+                    postInvalidateOnAnimation()
+                }
+
                 val brush = getOrCreateBrush()
                 val strokeId = inProgressStrokesView.startStroke(
                     event,
@@ -780,6 +823,13 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
                 return true
             }
             MotionEvent.ACTION_MOVE -> {
+                if (brushType == "laser") {
+                    isLaserPointerActive = true
+                    laserHeadWorldX = (event.x - transformManager.canvasTranslateX) / transformManager.canvasScale
+                    laserHeadWorldY = (event.y - transformManager.canvasTranslateY) / transformManager.canvasScale
+                    postInvalidateOnAnimation()
+                }
+
                 val strokeId = activeStrokeIds[pointerId]
                 if (strokeId != null) {
                     inProgressStrokesView.addToStroke(event, pointerId, strokeId)
@@ -801,6 +851,10 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> {
                 dwellHandler.removeCallbacksAndMessages(null)
+                if (brushType == "laser") {
+                    isLaserPointerActive = false
+                    postInvalidateOnAnimation()
+                }
                 val strokeId = activeStrokeIds.remove(pointerId)
                 if (strokeId != null) {
                     inProgressStrokesView.finishStroke(event, pointerId, strokeId)
@@ -813,6 +867,10 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
             }
             MotionEvent.ACTION_CANCEL -> {
                 dwellHandler.removeCallbacksAndMessages(null)
+                if (brushType == "laser") {
+                    isLaserPointerActive = false
+                    postInvalidateOnAnimation()
+                }
                 isStrokeSnapped = false
                 dwellPointerId = -1
                 val strokeId = activeStrokeIds.remove(pointerId)
@@ -1111,6 +1169,43 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
             }
         }
 
+        // 2.5 Draw Ephemeral Laser Strokes with Alpha Decay
+        val now = SystemClock.uptimeMillis()
+        val expiredLasers = mutableListOf<LaserStroke>()
+        for (laser in activeLaserStrokes) {
+            val elapsed = now - laser.birthTime
+            if (elapsed >= laser.durationMs) {
+                expiredLasers.add(laser)
+            } else {
+                val fraction = elapsed.toFloat() / laser.durationMs.toFloat()
+                val alpha = ((1f - fraction) * 255).toInt().coerceIn(0, 255)
+                if (alpha > 0) {
+                    canvas.saveLayerAlpha(null, alpha)
+                    viewStrokeRenderer.drawWithStrokes(canvas) { scope ->
+                        scope.drawStroke(laser.stroke)
+                    }
+                    canvas.restore()
+                }
+            }
+        }
+        if (expiredLasers.isNotEmpty()) {
+            activeLaserStrokes.removeAll(expiredLasers)
+        }
+
+        // Draw glowing laser pointer dot if currently interacting with laser
+        if (brushType == "laser" && isLaserPointerActive) {
+            val dotRadius = 4f / transformManager.canvasScale
+            val haloRadius = 10f / transformManager.canvasScale
+            laserGlowPaint.alpha = 150
+            canvas.drawCircle(laserHeadWorldX, laserHeadWorldY, haloRadius, laserGlowPaint)
+            laserDotPaint.alpha = 255
+            canvas.drawCircle(laserHeadWorldX, laserHeadWorldY, dotRadius, laserDotPaint)
+        }
+
+        if (activeLaserStrokes.isNotEmpty()) {
+            postInvalidateOnAnimation()
+        }
+
         // 3. Draw Lasso selection loop and bounding box
         lassoManager.draw(canvas, transformManager.canvasScale)
 
@@ -1143,6 +1238,8 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
     fun clearStrokes() {
         undoneStrokes.addAll(completedStrokes)
         completedStrokes.clear()
+        activeLaserStrokes.clear()
+        isLaserPointerActive = false
         strokeBoundsCache.clear()
         strokeColorMap.clear()
         lassoManager.clearSelection()
@@ -1278,10 +1375,13 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
         )
     }
 
-    fun captureBitmap(): Bitmap {
-        val bitmap = Bitmap.createBitmap(width.coerceAtLeast(1), height.coerceAtLeast(1), Bitmap.Config.ARGB_8888)
+    fun captureBitmap(scaleMultiplier: Float = 2.0f): Bitmap {
+        val targetW = (width.coerceAtLeast(1) * scaleMultiplier).toInt()
+        val targetH = (height.coerceAtLeast(1) * scaleMultiplier).toInt()
+        val bitmap = Bitmap.createBitmap(targetW, targetH, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         canvas.drawColor(Color.parseColor("#090D16"))
+        canvas.scale(scaleMultiplier, scaleMultiplier)
         val renderMatrix = transformManager.getRenderMatrix()
         canvas.save()
         canvas.concat(renderMatrix)

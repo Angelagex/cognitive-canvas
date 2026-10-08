@@ -68,6 +68,7 @@ export const GoodnotesToolbar: React.FC<GoodnotesToolbarProps> = ({
     { id: "eraser", label: "Borrador", icon: "🧹" },
     { id: "shapes", label: "Formas", icon: "📐" },
     { id: "lasso", label: "Lazo", icon: "🪢" },
+    { id: "laser", label: "Láser", icon: "🔴" },
     { id: "pan", label: "Mover", icon: "🖐️" },
   ];
 

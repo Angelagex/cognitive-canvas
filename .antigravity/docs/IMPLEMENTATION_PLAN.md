@@ -5,9 +5,9 @@ Basado en: `MASTER_SPEC.md`, `DECISION_RATIONALE.md` y `UI_AND_CANVAS_SPEC.md`.
 ---
 ## 📊 RESUMEN EJECUTIVO DE ESTADO
 - **Fase 1: Infraestructura & Tipos Compartidos:** 100% Completada (Contratos formalizados).
-- **Fase 2: Motor Nativo de Tinta Digital (120Hz / S-Pen):** 95% Completada (Jetpack Ink, RDP shapes, flechas compuestas, borrador de precisión, S-Pen Air View, gesto Scratch-out, Draw-and-Hold Snapping 450ms en hardware real).
+- **Fase 2: Motor Nativo de Tinta Digital (120Hz / S-Pen):** 100% Completada (Jetpack Ink, RDP shapes, flechas compuestas, borrador de precisión, S-Pen Air View, gesto Scratch-out, Draw-and-Hold Snapping 450ms, Puntero Láser Efímero 1.5s y exportador PNG de alta resolución fuera de pantalla).
 - **Fase 3: Motor Local Visual AST & Persistencia (.cmn):** 100% Completada (Motor de 5 niveles en tiempo real, persistencia bidireccional .cmn en Expo FileSystem, puente nativo de carga/restauración de trazos en Jetpack Ink, auto-guardado 1.5s, Bóveda unificada y refactorización modular Facade).
-- **Fase 4: Backend Serverless SST & Compilador Gemini 2.0 Flash:** 95% Completada (Integración híbrida completada: `CompilationService` conectado a backend SST y evaluador local grounded en el Visual AST real del usuario, pre-signed URLs en S3, persistencia de auditoría y Anki).
+- **Fase 4: Backend Serverless SST & Compilador Gemini 2.0 Flash:** 95% Completada (Integración híbrida completada: `CompilationService` conectado a backend SST y evaluador local grounded en el Visual AST real del usuario, pre-signed URLs en S3, auto-captura PNG, persistencia de auditoría y Anki).
 - **Fase 5: UI/UX, Auditoría GRINDE & Práctica Deliberada (Anki/ICC):** 100% Completada (Dock flotante configurable, popovers modulares, editor de título, Bóveda integrada, Drawer conectado con auditoría GRINDE en vivo, capa interactiva PACER en lienzo, sincronización AnkiConnect Wi-Fi y exportador de texto AnkiDroid).
 
 ---
@@ -39,7 +39,7 @@ Basado en: `MASTER_SPEC.md`, `DECISION_RATIONALE.md` y `UI_AND_CANVAS_SPEC.md`.
 
 ---
 
-### FASE 2: MOTOR DE TINTA NATIVO Y HARDWARE S-PEN (COMPLETADA EN SU BASE ✅ - 95%)
+### FASE 2: MOTOR DE TINTA NATIVO Y HARDWARE S-PEN (COMPLETADA ✅ - 100%)
 - [x] **2.1 Pipeline de Baja Latencia (Jetpack Ink 120Hz):**
   - Integración nativa de `androidx.ink` con `InProgressStrokesView` y `ViewStrokeRenderer`.
   - Rechazo de palma a nivel de hardware Wacom EMR (`StylusInputHandler`).
@@ -61,8 +61,8 @@ Basado en: `MASTER_SPEC.md`, `DECISION_RATIONALE.md` y `UI_AND_CANVAS_SPEC.md`.
   - [x] **Temporizador de Hover 800 ms (`onHoverTimeout`):** Detección nativa con Haptic feedback para inspección de entidades.
   - [x] **Gesto de Borrado (Scratch-out):** Detección nativa en `JetpackInkView` de patrón en zigzag (3+ oscilaciones, 45dp) con expansión por proximidad (40dp) para eliminar palabras completas.
   - [x] **Auto-Snapping Geométrico (Draw-and-Hold 450 ms):** Dwell de 450 ms con punta sostenida para regularizar trazos con haptic feedback sin cambiar a modo Formas.
-  - [ ] **Puntero Láser Efímero:** Trazo visual que desaparece tras 1.5 segundos.
-  - [ ] **Exportación PNG de Alta Resolución (`exportHighResPng`):** Bitmap nativo fuera de pantalla listo para subida a S3.
+  - [x] **Puntero Láser Efímero:** Trazo visual que desaparece tras 1.5 segundos con auto-desvanecimiento alfa continuo (`LaserStroke`, degradado temporal 1500ms, punto de mira brillante perimetral en la punta del S-Pen y píldora contextual). No altera el árbol de trazos ni ensucia el guardado.
+  - [x] **Exportación PNG de Alta Resolución (`exportHighResPng`):** Módulo nativo `JetpackInkModule` con puente Promise React Native (`exportHighResPng`) que renderiza un Bitmap fuera de pantalla con super-muestreo (escala configurable, 2.0x por defecto), guardado asíncrono en disco y auto-captura en `CompilationService.ts` antes de la llamada multimodal a Gemini 2.0 Flash.
 
 ---
 
@@ -120,4 +120,5 @@ Basado en: `MASTER_SPEC.md`, `DECISION_RATIONALE.md` y `UI_AND_CANVAS_SPEC.md`.
 3. [COMPLETADO ✅] **Backend SST & Compilador Híbrido (`compile.ts`, `uploadUrl.ts`, `CompilationService.ts`):** Pre-signed URLs en S3 y compilación cognitiva conectada al AST real del usuario.
 4. [COMPLETADO ✅] **Filtros por Colores PACER en el Lienzo:** Capa `PacerOverlayLayer` y pestaña PACER con filtrado interactivo en tiempo real en la tablet.
 5. [COMPLETADO ✅] **Sincronización AnkiConnect / AnkiDroid:** Exportación fluida de flashcards de Evidencia/Referencia directamente a la colección de Anki y archivos TSV para AnkiDroid.
-6. [SIGUIENTE 🔜] **Validación en Hardware Real (Galaxy Tab S10 Lite):** Probar el flujo completo de dibujo, compilación, visualización de cajas PACER sobre el lienzo y exportación a Anki en la tablet física. Puntero Láser Efímero (Fase 2.5).
+6. [COMPLETADO ✅] **Puntero Láser Efímero y Exportación PNG de Alta Resolución (Fase 2.5):** Herramienta de láser Feynman (1.5s auto-fade) y captura fuera de pantalla nativa (`exportHighResPng`) integrada en el pipeline multimodal.
+7. [SIGUIENTE 🔜] **Despliegue y Validación en Hardware Real (Galaxy Tab S10 Lite):** Probar el flujo completo (dibujo con pluma/resaltador/láser, snapping 450ms, borrado scratch-out, hover dwell 800ms, compilación multimodal con captura PNG, visualización de cajas PACER sobre el lienzo y exportación a Anki) en la tablet física (`npm run tablet` o `./scripts/install-app.sh`).
