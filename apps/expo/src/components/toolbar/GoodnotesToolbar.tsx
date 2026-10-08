@@ -4,10 +4,10 @@ import {
   View,
   Text,
   TouchableOpacity,
-  ScrollView,
   Modal,
   TextInput,
   TouchableWithoutFeedback,
+  ScrollView,
 } from "react-native";
 import { BrushType, CanvasBackgroundType, EraserMode, PassiveAttributeType } from "../../types/canvas";
 
@@ -30,6 +30,10 @@ interface GoodnotesToolbarProps {
   onDeleteSelection?: () => void;
   onClearSelection?: () => void;
   onAddAttribute?: (type: PassiveAttributeType, title: string, note: string) => void;
+  dockSide?: "left" | "right";
+  initialDockSide?: "left" | "right";
+  onToggleDockSide?: () => void;
+  onDockSideChange?: (side: "left" | "right") => void;
 }
 
 const GOODNOTES_PRESETS = [
@@ -70,16 +74,23 @@ export const GoodnotesToolbar: React.FC<GoodnotesToolbarProps> = ({
   onSelectBackgroundType,
   favoriteColors,
   onUpdateFavoriteColor,
-  onTriggerPassiveAttribute,
   hasSelection = false,
   selectedCount = 0,
   onDeleteSelection,
   onClearSelection,
-  onAddAttribute,
+  dockSide: dockSideProp,
+  initialDockSide = "left",
+  onToggleDockSide,
+  onDockSideChange,
 }) => {
-  // Modal states
+  // Dock placement state (Left or Right side of canvas)
+  const [internalDockSide, setInternalDockSide] = useState<"left" | "right">(initialDockSide);
+  const dockSide = dockSideProp !== undefined ? dockSideProp : internalDockSide;
+
+  // Popover menus state
   const [showTemplateMenu, setShowTemplateMenu] = useState(false);
   const [showSizeMenu, setShowSizeMenu] = useState(false);
+  const [showColorMenu, setShowColorMenu] = useState(false);
   const [showColorCustomizer, setShowColorCustomizer] = useState(false);
   const [editingSlot, setEditingSlot] = useState<number>(0);
   const [customHexInput, setCustomHexInput] = useState<string>("#38BDF8");
@@ -93,6 +104,20 @@ export const GoodnotesToolbar: React.FC<GoodnotesToolbarProps> = ({
     { id: "pan", label: "Mover", icon: "🖐️" },
   ];
 
+  const toggleDockSide = () => {
+    if (onToggleDockSide) {
+      onToggleDockSide();
+    } else {
+      const nextSide = dockSide === "left" ? "right" : "left";
+      setInternalDockSide(nextSide);
+      if (onDockSideChange) onDockSideChange(nextSide);
+    }
+    // Close open popovers when flipping sides
+    setShowTemplateMenu(false);
+    setShowSizeMenu(false);
+    setShowColorMenu(false);
+  };
+
   const handleOpenColorSlotCustomizer = (slotIndex: number) => {
     setEditingSlot(slotIndex);
     setCustomHexInput(favoriteColors[slotIndex] || "#38BDF8");
@@ -104,274 +129,198 @@ export const GoodnotesToolbar: React.FC<GoodnotesToolbarProps> = ({
     setShowColorCustomizer(false);
   };
 
+  const popoverPositionStyle = dockSide === "left" ? { left: 62 } : { right: 62 };
+
   return (
-    <View style={styles.wrapper}>
-      {/* 1. Main 56dp Goodnotes Toolbar */}
-      <View style={styles.toolbarContainer}>
-        <View style={styles.toolbarInner}>
-          {/* Left: Tools List */}
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.toolsScroll}
-          >
-            {tools.map((t) => {
-              const isActive = activeBrush === t.id;
+    <View
+      style={[
+        styles.dockWrapper,
+        dockSide === "left" ? styles.dockWrapperLeft : styles.dockWrapperRight,
+      ]}
+      pointerEvents="box-none"
+    >
+      {/* 1. Main Vertical Floating Dock Pill */}
+      <View style={styles.dockPill}>
+        {/* Toggle Left/Right Position Button */}
+        <TouchableOpacity
+          style={styles.switchSideButton}
+          onPress={toggleDockSide}
+          activeOpacity={0.7}
+          accessibilityLabel={`Mover barra al lateral ${dockSide === "left" ? "derecho" : "izquierdo"}`}
+        >
+          <Text style={styles.switchSideIcon}>⇄</Text>
+        </TouchableOpacity>
+
+        <View style={styles.horizontalDivider} />
+
+        {/* Tools Section */}
+        {tools.map((t) => {
+          const isActive = activeBrush === t.id;
+          return (
+            <TouchableOpacity
+              key={t.id}
+              style={[styles.toolButton, isActive && styles.toolButtonActive]}
+              onPress={() => {
+                onSelectBrush(t.id);
+                setShowTemplateMenu(false);
+                setShowSizeMenu(false);
+                setShowColorMenu(false);
+              }}
+              activeOpacity={0.7}
+              accessibilityLabel={t.label}
+            >
+              <Text style={styles.toolIcon}>{t.icon}</Text>
+              {isActive && (
+                <View
+                  style={[
+                    styles.toolActiveIndicator,
+                    dockSide === "left" ? styles.indicatorLeft : styles.indicatorRight,
+                  ]}
+                />
+              )}
+            </TouchableOpacity>
+          );
+        })}
+
+        {/* Selector de Plantilla de Papel */}
+        <TouchableOpacity
+          style={[styles.toolButton, showTemplateMenu && styles.toolButtonActive]}
+          onPress={() => {
+            setShowTemplateMenu(!showTemplateMenu);
+            setShowSizeMenu(false);
+            setShowColorMenu(false);
+          }}
+          activeOpacity={0.7}
+          accessibilityLabel="Plantilla de papel"
+        >
+          <Text style={styles.templateIcon}>
+            {PAPER_TEMPLATES.find((p) => p.id === backgroundType)?.icon || "⠇"}
+          </Text>
+        </TouchableOpacity>
+
+        <View style={styles.horizontalDivider} />
+
+        {/* Quick Color Selector Button */}
+        <TouchableOpacity
+          style={[styles.colorButton, showColorMenu && styles.colorButtonActive]}
+          onPress={() => {
+            setShowColorMenu(!showColorMenu);
+            setShowSizeMenu(false);
+            setShowTemplateMenu(false);
+          }}
+          activeOpacity={0.7}
+          accessibilityLabel="Paleta de colores"
+        >
+          <View style={[styles.colorButtonCircle, { backgroundColor: activeColor }]} />
+        </TouchableOpacity>
+
+        {/* Quick Stroke Width Selector Button */}
+        <TouchableOpacity
+          style={[styles.sizeButton, showSizeMenu && styles.sizeButtonActive]}
+          onPress={() => {
+            setShowSizeMenu(!showSizeMenu);
+            setShowColorMenu(false);
+            setShowTemplateMenu(false);
+          }}
+          activeOpacity={0.7}
+          accessibilityLabel={`Grosor de trazo actual: ${activeWidth}px`}
+        >
+          <View
+            style={[
+              styles.sizeIndicatorDot,
+              {
+                width: Math.min(Math.max(activeWidth / 2, 4), 16),
+                height: Math.min(Math.max(activeWidth / 2, 4), 16),
+                borderRadius: Math.min(Math.max(activeWidth / 2, 4), 16) / 2,
+                backgroundColor: activeColor,
+              },
+            ]}
+          />
+          <Text style={styles.sizeLabel}>{activeWidth}</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* 2. Contextual Popover: Color Palette */}
+      {showColorMenu && (
+        <View style={[styles.popoverCard, popoverPositionStyle, { top: 320 }]}>
+          <Text style={styles.popoverHeader}>FAVORITOS</Text>
+          <View style={styles.favoriteRow}>
+            {favoriteColors.map((c, index) => {
+              const isSelected = activeColor.toUpperCase() === c.toUpperCase();
               return (
                 <TouchableOpacity
-                  key={t.id}
-                  style={[styles.toolButton, isActive && styles.toolButtonActive]}
-                  onPress={() => onSelectBrush(t.id)}
-                  activeOpacity={0.7}
-                  accessibilityLabel={t.label}
+                  key={`fav-${index}`}
+                  style={[
+                    styles.favColorChip,
+                    { backgroundColor: c },
+                    isSelected && styles.favColorChipSelected,
+                  ]}
+                  onPress={() => {
+                    onSelectColor(c);
+                    setShowColorMenu(false);
+                  }}
+                  onLongPress={() => handleOpenColorSlotCustomizer(index)}
+                  activeOpacity={0.8}
                 >
-                  <Text style={styles.toolIcon}>{t.icon}</Text>
-                  {isActive && <View style={styles.toolActiveIndicator} />}
+                  {isSelected && <View style={styles.favColorDot} />}
                 </TouchableOpacity>
               );
             })}
-
-            {/* Selector de Plantilla de Papel */}
             <TouchableOpacity
-              style={[styles.toolButton, showTemplateMenu && styles.toolButtonActive]}
-              onPress={() => setShowTemplateMenu(!showTemplateMenu)}
+              style={styles.customColorTrigger}
+              onPress={() => handleOpenColorSlotCustomizer(0)}
               activeOpacity={0.7}
-              accessibilityLabel="Plantilla de papel"
             >
-              <Text style={styles.templateIcon}>
-                {PAPER_TEMPLATES.find((p) => p.id === backgroundType)?.icon || "⠇"}
-              </Text>
-            </TouchableOpacity>
-          </ScrollView>
-
-          <View style={styles.verticalDivider} />
-
-          {/* Right: Quick Controls (3 Favorite Colors + 3 Tip Sizes) */}
-          <View style={styles.quickControls}>
-            {/* 3 Customizable Color Slots */}
-            <View style={styles.colorRow}>
-              {favoriteColors.map((c, index) => {
-                const isSelected = activeColor.toUpperCase() === c.toUpperCase();
-                return (
-                  <TouchableOpacity
-                    key={`slot-${index}`}
-                    style={[
-                      styles.colorChip,
-                      { backgroundColor: c },
-                      isSelected && styles.colorChipSelected,
-                    ]}
-                    onPress={() => onSelectColor(c)}
-                    onLongPress={() => handleOpenColorSlotCustomizer(index)}
-                    activeOpacity={0.8}
-                  >
-                    {isSelected && <View style={styles.colorChipInnerDot} />}
-                  </TouchableOpacity>
-                );
-              })}
-
-              {/* Color Customizer Button */}
-              <TouchableOpacity
-                style={styles.paletteTriggerButton}
-                onPress={() => handleOpenColorSlotCustomizer(0)}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.paletteTriggerText}>🎨</Text>
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.smallDivider} />
-
-            {/* Single Compact Stroke Width Trigger */}
-            <TouchableOpacity
-              style={[styles.sizeDropdownTrigger, showSizeMenu && styles.sizeDropdownTriggerActive]}
-              onPress={() => {
-                setShowSizeMenu(!showSizeMenu);
-                setShowTemplateMenu(false);
-              }}
-              activeOpacity={0.7}
-              accessibilityLabel={`Grosor de trazo: ${activeWidth}px`}
-            >
-              <View
-                style={[
-                  styles.sizeIndicatorDot,
-                  {
-                    width: Math.min(Math.max(activeWidth / 2, 4), 14),
-                    height: Math.min(Math.max(activeWidth / 2, 4), 14),
-                    borderRadius: Math.min(Math.max(activeWidth / 2, 4), 14) / 2,
-                    backgroundColor: activeColor,
-                  },
-                ]}
-              />
-              <Text style={styles.sizeTriggerLabel}>{activeWidth}px</Text>
-              <Text style={styles.sizeTriggerArrow}>{showSizeMenu ? "▴" : "▾"}</Text>
+              <Text style={styles.customColorTriggerText}>🎨</Text>
             </TouchableOpacity>
           </View>
-        </View>
-      </View>
 
-      {/* 2. Contextual Sub-bar for Specific Tools */}
-      {activeBrush === "eraser" && (
-        <View style={styles.subBar}>
-          <Text style={styles.subBarTitle}>MODO DE BORRADOR:</Text>
-          <View style={styles.eraserToggleGroup}>
-            <TouchableOpacity
-              style={[
-                styles.eraserOption,
-                eraserMode === "stroke" && styles.eraserOptionActive,
-              ]}
-              onPress={() => onSelectEraserMode("stroke")}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.eraserOptionIcon}>🧹</Text>
-              <Text
-                style={[
-                  styles.eraserOptionText,
-                  eraserMode === "stroke" && styles.eraserOptionTextActive,
-                ]}
-              >
-                Trazo Completo
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.eraserOption,
-                eraserMode === "precision" && styles.eraserOptionActive,
-              ]}
-              onPress={() => onSelectEraserMode("precision")}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.eraserOptionIcon}>✂️</Text>
-              <Text
-                style={[
-                  styles.eraserOptionText,
-                  eraserMode === "precision" && styles.eraserOptionTextActive,
-                ]}
-              >
-                Precisión / Píxel
-              </Text>
-            </TouchableOpacity>
-          </View>
-          <Text style={styles.subBarHint}>
-            {eraserMode === "stroke"
-              ? "Toca cualquier trazo para eliminarlo por completo."
-              : "Borra únicamente el fragmento donde pasa la punta del S-Pen."}
-          </Text>
-        </View>
-      )}
-
-      {/* Shapes Mode Sub-bar */}
-      {activeBrush === "shapes" && (
-        <View style={styles.subBarInfo}>
-          <Text style={styles.subBarInfoIcon}>📐</Text>
-          <View style={styles.subBarPillActive}>
-            <Text style={styles.subBarPillActiveText}>Corrección Automática Activa</Text>
-          </View>
-          <Text style={styles.subBarInfoText}>
-            Dibuja rectas, círculos, elipses o rectángulos y se convertirán en vectores perfectos.
-          </Text>
-        </View>
-      )}
-
-      {/* Lasso Mode Sub-bar */}
-      {activeBrush === "lasso" && (
-        <View style={styles.subBarLasso}>
-          {hasSelection ? (
-            <View style={styles.lassoSelectedRow}>
-              <View style={styles.lassoCountBadge}>
-                <Text style={styles.lassoCountText}>🪢 {selectedCount} trazos seleccionados</Text>
-              </View>
-              <Text style={styles.lassoMoveHint}>Arrastra el recuadro para mover</Text>
-              <TouchableOpacity
-                style={styles.lassoColorBtn}
-                onPress={() => onSelectColor(activeColor)}
-                activeOpacity={0.8}
-              >
-                <View style={[styles.lassoColorDot, { backgroundColor: activeColor }]} />
-                <Text style={styles.lassoColorBtnText}>Colorear</Text>
-              </TouchableOpacity>
-              {onDeleteSelection && (
+          <Text style={[styles.popoverHeader, { marginTop: 10 }]}>PRESETS</Text>
+          <View style={styles.presetGrid}>
+            {GOODNOTES_PRESETS.map((hex) => {
+              const isSelected = activeColor.toUpperCase() === hex.toUpperCase();
+              return (
                 <TouchableOpacity
-                  style={styles.lassoDeleteBtn}
-                  onPress={onDeleteSelection}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.lassoDeleteBtnText}>🗑️ Borrar</Text>
-                </TouchableOpacity>
-              )}
-              {onClearSelection && (
-                <TouchableOpacity
-                  style={styles.lassoClearBtn}
-                  onPress={onClearSelection}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.lassoClearBtnText}>✕ Deseleccionar</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          ) : (
-            <View style={styles.lassoDefaultRow}>
-              <Text style={styles.subBarInfoIcon}>🪢</Text>
-              <Text style={styles.subBarInfoText}>
-                <Text style={{ fontWeight: "700", color: "#38BDF8" }}>Herramienta Lazo: </Text>
-                Rodea trazos para seleccionarlos. Luego arrástralos para moverlos por el lienzo.
-              </Text>
-            </View>
-          )}
-        </View>
-      )}
-
-      {/* 3. Paper Template Menu Popover */}
-      {showTemplateMenu && (
-        <View style={styles.templateDropdown}>
-          <Text style={styles.dropdownHeader}>TIPO DE PAPEL</Text>
-          {PAPER_TEMPLATES.map((tmpl) => {
-            const isSelected = backgroundType === tmpl.id;
-            return (
-              <TouchableOpacity
-                key={tmpl.id}
-                style={[styles.dropdownItem, isSelected && styles.dropdownItemActive]}
-                onPress={() => {
-                  onSelectBackgroundType(tmpl.id);
-                  setShowTemplateMenu(false);
-                }}
-              >
-                <Text style={styles.dropdownItemIcon}>{tmpl.icon}</Text>
-                <Text
+                  key={hex}
                   style={[
-                    styles.dropdownItemText,
-                    isSelected && styles.dropdownItemTextActive,
+                    styles.presetDot,
+                    { backgroundColor: hex },
+                    isSelected && styles.presetDotSelected,
                   ]}
+                  onPress={() => {
+                    onSelectColor(hex);
+                    setShowColorMenu(false);
+                  }}
+                  activeOpacity={0.8}
                 >
-                  {tmpl.label}
-                </Text>
-                {isSelected && <Text style={styles.dropdownCheck}>✓</Text>}
-              </TouchableOpacity>
-            );
-          })}
+                  {isSelected && <View style={styles.favColorDot} />}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
         </View>
       )}
 
-      {/* 4. Stroke Width Dropdown Popover */}
+      {/* 3. Contextual Popover: Stroke Width Selector */}
       {showSizeMenu && (
-        <View style={styles.sizeDropdown}>
-          <Text style={styles.dropdownHeader}>GROSOR DE TRAZO</Text>
+        <View style={[styles.popoverCard, popoverPositionStyle, { top: 370, width: 200 }]}>
+          <Text style={styles.popoverHeader}>GROSOR DE TRAZO</Text>
           {TIP_SIZES.map((s) => {
             const isSelected = activeWidth === s.value;
             return (
               <TouchableOpacity
                 key={s.label}
-                style={[styles.sizeDropdownItem, isSelected && styles.sizeDropdownItemActive]}
+                style={[styles.popoverItem, isSelected && styles.popoverItemActive]}
                 onPress={() => {
                   onSelectWidth(s.value);
                   setShowSizeMenu(false);
                 }}
                 activeOpacity={0.7}
               >
-                <View style={styles.sizePreviewLineContainer}>
+                <View style={styles.sizePreviewContainer}>
                   <View
                     style={[
-                      styles.sizePreviewLine,
+                      styles.sizePreviewBar,
                       {
                         height: Math.min(Math.max(s.dot, 2), 16),
                         borderRadius: Math.min(Math.max(s.dot, 2), 16) / 2,
@@ -380,20 +329,110 @@ export const GoodnotesToolbar: React.FC<GoodnotesToolbarProps> = ({
                     ]}
                   />
                 </View>
-                <View style={styles.sizeDropdownTextCol}>
-                  <Text style={[styles.sizeDropdownLabel, isSelected && styles.sizeDropdownLabelActive]}>
+                <View style={styles.popoverItemCol}>
+                  <Text style={[styles.popoverItemLabel, isSelected && styles.popoverItemLabelActive]}>
                     {s.label}
                   </Text>
-                  <Text style={styles.sizeDropdownDesc}>{s.desc} ({s.value}px)</Text>
+                  <Text style={styles.popoverItemDesc}>{s.desc} • {s.value}px</Text>
                 </View>
-                {isSelected && <Text style={styles.dropdownCheck}>✓</Text>}
+                {isSelected && <Text style={styles.popoverCheck}>✓</Text>}
               </TouchableOpacity>
             );
           })}
         </View>
       )}
 
-      {/* 4. Color Customizer Modal */}
+      {/* 4. Contextual Popover: Paper Template */}
+      {showTemplateMenu && (
+        <View style={[styles.popoverCard, popoverPositionStyle, { top: 250, width: 170 }]}>
+          <Text style={styles.popoverHeader}>TIPO DE PAPEL</Text>
+          {PAPER_TEMPLATES.map((tmpl) => {
+            const isSelected = backgroundType === tmpl.id;
+            return (
+              <TouchableOpacity
+                key={tmpl.id}
+                style={[styles.popoverItem, isSelected && styles.popoverItemActive]}
+                onPress={() => {
+                  onSelectBackgroundType(tmpl.id);
+                  setShowTemplateMenu(false);
+                }}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.popoverItemIcon}>{tmpl.icon}</Text>
+                <Text style={[styles.popoverItemLabel, isSelected && styles.popoverItemLabelActive]}>
+                  {tmpl.label}
+                </Text>
+                {isSelected && <Text style={styles.popoverCheck}>✓</Text>}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      )}
+
+      {/* 5. Sub-Dock Contextual: Borrador o Lazo */}
+      {activeBrush === "eraser" && (
+        <View
+          style={[
+            styles.contextualPill,
+            dockSide === "left" ? { left: 62 } : { right: 62 },
+            { top: 115 },
+          ]}
+        >
+          <TouchableOpacity
+            style={[
+              styles.contextualOption,
+              eraserMode === "stroke" && styles.contextualOptionActive,
+            ]}
+            onPress={() => onSelectEraserMode("stroke")}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.contextualOptionText}>🧹 Trazo</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.contextualOption,
+              eraserMode === "precision" && styles.contextualOptionActive,
+            ]}
+            onPress={() => onSelectEraserMode("precision")}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.contextualOptionText}>✂️ Píxel</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* 6. Sub-Dock Contextual: Lazo Selección */}
+      {activeBrush === "lasso" && hasSelection && (
+        <View
+          style={[
+            styles.contextualPill,
+            dockSide === "left" ? { left: 62 } : { right: 62 },
+            { top: 195 },
+          ]}
+        >
+          <Text style={styles.lassoBadgeText}>🪢 {selectedCount}</Text>
+          {onDeleteSelection && (
+            <TouchableOpacity
+              style={styles.lassoActionBtn}
+              onPress={onDeleteSelection}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.lassoActionBtnText}>🗑️ Borrar</Text>
+            </TouchableOpacity>
+          )}
+          {onClearSelection && (
+            <TouchableOpacity
+              style={styles.lassoActionBtn}
+              onPress={onClearSelection}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.lassoActionBtnText}>✕</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
+
+      {/* 7. Color Customizer Modal */}
       <Modal
         visible={showColorCustomizer}
         transparent
@@ -406,7 +445,7 @@ export const GoodnotesToolbar: React.FC<GoodnotesToolbarProps> = ({
               <View style={styles.customizerCard}>
                 <View style={styles.customizerHeader}>
                   <Text style={styles.customizerTitle}>
-                    Personalizar Espacio de Color {editingSlot + 1}
+                    Personalizar Color {editingSlot + 1}
                   </Text>
                   <TouchableOpacity
                     onPress={() => setShowColorCustomizer(false)}
@@ -416,69 +455,38 @@ export const GoodnotesToolbar: React.FC<GoodnotesToolbarProps> = ({
                   </TouchableOpacity>
                 </View>
 
-                {/* Slot Selector */}
-                <View style={styles.slotPickerRow}>
-                  <Text style={styles.slotPickerLabel}>Asignar a:</Text>
-                  {favoriteColors.map((c, i) => (
-                    <TouchableOpacity
-                      key={`slot-btn-${i}`}
-                      style={[
-                        styles.slotBadge,
-                        editingSlot === i && styles.slotBadgeActive,
-                      ]}
-                      onPress={() => setEditingSlot(i)}
-                    >
-                      <View style={[styles.slotBadgeDot, { backgroundColor: c }]} />
-                      <Text
-                        style={[
-                          styles.slotBadgeText,
-                          editingSlot === i && styles.slotBadgeTextActive,
-                        ]}
-                      >
-                        Slot {i + 1}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-
-                {/* Preset Palette */}
-                <Text style={styles.paletteSectionTitle}>Paleta Goodnotes</Text>
-                <View style={styles.presetPaletteGrid}>
+                {/* Palette Grid */}
+                <Text style={styles.customizerSectionTitle}>PALETA DE COLORES</Text>
+                <View style={styles.customizerGrid}>
                   {GOODNOTES_PRESETS.map((color) => (
                     <TouchableOpacity
                       key={color}
-                      style={[
-                        styles.presetChip,
-                        { backgroundColor: color },
-                        customHexInput.toUpperCase() === color.toUpperCase() &&
-                          styles.presetChipSelected,
-                      ]}
-                      onPress={() => {
-                        setCustomHexInput(color);
-                        handleApplyColor(color);
-                      }}
+                      style={[styles.paletteColorTile, { backgroundColor: color }]}
+                      onPress={() => handleApplyColor(color)}
                       activeOpacity={0.8}
                     />
                   ))}
                 </View>
 
-                {/* Hex input */}
+                {/* Custom HEX Code */}
                 <View style={styles.hexInputRow}>
-                  <Text style={styles.hexLabel}>Código HEX:</Text>
+                  <Text style={styles.hexLabel}>HEX:</Text>
                   <TextInput
                     style={styles.hexInput}
                     value={customHexInput}
                     onChangeText={setCustomHexInput}
                     placeholder="#38BDF8"
                     placeholderTextColor="#64748B"
+                    maxLength={7}
                     autoCapitalize="characters"
                   />
                   <View style={[styles.hexPreview, { backgroundColor: customHexInput }]} />
                   <TouchableOpacity
                     style={styles.hexApplyBtn}
                     onPress={() => handleApplyColor(customHexInput)}
+                    activeOpacity={0.8}
                   >
-                    <Text style={styles.hexApplyBtnText}>Guardar</Text>
+                    <Text style={styles.hexApplyBtnText}>Usar</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -486,483 +494,302 @@ export const GoodnotesToolbar: React.FC<GoodnotesToolbarProps> = ({
           </View>
         </TouchableWithoutFeedback>
       </Modal>
-
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  wrapper: {
-    position: "relative",
-    zIndex: 20,
+  dockWrapper: {
+    position: "absolute",
+    top: 16,
+    zIndex: 90,
   },
-  toolbarContainer: {
-    height: 56,
-    backgroundColor: "#0F172A",
-    borderBottomWidth: 1,
-    borderBottomColor: "#1E293B",
+  dockWrapperLeft: {
+    left: 14,
   },
-  toolbarInner: {
-    flex: 1,
-    flexDirection: "row",
+  dockWrapperRight: {
+    right: 14,
+  },
+  dockPill: {
+    width: 48,
+    backgroundColor: "#0B1120",
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: "#1E293B",
+    paddingVertical: 8,
     alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.45,
+    shadowRadius: 10,
+    elevation: 12,
   },
-  toolsScroll: {
-    flexDirection: "row",
+  switchSideButton: {
+    width: 34,
+    height: 30,
+    justifyContent: "center",
     alignItems: "center",
-    gap: 6,
+    borderRadius: 8,
+    backgroundColor: "#1E293B",
+  },
+  switchSideIcon: {
+    color: "#94A3B8",
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  horizontalDivider: {
+    width: 28,
+    height: 1,
+    backgroundColor: "#1E293B",
+    marginVertical: 6,
   },
   toolButton: {
-    width: 42,
-    height: 42,
-    alignItems: "center",
+    width: 40,
+    height: 40,
     justifyContent: "center",
+    alignItems: "center",
     borderRadius: 10,
-    backgroundColor: "#1E293B",
-    borderWidth: 1,
-    borderColor: "transparent",
+    marginVertical: 2,
     position: "relative",
   },
   toolButtonActive: {
-    backgroundColor: "#1E3A8A",
-    borderColor: "#38BDF8",
-    shadowColor: "#38BDF8",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.35,
-    shadowRadius: 4,
-  },
-  toolActiveIndicator: {
-    position: "absolute",
-    bottom: 3,
-    width: 14,
-    height: 2.5,
-    borderRadius: 1.5,
-    backgroundColor: "#38BDF8",
+    backgroundColor: "#1E293B",
   },
   toolIcon: {
     fontSize: 18,
   },
-  toolLabel: {
-    display: "none",
+  toolActiveIndicator: {
+    position: "absolute",
+    width: 3,
+    height: 18,
+    borderRadius: 2,
+    backgroundColor: "#38BDF8",
   },
-  toolLabelActive: {
-    display: "none",
+  indicatorLeft: {
+    left: 2,
   },
-  passiveAttrButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    borderRadius: 8,
-    backgroundColor: "#312E81",
-    borderWidth: 1,
-    borderColor: "#6366F1",
-  },
-  passiveAttrLabel: {
-    color: "#C7D2FE",
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  templateButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    borderRadius: 8,
-    backgroundColor: "#1E293B",
-    borderWidth: 1,
-    borderColor: "#334155",
-  },
-  templateButtonActive: {
-    backgroundColor: "#0284C7",
-    borderColor: "#38BDF8",
+  indicatorRight: {
+    right: 2,
   },
   templateIcon: {
-    fontSize: 15,
-    marginRight: 5,
-    color: "#38BDF8",
+    fontSize: 18,
+    color: "#94A3B8",
+    fontWeight: "800",
   },
-  templateLabel: {
-    color: "#CBD5E1",
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  verticalDivider: {
-    width: 1,
-    height: 28,
-    backgroundColor: "#334155",
-    marginHorizontal: 12,
-  },
-  quickControls: {
-    flexDirection: "row",
+  colorButton: {
+    width: 38,
+    height: 38,
+    justifyContent: "center",
     alignItems: "center",
+    borderRadius: 19,
+    marginVertical: 3,
+    borderWidth: 1,
+    borderColor: "transparent",
   },
-  colorRow: {
+  colorButtonActive: {
+    borderColor: "#38BDF8",
+    backgroundColor: "#1E293B",
+  },
+  colorButtonCircle: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 2,
+    borderColor: "#FFFFFF",
+  },
+  sizeButton: {
+    width: 38,
+    height: 38,
+    justifyContent: "center",
+    alignItems: "center",
+    borderRadius: 10,
+    marginVertical: 3,
+    backgroundColor: "#1E293B",
+  },
+  sizeButtonActive: {
+    borderColor: "#38BDF8",
+    borderWidth: 1,
+  },
+  sizeIndicatorDot: {
+    minWidth: 4,
+    minHeight: 4,
+    marginBottom: 2,
+  },
+  sizeLabel: {
+    color: "#CBD5E1",
+    fontSize: 9,
+    fontWeight: "800",
+  },
+
+  // Popover Card (Spans to the inner canvas)
+  popoverCard: {
+    position: "absolute",
+    backgroundColor: "#0F172A",
+    borderRadius: 14,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: "#334155",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.5,
+    shadowRadius: 10,
+    elevation: 16,
+    zIndex: 100,
+  },
+  popoverHeader: {
+    color: "#64748B",
+    fontSize: 9,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+    marginBottom: 6,
+    paddingHorizontal: 4,
+  },
+  favoriteRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
   },
-  colorChip: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: "transparent",
-    alignItems: "center",
+  favColorChip: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
     justifyContent: "center",
+    alignItems: "center",
   },
-  colorChipInnerDot: {
+  favColorChipSelected: {
+    borderWidth: 2,
+    borderColor: "#FFFFFF",
+  },
+  favColorDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
     backgroundColor: "#FFFFFF",
   },
-  colorChipSelected: {
-    borderColor: "#FFFFFF",
-    transform: [{ scale: 1.15 }],
-  },
-  paletteTriggerButton: {
+  customColorTrigger: {
     width: 26,
     height: 26,
     borderRadius: 13,
     backgroundColor: "#1E293B",
-    alignItems: "center",
     justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "#334155",
+    alignItems: "center",
   },
-  paletteTriggerText: {
+  customColorTriggerText: {
     fontSize: 13,
   },
-  smallDivider: {
-    width: 1,
-    height: 20,
-    backgroundColor: "#334155",
-    marginHorizontal: 12,
-  },
-  sizeRow: {
+  presetGrid: {
     flexDirection: "row",
-    alignItems: "center",
+    flexWrap: "wrap",
+    width: 170,
     gap: 6,
   },
-  sizeButton: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: "#1E293B",
-    alignItems: "center",
+  presetDot: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "transparent",
+    alignItems: "center",
   },
-  sizeButtonActive: {
-    backgroundColor: "#0F172A",
-    borderColor: "#38BDF8",
+  presetDotSelected: {
+    borderWidth: 2,
+    borderColor: "#FFFFFF",
   },
-  sizeDot: {
-    backgroundColor: "#94A3B8",
-  },
-
-  // Sub-bars
-  subBar: {
-    backgroundColor: "#111C30",
-    borderBottomWidth: 1,
-    borderBottomColor: "#1E293B",
-    paddingHorizontal: 16,
+  popoverItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 8,
     paddingVertical: 6,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  subBarTitle: {
-    color: "#64748B",
-    fontSize: 10,
-    fontWeight: "800",
-    letterSpacing: 0.5,
-  },
-  eraserToggleGroup: {
-    flexDirection: "row",
-    backgroundColor: "#0B1120",
     borderRadius: 6,
-    padding: 2,
+    gap: 8,
   },
-  eraserOption: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 4,
-    gap: 4,
+  popoverItemActive: {
+    backgroundColor: "#1E293B",
   },
-  eraserOptionActive: {
-    backgroundColor: "#1E3A8A",
+  popoverItemIcon: {
+    fontSize: 14,
+    color: "#38BDF8",
+    marginRight: 4,
   },
-  eraserOptionIcon: {
-    fontSize: 13,
+  popoverItemCol: {
+    flex: 1,
   },
-  eraserOptionText: {
-    color: "#94A3B8",
-    fontSize: 11,
+  popoverItemLabel: {
+    color: "#CBD5E1",
+    fontSize: 12,
     fontWeight: "600",
   },
-  eraserOptionTextActive: {
+  popoverItemLabelActive: {
     color: "#38BDF8",
     fontWeight: "700",
   },
-  subBarHint: {
+  popoverItemDesc: {
     color: "#64748B",
-    fontSize: 11,
-    fontStyle: "italic",
-    flex: 1,
+    fontSize: 9,
   },
-  subBarInfo: {
-    backgroundColor: "#0F2038",
-    borderBottomWidth: 1,
-    borderBottomColor: "#1E3A8A",
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  subBarPillActive: {
-    backgroundColor: "#0369A1",
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 10,
-  },
-  subBarPillActiveText: {
-    color: "#E0F2FE",
-    fontSize: 11,
-    fontWeight: "700",
-  },
-  subBarInfoIcon: {
-    fontSize: 14,
-  },
-  subBarInfoText: {
-    color: "#94A3B8",
+  popoverCheck: {
+    color: "#38BDF8",
     fontSize: 12,
+    fontWeight: "800",
+  },
+  sizePreviewContainer: {
+    width: 32,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  sizePreviewBar: {
+    width: "100%",
   },
 
-  // Lasso Sub-bar
-  subBarLasso: {
-    backgroundColor: "#0C1F38",
-    borderBottomWidth: 1,
-    borderBottomColor: "#0284C7",
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-  },
-  lassoDefaultRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  lassoSelectedRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  lassoCountBadge: {
-    backgroundColor: "#0369A1",
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderRadius: 12,
-  },
-  lassoCountText: {
-    color: "#F0F9FF",
-    fontSize: 11,
-    fontWeight: "700",
-  },
-  lassoMoveHint: {
-    color: "#94A3B8",
-    fontSize: 11,
-    fontStyle: "italic",
-    flex: 1,
-  },
-  lassoColorBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    backgroundColor: "#1E293B",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  lassoColorDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-  },
-  lassoColorBtnText: {
-    color: "#E2E8F0",
-    fontSize: 11,
-    fontWeight: "600",
-  },
-  lassoDeleteBtn: {
-    backgroundColor: "#7F1D1D",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  lassoDeleteBtnText: {
-    color: "#FECACA",
-    fontSize: 11,
-    fontWeight: "700",
-  },
-  lassoClearBtn: {
-    backgroundColor: "#1E293B",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  lassoClearBtnText: {
-    color: "#94A3B8",
-    fontSize: 11,
-    fontWeight: "600",
-  },
-
-  // Template dropdown
-  templateDropdown: {
+  // Contextual Sub-dock (Eraser / Lasso)
+  contextualPill: {
     position: "absolute",
-    top: 58,
-    left: 280,
-    backgroundColor: "#1E293B",
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#0B1120",
     borderRadius: 10,
-    padding: 8,
     borderWidth: 1,
     borderColor: "#334155",
+    padding: 4,
+    gap: 4,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.4,
     shadowRadius: 6,
-    elevation: 10,
-    width: 170,
-    zIndex: 100,
+    elevation: 12,
+    zIndex: 95,
   },
-  dropdownHeader: {
-    color: "#64748B",
-    fontSize: 10,
-    fontWeight: "800",
-    letterSpacing: 0.5,
+  contextualOption: {
     paddingHorizontal: 8,
     paddingVertical: 4,
-  },
-  dropdownItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 10,
-    paddingVertical: 8,
     borderRadius: 6,
   },
-  dropdownItemActive: {
-    backgroundColor: "#0F172A",
+  contextualOptionActive: {
+    backgroundColor: "#0284C7",
   },
-  dropdownItemIcon: {
-    fontSize: 15,
-    marginRight: 8,
-    color: "#38BDF8",
-  },
-  dropdownItemText: {
-    color: "#CBD5E1",
-    fontSize: 13,
-    fontWeight: "500",
-    flex: 1,
-  },
-  dropdownItemTextActive: {
-    color: "#38BDF8",
-    fontWeight: "700",
-  },
-  dropdownCheck: {
-    color: "#38BDF8",
-    fontWeight: "800",
-  },
-
-  // Single Stroke Width Selector Dropdown
-  sizeDropdownTrigger: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#1E293B",
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-    borderRadius: 7,
-    borderWidth: 1,
-    borderColor: "#334155",
-    gap: 6,
-  },
-  sizeDropdownTriggerActive: {
-    borderColor: "#38BDF8",
-    backgroundColor: "#0F172A",
-  },
-  sizeIndicatorDot: {
-    minWidth: 4,
-    minHeight: 4,
-  },
-  sizeTriggerLabel: {
-    color: "#E2E8F0",
+  contextualOptionText: {
+    color: "#FFFFFF",
     fontSize: 11,
-    fontWeight: "700",
-  },
-  sizeTriggerArrow: {
-    color: "#94A3B8",
-    fontSize: 10,
-    fontWeight: "700",
-  },
-  sizeDropdown: {
-    position: "absolute",
-    top: 58,
-    right: 16,
-    backgroundColor: "#1E293B",
-    borderRadius: 10,
-    padding: 8,
-    borderWidth: 1,
-    borderColor: "#334155",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.45,
-    shadowRadius: 8,
-    elevation: 12,
-    width: 210,
-    zIndex: 100,
-  },
-  sizeDropdownItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    borderRadius: 6,
-    gap: 10,
-  },
-  sizeDropdownItemActive: {
-    backgroundColor: "#0F172A",
-  },
-  sizePreviewLineContainer: {
-    width: 36,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  sizePreviewLine: {
-    width: "100%",
-  },
-  sizeDropdownTextCol: {
-    flex: 1,
-  },
-  sizeDropdownLabel: {
-    color: "#CBD5E1",
-    fontSize: 12,
     fontWeight: "600",
   },
-  sizeDropdownLabelActive: {
+  lassoBadgeText: {
     color: "#38BDF8",
+    fontSize: 11,
     fontWeight: "700",
+    paddingHorizontal: 6,
   },
-  sizeDropdownDesc: {
-    color: "#64748B",
-    fontSize: 10,
+  lassoActionBtn: {
+    backgroundColor: "#1E293B",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  lassoActionBtnText: {
+    color: "#F1F5F9",
+    fontSize: 11,
+    fontWeight: "600",
   },
 
-  // Modal Overlay
+  // Color Customizer Modal
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0, 0, 0, 0.7)",
@@ -986,7 +813,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 14,
+    marginBottom: 16,
   },
   customizerTitle: {
     color: "#F8FAFC",
@@ -998,76 +825,32 @@ const styles = StyleSheet.create({
     height: 28,
     borderRadius: 14,
     backgroundColor: "#1E293B",
-    alignItems: "center",
     justifyContent: "center",
+    alignItems: "center",
   },
   closeBtnText: {
     color: "#94A3B8",
-    fontSize: 14,
-    fontWeight: "700",
+    fontSize: 13,
   },
-  slotPickerRow: {
+  customizerSectionTitle: {
+    color: "#64748B",
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+    marginBottom: 10,
+  },
+  customizerGrid: {
     flexDirection: "row",
-    alignItems: "center",
+    flexWrap: "wrap",
     gap: 8,
     marginBottom: 16,
   },
-  slotPickerLabel: {
-    color: "#94A3B8",
-    fontSize: 12,
-  },
-  slotBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 6,
-    backgroundColor: "#1E293B",
+  paletteColorTile: {
+    width: 44,
+    height: 44,
+    borderRadius: 8,
     borderWidth: 1,
-    borderColor: "transparent",
-  },
-  slotBadgeActive: {
-    borderColor: "#38BDF8",
-    backgroundColor: "#0C4A6E",
-  },
-  slotBadgeDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-  },
-  slotBadgeText: {
-    color: "#94A3B8",
-    fontSize: 11,
-    fontWeight: "600",
-  },
-  slotBadgeTextActive: {
-    color: "#FFFFFF",
-    fontWeight: "700",
-  },
-  paletteSectionTitle: {
-    color: "#64748B",
-    fontSize: 11,
-    fontWeight: "700",
-    marginBottom: 8,
-    textTransform: "uppercase",
-  },
-  presetPaletteGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
-    marginBottom: 18,
-  },
-  presetChip: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    borderWidth: 2,
-    borderColor: "transparent",
-  },
-  presetChipSelected: {
-    borderColor: "#FFFFFF",
-    transform: [{ scale: 1.15 }],
+    borderColor: "rgba(255, 255, 255, 0.1)",
   },
   hexInputRow: {
     flexDirection: "row",
@@ -1108,107 +891,6 @@ const styles = StyleSheet.create({
   },
   hexApplyBtnText: {
     color: "#FFFFFF",
-    fontSize: 12,
-    fontWeight: "700",
-  },
-
-  // Attribute Modal
-  attrCard: {
-    width: 440,
-    backgroundColor: "#0F172A",
-    borderRadius: 14,
-    padding: 22,
-    borderWidth: 1,
-    borderColor: "#334155",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.5,
-    shadowRadius: 10,
-    elevation: 12,
-  },
-  attrModalTitle: {
-    color: "#F8FAFC",
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  attrIntro: {
-    color: "#94A3B8",
-    fontSize: 12,
-    lineHeight: 18,
-    marginBottom: 12,
-  },
-  attrTypeSelector: {
-    flexDirection: "row",
-    gap: 8,
-    marginBottom: 14,
-  },
-  attrTypeChip: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: "#1E293B",
-    borderWidth: 1,
-    borderColor: "#334155",
-    gap: 6,
-  },
-  attrTypeChipActive: {
-    backgroundColor: "#1E3A8A",
-    borderColor: "#38BDF8",
-  },
-  attrTypeChipIcon: {
-    fontSize: 14,
-  },
-  attrTypeChipText: {
-    color: "#CBD5E1",
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  attrForm: {
-    gap: 8,
-    marginBottom: 14,
-  },
-  attrInput: {
-    backgroundColor: "#1E293B",
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    color: "#F8FAFC",
-    fontSize: 13,
-    borderWidth: 1,
-    borderColor: "#334155",
-  },
-  attrInputMulti: {
-    height: 60,
-    textAlignVertical: "top",
-  },
-  attrActionButtons: {
-    flexDirection: "row",
-    gap: 10,
-  },
-  pinBtn: {
-    flex: 1,
-    backgroundColor: "#0284C7",
-    paddingVertical: 10,
-    borderRadius: 8,
-    alignItems: "center",
-  },
-  pinBtnText: {
-    color: "#FFFFFF",
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  attrCompileAction: {
-    backgroundColor: "#312E81",
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 8,
-    alignItems: "center",
-  },
-  attrCompileActionText: {
-    color: "#C7D2FE",
     fontSize: 12,
     fontWeight: "700",
   },

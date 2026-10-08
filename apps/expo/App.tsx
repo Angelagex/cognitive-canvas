@@ -9,7 +9,6 @@ import { CompilerDrawer } from "./src/components/drawer/CompilerDrawer";
 import { PlacedAttributeBadges } from "./src/components/canvas/PlacedAttributeBadges";
 import { SemanticAnchorTooltip } from "./src/components/canvas/SemanticAnchorTooltip";
 import { ClearCanvasConfirmModal } from "./src/components/modals/ClearCanvasConfirmModal";
-import { VaultsModal } from "./src/components/modals/VaultsModal";
 import { DocumentActionsModal } from "./src/components/modals/DocumentActionsModal";
 
 export default function App() {
@@ -40,6 +39,8 @@ export default function App() {
     undoTrigger,
     redoTrigger,
     clearTrigger,
+    loadedStrokesJson,
+    loadStrokesTrigger,
     isDrawerOpen,
     setIsDrawerOpen,
     isCompiling,
@@ -91,21 +92,21 @@ export default function App() {
     currentMapId,
     savedMaps,
     handleLoadMap,
-    showVaultModal,
-    setShowVaultModal,
     showClearConfirmModal,
     handleRequestClear,
     handleConfirmClear,
     handleCancelClear,
     handleDeleteMap,
     visualAST,
+    toolbarDockSide,
+    handleToggleDockSide,
   } = useCanvasState();
 
   return (
     <SafeAreaView style={styles.rootContainer}>
       <StatusBar barStyle="light-content" backgroundColor="#0B1120" />
 
-      {/* 1. Header Superior (48dp) - Bóvedas, Título editable, Auto-Save .cmn, Undo/Redo, Compilar */}
+      {/* 1. Header Superior Minimalista (48dp) - Título editable, Auto-Save .cmn, Undo/Redo, Compilar */}
       <TopHeader
         mapTitle={mapTitle}
         onTitleChange={handleTitleChange}
@@ -115,34 +116,35 @@ export default function App() {
         onRedo={handleRedo}
         onRequestClear={handleRequestClear}
         onOpenCompiler={() => setIsDrawerOpen(true)}
-        onOpenVaults={() => setShowVaultModal(true)}
         onOpenDocumentMenu={() => setShowDocumentMenu(true)}
         isSaving={isSaving}
         lastSavedAt={lastSavedAt}
       />
 
-      {/* 2. Barra de Herramientas Estilo Goodnotes (56dp + sub-barra contextual) */}
-      <GoodnotesToolbar
-        activeBrush={activeBrush}
-        onSelectBrush={setActiveBrush}
-        activeColor={activeColor}
-        onSelectColor={setActiveColor}
-        activeWidth={activeWidth}
-        onSelectWidth={setActiveWidth}
-        eraserMode={eraserMode}
-        onSelectEraserMode={setEraserMode}
-        backgroundType={backgroundType}
-        onSelectBackgroundType={setBackgroundType}
-        favoriteColors={favoriteColors}
-        onUpdateFavoriteColor={updateFavoriteColor}
-        hasSelection={hasSelection}
-        selectedCount={selectedCount}
-        onDeleteSelection={handleDeleteSelection}
-        onClearSelection={handleClearSelection}
-      />
-
-      {/* 3. Lienzo Infinito con Jetpack Ink Nativo y Badges de Atributos */}
+      {/* 2. Lienzo Infinito 100% Despejado con Dock Lateral Flotante */}
       <View style={styles.canvasWrapper}>
+        {/* Dock Vertical Flotante (Pill) - Cambiable entre lateral Izquierdo y Derecho con persistencia */}
+        <GoodnotesToolbar
+          activeBrush={activeBrush}
+          onSelectBrush={setActiveBrush}
+          activeColor={activeColor}
+          onSelectColor={setActiveColor}
+          activeWidth={activeWidth}
+          onSelectWidth={setActiveWidth}
+          eraserMode={eraserMode}
+          onSelectEraserMode={setEraserMode}
+          backgroundType={backgroundType}
+          onSelectBackgroundType={setBackgroundType}
+          favoriteColors={favoriteColors}
+          onUpdateFavoriteColor={updateFavoriteColor}
+          hasSelection={hasSelection}
+          selectedCount={selectedCount}
+          onDeleteSelection={handleDeleteSelection}
+          onClearSelection={handleClearSelection}
+          dockSide={toolbarDockSide}
+          onToggleDockSide={handleToggleDockSide}
+        />
+
         <JetpackInkCanvas
           style={StyleSheet.absoluteFill}
           strokeColor={activeColor}
@@ -159,6 +161,8 @@ export default function App() {
           redoTrigger={redoTrigger}
           deleteSelectionTrigger={deleteSelectionTrigger}
           clearSelectionTrigger={clearSelectionTrigger}
+          loadedStrokesJson={loadedStrokesJson}
+          loadStrokesTrigger={loadStrokesTrigger}
           onStrokeEnd={handleStrokeEnd}
           onTransform={handleTransform}
           onBarrelButton={handleBarrelButton}
@@ -234,24 +238,7 @@ export default function App() {
         onCancel={handleCancelClear}
       />
 
-      {/* 7. Modal de Gestión de Bóvedas / Mis Mapas Cognitivos */}
-      <VaultsModal
-        visible={showVaultModal}
-        onClose={() => setShowVaultModal(false)}
-        savedMaps={savedMaps}
-        currentMapId={currentMapId}
-        onSelectMap={(mapId) => {
-          handleLoadMap(mapId);
-          setShowVaultModal(false);
-        }}
-        onNewMap={() => {
-          handleNewMap();
-          setShowVaultModal(false);
-        }}
-        onDeleteMap={handleDeleteMap}
-      />
-
-      {/* 8. Modal de Menú de Opciones y Exportación del Documento */}
+      {/* 7. Modal Unificado de Documento (Bóveda Integrada, Exportación, Acciones) */}
       <DocumentActionsModal
         visible={showDocumentMenu}
         onClose={() => setShowDocumentMenu(false)}
@@ -259,22 +246,13 @@ export default function App() {
         strokeCount={strokeCount}
         entityCount={visualAST.entities.length}
         lastSavedAt={lastSavedAt}
-        onOpenVaults={() => {
-          setShowDocumentMenu(false);
-          setShowVaultModal(true);
-        }}
-        onNewMap={() => {
-          setShowDocumentMenu(false);
-          handleNewMap();
-        }}
-        onRequestClear={() => {
-          setShowDocumentMenu(false);
-          handleRequestClear();
-        }}
-        onOpenCompiler={() => {
-          setShowDocumentMenu(false);
-          setIsDrawerOpen(true);
-        }}
+        savedMaps={savedMaps}
+        currentMapId={currentMapId}
+        onSelectMap={handleLoadMap}
+        onNewMap={handleNewMap}
+        onDeleteMap={handleDeleteMap}
+        onRequestClear={handleRequestClear}
+        onOpenCompiler={() => setIsDrawerOpen(true)}
       />
     </SafeAreaView>
   );

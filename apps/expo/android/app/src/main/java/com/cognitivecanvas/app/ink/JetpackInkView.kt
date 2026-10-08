@@ -17,10 +17,13 @@ import androidx.ink.authoring.InProgressStrokesView
 import androidx.ink.authoring.InProgressStrokesFinishedListener
 import androidx.ink.authoring.InProgressStrokeId
 import androidx.ink.brush.Brush
+import androidx.ink.brush.InputToolType
 import androidx.ink.brush.StockBrushes
 import androidx.ink.rendering.android.canvas.CanvasStrokeRenderer
 import androidx.ink.rendering.android.view.ViewStrokeRenderer
+import androidx.ink.strokes.MutableStrokeInputBatch
 import androidx.ink.strokes.Stroke
+import androidx.ink.strokes.StrokeInput
 import com.cognitivecanvas.app.ink.input.GestureShortcutDetector
 import com.cognitivecanvas.app.ink.input.StylusInputHandler
 import com.cognitivecanvas.app.ink.tools.StrokeEraser
@@ -164,6 +167,8 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
 
     // Cache for stroke bounding boxes to eliminate O(N * points) recomputations on hover and hit-testing
     private val strokeBoundsCache = java.util.IdentityHashMap<Stroke, RectF>()
+    private val strokeColorMap = java.util.IdentityHashMap<Stroke, String>()
+    var pendingLoadedStrokesJson: String? = null
 
     // Stroke Finish Notification Debounce (eliminates UI-thread serialization lag during fast handwriting)
     private val strokeFinishDebounceHandler = Handler(Looper.getMainLooper())
@@ -254,6 +259,8 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
                     } else {
                         stroke
                     }
+                    val colorHex = String.format("#%06X", 0xFFFFFF and strokeColor)
+                    strokeColorMap[snapped] = colorHex
                     finalStrokes.add(snapped)
                 }
 
@@ -446,7 +453,8 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
         for ((idx, stroke) in completedStrokes.withIndex()) {
             val strokeMap = Arguments.createMap()
             strokeMap.putString("id", "stroke_${idx + 1}")
-            strokeMap.putString("color", String.format("#%06X", 0xFFFFFF and strokeColor))
+            val colorStr = strokeColorMap[stroke] ?: String.format("#%06X", 0xFFFFFF and strokeColor)
+            strokeMap.putString("color", colorStr)
             strokeMap.putDouble("width", (stroke.brush.size / density).toDouble())
 
             val inputs = stroke.inputs
@@ -1136,11 +1144,85 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
         undoneStrokes.addAll(completedStrokes)
         completedStrokes.clear()
         strokeBoundsCache.clear()
+        strokeColorMap.clear()
         lassoManager.clearSelection()
         inProgressStrokesView.cancelUnfinishedStrokes()
         postInvalidateOnAnimation()
         notifyStrokeCountChanged()
         notifySelectionChanged(false, 0)
+    }
+
+    fun loadStrokesFromJson(jsonString: String?) {
+        pendingLoadedStrokesJson = jsonString
+        completedStrokes.clear()
+        undoneStrokes.clear()
+        strokeBoundsCache.clear()
+        strokeColorMap.clear()
+        lassoManager.clearSelection()
+        inProgressStrokesView.cancelUnfinishedStrokes()
+
+        if (jsonString.isNullOrEmpty() || jsonString == "[]") {
+            postInvalidateOnAnimation()
+            return
+        }
+
+        try {
+            val jsonArray = org.json.JSONArray(jsonString)
+            val density = context.resources.displayMetrics.density
+            val restoredStrokes = mutableListOf<Stroke>()
+
+            for (i in 0 until jsonArray.length()) {
+                val strokeObj = jsonArray.optJSONObject(i) ?: continue
+                val colorHex = strokeObj.optString("color", "#38BDF8")
+                val widthDp = strokeObj.optDouble("width", 18.0).toFloat()
+                val strokeColorInt = try {
+                    Color.parseColor(colorHex)
+                } catch (_: Exception) {
+                    Color.parseColor("#38BDF8")
+                }
+
+                val strokeBrush = Brush.createWithColorIntArgb(
+                    family = StockBrushes.pressurePenLatest,
+                    colorIntArgb = strokeColorInt,
+                    size = widthDp * density,
+                    epsilon = 0.1f
+                )
+
+                val pointsArray = strokeObj.optJSONArray("points") ?: continue
+                val pointsCount = pointsArray.length()
+                if (pointsCount < 2) continue
+
+                val batch = MutableStrokeInputBatch()
+                for (j in 0 until pointsCount) {
+                    val ptObj = pointsArray.optJSONObject(j) ?: continue
+                    val px = ptObj.optDouble("x", 0.0).toFloat() * density
+                    val py = ptObj.optDouble("y", 0.0).toFloat() * density
+                    val pressure = ptObj.optDouble("p", 0.5).toFloat().coerceIn(0.05f, 1.0f)
+                    val t = ptObj.optDouble("t", (j * 12).toDouble()).toLong()
+
+                    val input = StrokeInput.create(
+                        px,
+                        py,
+                        t,
+                        InputToolType.STYLUS,
+                        0f,
+                        pressure,
+                        0f,
+                        0f
+                    )
+                    batch.addOrIgnore(input)
+                }
+
+                val stroke = Stroke(strokeBrush, batch.asImmutable())
+                restoredStrokes.add(stroke)
+                strokeColorMap[stroke] = colorHex
+            }
+
+            completedStrokes.addAll(restoredStrokes)
+            postInvalidateOnAnimation()
+        } catch (e: Exception) {
+            android.util.Log.e("JetpackInkView", "Error in loadStrokesFromJson: ${e.message}", e)
+        }
     }
 
     fun undoStroke() {

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   StyleSheet,
   View,
@@ -9,6 +9,7 @@ import {
   ScrollView,
   Alert,
 } from "react-native";
+import { MapDocumentSummary } from "../../services/StorageService";
 
 interface DocumentActionsModalProps {
   visible: boolean;
@@ -17,8 +18,11 @@ interface DocumentActionsModalProps {
   strokeCount: number;
   entityCount: number;
   lastSavedAt: number | null;
-  onOpenVaults: () => void;
+  savedMaps: MapDocumentSummary[];
+  currentMapId: string;
+  onSelectMap: (mapId: string) => void;
   onNewMap: () => void;
+  onDeleteMap: (mapId: string) => void;
   onRequestClear: () => void;
   onOpenCompiler: () => void;
   onDuplicateMap?: () => void;
@@ -31,25 +35,38 @@ export const DocumentActionsModal: React.FC<DocumentActionsModalProps> = ({
   strokeCount,
   entityCount,
   lastSavedAt,
-  onOpenVaults,
+  savedMaps,
+  currentMapId,
+  onSelectMap,
   onNewMap,
+  onDeleteMap,
   onRequestClear,
   onOpenCompiler,
   onDuplicateMap,
 }) => {
-  const handleExport = (format: "PNG" | "PDF" | "CMN") => {
+  const [currentView, setCurrentView] = useState<"menu" | "vault">("menu");
+  const [mapToDelete, setMapToDelete] = useState<MapDocumentSummary | null>(null);
+
+  // Reset view to "menu" when modal closes
+  const handleClose = () => {
+    setCurrentView("menu");
+    setMapToDelete(null);
     onClose();
+  };
+
+  const handleExport = (format: "PNG" | "PDF" | "CMN") => {
+    handleClose();
     setTimeout(() => {
       Alert.alert(
         `Exportar a ${format}`,
-        `El mapa "${mapTitle}" se está preparando para exportar en formato ${format}. (${strokeCount} trazos manuscritos, ${entityCount} entidades cognitivas).`,
+        `El mapa "${mapTitle}" se está preparando para exportar en formato ${format}. (${strokeCount} trazos, ${entityCount} conceptos).`,
         [{ text: "Aceptar", style: "default" }]
       );
     }, 150);
   };
 
   const handleDuplicate = () => {
-    onClose();
+    handleClose();
     if (onDuplicateMap) {
       onDuplicateMap();
     } else {
@@ -58,8 +75,26 @@ export const DocumentActionsModal: React.FC<DocumentActionsModalProps> = ({
   };
 
   const formatDate = (timestamp: number | null) => {
-    if (!timestamp) return "Aún no guardado";
-    return new Date(timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    if (!timestamp) return "Desconocido";
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diffHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60);
+
+    if (diffHours < 1) {
+      const mins = Math.max(1, Math.round(diffHours * 60));
+      return `Hace ${mins} min`;
+    }
+    if (diffHours < 24) {
+      return `Hoy, ${date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+    }
+    return date.toLocaleDateString([], { day: "numeric", month: "short", year: "numeric" });
+  };
+
+  const handleConfirmDelete = () => {
+    if (mapToDelete) {
+      onDeleteMap(mapToDelete.map_id);
+      setMapToDelete(null);
+    }
   };
 
   return (
@@ -67,170 +102,311 @@ export const DocumentActionsModal: React.FC<DocumentActionsModalProps> = ({
       visible={visible}
       transparent
       animationType="fade"
-      onRequestClose={onClose}
+      onRequestClose={handleClose}
     >
-      <TouchableWithoutFeedback onPress={onClose}>
+      <TouchableWithoutFeedback onPress={handleClose}>
         <View style={styles.backdrop}>
           <TouchableWithoutFeedback>
-            <View style={styles.card}>
+            <View style={[styles.card, currentView === "vault" && styles.cardVault]}>
               {/* Header */}
               <View style={styles.header}>
-                <View style={styles.headerTextCol}>
-                  <Text style={styles.title} numberOfLines={1}>{mapTitle}</Text>
-                  <Text style={styles.subtitle}>
-                    {strokeCount} trazos • {entityCount} entidades • Guardado {formatDate(lastSavedAt)}
-                  </Text>
+                <View style={styles.headerLeft}>
+                  {currentView === "vault" ? (
+                    <TouchableOpacity
+                      style={styles.backButton}
+                      onPress={() => setCurrentView("menu")}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.backButtonIcon}>←</Text>
+                      <Text style={styles.backButtonText}>Menú</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <View style={styles.headerTextCol}>
+                      <Text style={styles.title} numberOfLines={1}>{mapTitle}</Text>
+                      <Text style={styles.subtitle}>
+                        {strokeCount} trazos • {entityCount} entidades • Guardado {formatDate(lastSavedAt)}
+                      </Text>
+                    </View>
+                  )}
                 </View>
-                <TouchableOpacity style={styles.closeBtn} onPress={onClose} activeOpacity={0.7}>
-                  <Text style={styles.closeBtnText}>✕</Text>
-                </TouchableOpacity>
+
+                {currentView === "vault" && (
+                  <View style={styles.vaultHeaderCenter}>
+                    <Text style={styles.vaultTitle}>Bóveda de Mapas</Text>
+                    <Text style={styles.vaultSubtitle}>{savedMaps.length} documentos .cmn</Text>
+                  </View>
+                )}
+
+                <View style={styles.headerRight}>
+                  {currentView === "vault" && (
+                    <TouchableOpacity
+                      style={styles.newMapBtn}
+                      onPress={() => {
+                        onNewMap();
+                        handleClose();
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.newMapBtnIcon}>＋</Text>
+                      <Text style={styles.newMapBtnText}>Nuevo</Text>
+                    </TouchableOpacity>
+                  )}
+                  <TouchableOpacity style={styles.closeBtn} onPress={handleClose} activeOpacity={0.7}>
+                    <Text style={styles.closeBtnText}>✕</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
 
-              <ScrollView style={styles.scrollArea} showsVerticalScrollIndicator={false}>
-                {/* 1. SECCIÓN: GESTIÓN DE MAPAS */}
-                <Text style={styles.sectionHeader}>GESTIÓN DE MAPAS</Text>
+              {/* VIEW 1: Menú Principal de Acciones */}
+              {currentView === "menu" ? (
+                <ScrollView style={styles.scrollArea} showsVerticalScrollIndicator={false}>
+                  {/* SECCIÓN 1: GESTIÓN */}
+                  <Text style={styles.sectionHeader}>DOCUMENTO & PROYECTOS</Text>
 
-                <TouchableOpacity
-                  style={styles.actionItem}
-                  onPress={() => {
-                    onClose();
-                    onOpenVaults();
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <View style={[styles.actionIconContainer, { backgroundColor: "#1E3A8A" }]}>
-                    <Text style={styles.actionIcon}>📁</Text>
-                  </View>
-                  <View style={styles.actionTextCol}>
-                    <Text style={styles.actionTitle}>Bóveda de Mapas</Text>
-                    <Text style={styles.actionDesc}>Ver todos tus mapas guardados, cambiar de proyecto o buscar</Text>
-                  </View>
-                  <Text style={styles.arrowIcon}>›</Text>
-                </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.actionItem}
+                    onPress={() => setCurrentView("vault")}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[styles.actionIconContainer, { backgroundColor: "#1E3A8A" }]}>
+                      <Text style={styles.actionIcon}>📁</Text>
+                    </View>
+                    <View style={styles.actionTextCol}>
+                      <Text style={styles.actionTitle}>Bóveda de Mapas ({savedMaps.length})</Text>
+                      <Text style={styles.actionDesc}>Explorar todos tus proyectos, cambiar de mapa o gestionar copias</Text>
+                    </View>
+                    <Text style={styles.arrowIcon}>›</Text>
+                  </TouchableOpacity>
 
-                <TouchableOpacity
-                  style={styles.actionItem}
-                  onPress={() => {
-                    onClose();
-                    onNewMap();
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <View style={[styles.actionIconContainer, { backgroundColor: "#065F46" }]}>
-                    <Text style={styles.actionIcon}>➕</Text>
-                  </View>
-                  <View style={styles.actionTextCol}>
-                    <Text style={styles.actionTitle}>Nuevo Mapa en Blanco</Text>
-                    <Text style={styles.actionDesc}>Crear un nuevo lienzo sin sobrescribir el actual</Text>
-                  </View>
-                  <Text style={styles.arrowIcon}>›</Text>
-                </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.actionItem}
+                    onPress={() => {
+                      handleClose();
+                      onNewMap();
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[styles.actionIconContainer, { backgroundColor: "#065F46" }]}>
+                      <Text style={styles.actionIcon}>➕</Text>
+                    </View>
+                    <View style={styles.actionTextCol}>
+                      <Text style={styles.actionTitle}>Nuevo Mapa en Blanco</Text>
+                      <Text style={styles.actionDesc}>Iniciar un nuevo lienzo sin sobrescribir el actual</Text>
+                    </View>
+                    <Text style={styles.arrowIcon}>›</Text>
+                  </TouchableOpacity>
 
-                <TouchableOpacity
-                  style={styles.actionItem}
-                  onPress={handleDuplicate}
-                  activeOpacity={0.7}
-                >
-                  <View style={[styles.actionIconContainer, { backgroundColor: "#3730A3" }]}>
-                    <Text style={styles.actionIcon}>📋</Text>
-                  </View>
-                  <View style={styles.actionTextCol}>
-                    <Text style={styles.actionTitle}>Duplicar este Mapa</Text>
-                    <Text style={styles.actionDesc}>Crear una copia de respaldo para experimentar nuevas ideas</Text>
-                  </View>
-                  <Text style={styles.arrowIcon}>›</Text>
-                </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.actionItem}
+                    onPress={handleDuplicate}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[styles.actionIconContainer, { backgroundColor: "#3730A3" }]}>
+                      <Text style={styles.actionIcon}>📋</Text>
+                    </View>
+                    <View style={styles.actionTextCol}>
+                      <Text style={styles.actionTitle}>Duplicar este Mapa</Text>
+                      <Text style={styles.actionDesc}>Crear una copia de respaldo para experimentar nuevas ramas</Text>
+                    </View>
+                    <Text style={styles.arrowIcon}>›</Text>
+                  </TouchableOpacity>
 
-                {/* 2. SECCIÓN: EXPORTAR Y COMPARTIR */}
-                <Text style={styles.sectionHeader}>EXPORTAR & COMPARTIR</Text>
+                  {/* SECCIÓN 2: EXPORTAR */}
+                  <Text style={styles.sectionHeader}>EXPORTAR & COMPARTIR</Text>
 
-                <TouchableOpacity
-                  style={styles.actionItem}
-                  onPress={() => handleExport("PNG")}
-                  activeOpacity={0.7}
-                >
-                  <View style={[styles.actionIconContainer, { backgroundColor: "#0284C7" }]}>
-                    <Text style={styles.actionIcon}>🖼️</Text>
-                  </View>
-                  <View style={styles.actionTextCol}>
-                    <Text style={styles.actionTitle}>Exportar como Imagen (PNG)</Text>
-                    <Text style={styles.actionDesc}>Alta resolución para compartir en mensajes o diapositivas</Text>
-                  </View>
-                  <Text style={styles.arrowIcon}>›</Text>
-                </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.actionItem}
+                    onPress={() => handleExport("PNG")}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[styles.actionIconContainer, { backgroundColor: "#0284C7" }]}>
+                      <Text style={styles.actionIcon}>🖼️</Text>
+                    </View>
+                    <View style={styles.actionTextCol}>
+                      <Text style={styles.actionTitle}>Exportar como Imagen (PNG)</Text>
+                      <Text style={styles.actionDesc}>Alta resolución para compartir en mensajes o diapositivas</Text>
+                    </View>
+                    <Text style={styles.arrowIcon}>›</Text>
+                  </TouchableOpacity>
 
-                <TouchableOpacity
-                  style={styles.actionItem}
-                  onPress={() => handleExport("PDF")}
-                  activeOpacity={0.7}
-                >
-                  <View style={[styles.actionIconContainer, { backgroundColor: "#DC2626" }]}>
-                    <Text style={styles.actionIcon}>📑</Text>
-                  </View>
-                  <View style={styles.actionTextCol}>
-                    <Text style={styles.actionTitle}>Exportar como Documento (PDF)</Text>
-                    <Text style={styles.actionDesc}>Vectorial con páginas estructuradas e imprimibles</Text>
-                  </View>
-                  <Text style={styles.arrowIcon}>›</Text>
-                </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.actionItem}
+                    onPress={() => handleExport("PDF")}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[styles.actionIconContainer, { backgroundColor: "#DC2626" }]}>
+                      <Text style={styles.actionIcon}>📑</Text>
+                    </View>
+                    <View style={styles.actionTextCol}>
+                      <Text style={styles.actionTitle}>Exportar como Documento (PDF)</Text>
+                      <Text style={styles.actionDesc}>Vectorial con páginas estructuradas e imprimibles</Text>
+                    </View>
+                    <Text style={styles.arrowIcon}>›</Text>
+                  </TouchableOpacity>
 
-                <TouchableOpacity
-                  style={styles.actionItem}
-                  onPress={() => handleExport("CMN")}
-                  activeOpacity={0.7}
-                >
-                  <View style={[styles.actionIconContainer, { backgroundColor: "#7C3AED" }]}>
-                    <Text style={styles.actionIcon}>💾</Text>
-                  </View>
-                  <View style={styles.actionTextCol}>
-                    <Text style={styles.actionTitle}>Descargar Archivo Cognitivo (.cmn)</Text>
-                    <Text style={styles.actionDesc}>Formato completo con AST y relaciones para respaldo nativo</Text>
-                  </View>
-                  <Text style={styles.arrowIcon}>›</Text>
-                </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.actionItem}
+                    onPress={() => handleExport("CMN")}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[styles.actionIconContainer, { backgroundColor: "#7C3AED" }]}>
+                      <Text style={styles.actionIcon}>💾</Text>
+                    </View>
+                    <View style={styles.actionTextCol}>
+                      <Text style={styles.actionTitle}>Descargar Archivo Cognitivo (.cmn)</Text>
+                      <Text style={styles.actionDesc}>Respaldo nativo con capas de tinta y árbol AST completo</Text>
+                    </View>
+                    <Text style={styles.arrowIcon}>›</Text>
+                  </TouchableOpacity>
 
-                {/* 3. SECCIÓN: ANÁLISIS COGNITIVO */}
-                <Text style={styles.sectionHeader}>COGNICIÓN & SÍNTESIS</Text>
+                  {/* SECCIÓN 3: SÍNTESIS */}
+                  <Text style={styles.sectionHeader}>COGNICIÓN & SÍNTESIS</Text>
 
-                <TouchableOpacity
-                  style={styles.actionItem}
-                  onPress={() => {
-                    onClose();
-                    onOpenCompiler();
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <View style={[styles.actionIconContainer, { backgroundColor: "#D97706" }]}>
-                    <Text style={styles.actionIcon}>⚡</Text>
-                  </View>
-                  <View style={styles.actionTextCol}>
-                    <Text style={styles.actionTitle}>Compilar Mapa Mental (GRINDE)</Text>
-                    <Text style={styles.actionDesc}>Extraer conceptos clave y relaciones causales con IA</Text>
-                  </View>
-                  <Text style={styles.arrowIcon}>›</Text>
-                </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.actionItem}
+                    onPress={() => {
+                      handleClose();
+                      onOpenCompiler();
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[styles.actionIconContainer, { backgroundColor: "#D97706" }]}>
+                      <Text style={styles.actionIcon}>⚡</Text>
+                    </View>
+                    <View style={styles.actionTextCol}>
+                      <Text style={styles.actionTitle}>Compilar Mapa Mental (GRINDE)</Text>
+                      <Text style={styles.actionDesc}>Extraer conceptos clave y relaciones causales con IA</Text>
+                    </View>
+                    <Text style={styles.arrowIcon}>›</Text>
+                  </TouchableOpacity>
 
-                {/* 4. SECCIÓN: ACCIÓN DESTRUCCIÓN */}
-                <Text style={styles.sectionHeader}>ZONA DE PELIGRO</Text>
+                  {/* SECCIÓN 4: ACCIÓN PELIGROSA */}
+                  <Text style={styles.sectionHeader}>ZONA DE PELIGRO</Text>
 
-                <TouchableOpacity
-                  style={[styles.actionItem, styles.dangerItem]}
-                  onPress={() => {
-                    onClose();
-                    onRequestClear();
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <View style={[styles.actionIconContainer, { backgroundColor: "rgba(239, 68, 68, 0.2)" }]}>
-                    <Text style={styles.actionIcon}>🗑️</Text>
-                  </View>
-                  <View style={styles.actionTextCol}>
-                    <Text style={[styles.actionTitle, styles.dangerText]}>Limpiar Todo el Lienzo</Text>
-                    <Text style={styles.actionDesc}>Borrar todos los trazos manuscritos actuales</Text>
-                  </View>
-                  <Text style={[styles.arrowIcon, styles.dangerText]}>›</Text>
-                </TouchableOpacity>
-              </ScrollView>
+                  <TouchableOpacity
+                    style={[styles.actionItem, styles.dangerItem]}
+                    onPress={() => {
+                      handleClose();
+                      onRequestClear();
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[styles.actionIconContainer, { backgroundColor: "rgba(239, 68, 68, 0.2)" }]}>
+                      <Text style={styles.actionIcon}>🗑️</Text>
+                    </View>
+                    <View style={styles.actionTextCol}>
+                      <Text style={[styles.actionTitle, styles.dangerText]}>Limpiar Todo el Lienzo</Text>
+                      <Text style={styles.actionDesc}>Borrar todos los trazos manuscritos actuales</Text>
+                    </View>
+                    <Text style={[styles.arrowIcon, styles.dangerText]}>›</Text>
+                  </TouchableOpacity>
+                </ScrollView>
+              ) : (
+                /* VIEW 2: Bóveda de Mapas Integrada */
+                <View style={styles.vaultContainer}>
+                  {mapToDelete && (
+                    <View style={styles.deleteConfirmBanner}>
+                      <Text style={styles.deleteConfirmText}>
+                        ¿Eliminar permanentemente "{mapToDelete.title}"?
+                      </Text>
+                      <View style={styles.deleteConfirmActions}>
+                        <TouchableOpacity
+                          style={styles.deleteCancelBtn}
+                          onPress={() => setMapToDelete(null)}
+                        >
+                          <Text style={styles.deleteCancelText}>Cancelar</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={styles.deleteProceedBtn}
+                          onPress={handleConfirmDelete}
+                        >
+                          <Text style={styles.deleteProceedText}>Eliminar</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  )}
+
+                  <ScrollView
+                    style={styles.vaultList}
+                    contentContainerStyle={styles.vaultListContent}
+                    showsVerticalScrollIndicator={false}
+                  >
+                    {savedMaps.length === 0 ? (
+                      <View style={styles.emptyContainer}>
+                        <Text style={styles.emptyIcon}>📭</Text>
+                        <Text style={styles.emptyTitle}>No hay mapas en la bóveda</Text>
+                        <Text style={styles.emptySubtitle}>
+                          Tus mapas mentales se guardarán automáticamente aquí conforme dibujes.
+                        </Text>
+                      </View>
+                    ) : (
+                      savedMaps.map((map) => {
+                        const isCurrent = map.map_id === currentMapId;
+                        return (
+                          <View
+                            key={map.map_id}
+                            style={[styles.mapCard, isCurrent && styles.mapCardActive]}
+                          >
+                            <TouchableOpacity
+                              style={styles.mapCardMain}
+                              onPress={() => {
+                                onSelectMap(map.map_id);
+                                handleClose();
+                              }}
+                              activeOpacity={0.7}
+                            >
+                              <View style={styles.mapCardThumbnail}>
+                                <Text style={styles.mapCardThumbnailIcon}>🧠</Text>
+                                {isCurrent && (
+                                  <View style={styles.activePill}>
+                                    <Text style={styles.activePillText}>Abierto</Text>
+                                  </View>
+                                )}
+                              </View>
+
+                              <View style={styles.mapCardDetails}>
+                                <Text style={styles.mapCardTitle} numberOfLines={1}>
+                                  {map.title || "Mapa sin título"}
+                                </Text>
+                                <Text style={styles.mapCardDate}>
+                                  {formatDate(map.updated_at)}
+                                </Text>
+
+                                <View style={styles.mapCardBadges}>
+                                  <View style={styles.mapBadge}>
+                                    <Text style={styles.mapBadgeText}>
+                                      ✍️ {map.stroke_count} trazos
+                                    </Text>
+                                  </View>
+                                  <View style={styles.mapBadge}>
+                                    <Text style={styles.mapBadgeText}>
+                                      🏷️ {map.entity_count} conceptos
+                                    </Text>
+                                  </View>
+                                  {map.is_compiled && (
+                                    <View style={[styles.mapBadge, styles.compiledBadge]}>
+                                      <Text style={styles.compiledBadgeText}>⚡ Compilado</Text>
+                                    </View>
+                                  )}
+                                </View>
+                              </View>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                              style={styles.deleteButton}
+                              onPress={() => setMapToDelete(map)}
+                              activeOpacity={0.7}
+                              accessibilityLabel="Eliminar mapa"
+                            >
+                              <Text style={styles.deleteIcon}>🗑️</Text>
+                            </TouchableOpacity>
+                          </View>
+                        );
+                      })
+                    )}
+                  </ScrollView>
+                </View>
+              )}
             </View>
           </TouchableWithoutFeedback>
         </View>
@@ -247,8 +423,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   card: {
-    width: 480,
-    maxHeight: "84%",
+    width: 490,
+    maxHeight: "86%",
     backgroundColor: "#0F172A",
     borderRadius: 16,
     borderWidth: 1,
@@ -260,23 +436,33 @@ const styles = StyleSheet.create({
     elevation: 20,
     overflow: "hidden",
   },
+  cardVault: {
+    width: 600,
+    height: 520,
+    maxHeight: "88%",
+  },
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
     borderBottomWidth: 1,
     borderBottomColor: "#1E293B",
     backgroundColor: "#0B1120",
   },
+  headerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
   headerTextCol: {
     flex: 1,
-    marginRight: 12,
+    marginRight: 10,
   },
   title: {
     color: "#F8FAFC",
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "700",
   },
   subtitle: {
@@ -284,17 +470,73 @@ const styles = StyleSheet.create({
     fontSize: 11,
     marginTop: 2,
   },
+  backButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#1E293B",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    gap: 4,
+  },
+  backButtonIcon: {
+    color: "#38BDF8",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  backButtonText: {
+    color: "#38BDF8",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  vaultHeaderCenter: {
+    alignItems: "center",
+    flex: 2,
+  },
+  vaultTitle: {
+    color: "#F8FAFC",
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  vaultSubtitle: {
+    color: "#64748B",
+    fontSize: 11,
+  },
+  headerRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  newMapBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#0284C7",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    gap: 4,
+  },
+  newMapBtnIcon: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  newMapBtnText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "700",
+  },
   closeBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     backgroundColor: "#1E293B",
     justifyContent: "center",
     alignItems: "center",
   },
   closeBtnText: {
     color: "#94A3B8",
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "600",
   },
   scrollArea: {
@@ -306,7 +548,7 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: "800",
     letterSpacing: 0.6,
-    marginTop: 12,
+    marginTop: 10,
     marginBottom: 6,
     paddingHorizontal: 4,
   },
@@ -358,5 +600,175 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "300",
     marginLeft: 8,
+  },
+
+  // Vault Styles
+  vaultContainer: {
+    flex: 1,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+  },
+  deleteConfirmBanner: {
+    backgroundColor: "rgba(239, 68, 68, 0.15)",
+    borderWidth: 1,
+    borderColor: "rgba(239, 68, 68, 0.4)",
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  deleteConfirmText: {
+    color: "#FCA5A5",
+    fontSize: 12,
+    fontWeight: "600",
+    flex: 1,
+  },
+  deleteConfirmActions: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  deleteCancelBtn: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+    backgroundColor: "#1E293B",
+  },
+  deleteCancelText: {
+    color: "#94A3B8",
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  deleteProceedBtn: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+    backgroundColor: "#DC2626",
+  },
+  deleteProceedText: {
+    color: "#FFFFFF",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  vaultList: {
+    flex: 1,
+  },
+  vaultListContent: {
+    paddingBottom: 28,
+  },
+  emptyContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 40,
+  },
+  emptyIcon: {
+    fontSize: 36,
+    marginBottom: 8,
+  },
+  emptyTitle: {
+    color: "#94A3B8",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  emptySubtitle: {
+    color: "#64748B",
+    fontSize: 11,
+    textAlign: "center",
+    marginTop: 4,
+    maxWidth: 280,
+  },
+  mapCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#1E293B",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#334155",
+    padding: 10,
+    marginBottom: 8,
+  },
+  mapCardActive: {
+    borderColor: "#0284C7",
+    backgroundColor: "rgba(2, 132, 199, 0.08)",
+  },
+  mapCardMain: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  mapCardThumbnail: {
+    width: 48,
+    height: 48,
+    borderRadius: 8,
+    backgroundColor: "#0F172A",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+    position: "relative",
+    borderWidth: 1,
+    borderColor: "#334155",
+  },
+  mapCardThumbnailIcon: {
+    fontSize: 20,
+  },
+  activePill: {
+    position: "absolute",
+    bottom: -4,
+    backgroundColor: "#0284C7",
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    borderRadius: 4,
+  },
+  activePillText: {
+    color: "#FFFFFF",
+    fontSize: 8,
+    fontWeight: "800",
+  },
+  mapCardDetails: {
+    flex: 1,
+  },
+  mapCardTitle: {
+    color: "#F1F5F9",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  mapCardDate: {
+    color: "#64748B",
+    fontSize: 10,
+    marginTop: 2,
+  },
+  mapCardBadges: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 4,
+  },
+  mapBadge: {
+    backgroundColor: "#0F172A",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  mapBadgeText: {
+    color: "#94A3B8",
+    fontSize: 9,
+    fontWeight: "600",
+  },
+  compiledBadge: {
+    backgroundColor: "rgba(217, 119, 6, 0.2)",
+  },
+  compiledBadgeText: {
+    color: "#FBBF24",
+    fontSize: 9,
+    fontWeight: "700",
+  },
+  deleteButton: {
+    padding: 8,
+    marginLeft: 6,
+  },
+  deleteIcon: {
+    fontSize: 14,
+    opacity: 0.6,
   },
 });

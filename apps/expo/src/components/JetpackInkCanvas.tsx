@@ -37,6 +37,8 @@ export interface JetpackInkCanvasProps extends ViewProps {
   redoTrigger?: number;
   deleteSelectionTrigger?: number;
   clearSelectionTrigger?: number;
+  loadedStrokesJson?: string;
+  loadStrokesTrigger?: number;
   onStrokeEnd?: (event: NativeSyntheticEvent<StrokeEndEvent>) => void;
   onTransform?: (event: NativeSyntheticEvent<TransformEvent>) => void;
   onBarrelButton?: (event: NativeSyntheticEvent<BarrelButtonEvent>) => void;
@@ -64,6 +66,8 @@ interface NativeJetpackInkViewProps extends ViewProps {
   redoTrigger: number;
   deleteSelectionTrigger?: number;
   clearSelectionTrigger?: number;
+  loadedStrokesJson?: string;
+  loadStrokesTrigger?: number;
   onStrokeEnd?: (event: NativeSyntheticEvent<StrokeEndEvent>) => void;
   onTransform?: (event: NativeSyntheticEvent<TransformEvent>) => void;
   onBarrelButton?: (event: NativeSyntheticEvent<BarrelButtonEvent>) => void;
@@ -93,6 +97,8 @@ export const JetpackInkCanvas: React.FC<JetpackInkCanvasProps> = ({
   redoTrigger = 0,
   deleteSelectionTrigger = 0,
   clearSelectionTrigger = 0,
+  loadedStrokesJson,
+  loadStrokesTrigger = 0,
   onStrokeEnd,
   onTransform,
   onBarrelButton,
@@ -124,6 +130,8 @@ export const JetpackInkCanvas: React.FC<JetpackInkCanvasProps> = ({
         redoTrigger={redoTrigger}
         deleteSelectionTrigger={deleteSelectionTrigger}
         clearSelectionTrigger={clearSelectionTrigger}
+        loadedStrokesJson={loadedStrokesJson}
+        loadStrokesTrigger={loadStrokesTrigger}
         onStrokeEnd={onStrokeEnd}
         onTransform={onTransform}
         onBarrelButton={onBarrelButton}

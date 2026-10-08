@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { StyleSheet, View, Text, TouchableOpacity, TextInput } from "react-native";
 
 interface TopHeaderProps {
@@ -10,8 +10,7 @@ interface TopHeaderProps {
   onRedo: () => void;
   onRequestClear: () => void;
   onOpenCompiler: () => void;
-  onOpenVaults: () => void;
-  onOpenDocumentMenu?: () => void;
+  onOpenDocumentMenu: () => void;
   isSaving?: boolean;
   lastSavedAt?: number | null;
 }
@@ -25,41 +24,100 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
   onRedo,
   onRequestClear,
   onOpenCompiler,
-  onOpenVaults,
   onOpenDocumentMenu,
   isSaving = false,
   lastSavedAt = null,
 }) => {
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [tempTitle, setTempTitle] = useState(mapTitle);
+
+  useEffect(() => {
+    if (!isEditingTitle) {
+      setTempTitle(mapTitle);
+    }
+  }, [mapTitle, isEditingTitle]);
+
+  const handleStartEditing = () => {
+    setTempTitle(mapTitle);
+    setIsEditingTitle(true);
+  };
+
+  const handleSaveTitle = () => {
+    const trimmed = tempTitle.trim();
+    if (trimmed.length > 0 && trimmed !== mapTitle) {
+      onTitleChange(trimmed);
+    } else {
+      setTempTitle(mapTitle);
+    }
+    setIsEditingTitle(false);
+  };
+
+  const handleCancelEditing = () => {
+    setTempTitle(mapTitle);
+    setIsEditingTitle(false);
+  };
+
   return (
     <View style={styles.header}>
-      {/* Left: Vaults Manager, Title & Discreet Save Indicator */}
+      {/* Left: Document Menu (Vault, Export, New), Title & Save Indicator */}
       <View style={styles.leftSection}>
-        <TouchableOpacity style={styles.vaultButton} onPress={onOpenVaults} activeOpacity={0.75}>
-          <Text style={styles.vaultIcon}>📁</Text>
-          <Text style={styles.vaultText}>Bóveda</Text>
+        <TouchableOpacity
+          style={styles.menuButton}
+          onPress={onOpenDocumentMenu}
+          activeOpacity={0.75}
+          accessibilityLabel="Abrir menú del documento y bóveda"
+        >
+          <Text style={styles.menuIcon}>☰</Text>
+          <Text style={styles.menuText}>Menú</Text>
         </TouchableOpacity>
-
-        {onOpenDocumentMenu && (
-          <TouchableOpacity
-            style={styles.menuButton}
-            onPress={onOpenDocumentMenu}
-            activeOpacity={0.7}
-            accessibilityLabel="Opciones del documento"
-          >
-            <Text style={styles.menuIcon}>⋮</Text>
-          </TouchableOpacity>
-        )}
 
         <View style={styles.divider} />
 
-        <TextInput
-          style={styles.titleInput}
-          value={mapTitle}
-          onChangeText={onTitleChange}
-          placeholder="Nombre del mapa..."
-          placeholderTextColor="#64748B"
-          selectTextOnFocus
-        />
+        {/* Interactive Title with Explicit Editing Mode */}
+        {isEditingTitle ? (
+          <View style={styles.titleEditContainer}>
+            <TextInput
+              style={styles.titleInputActive}
+              value={tempTitle}
+              onChangeText={setTempTitle}
+              placeholder="Nombre del mapa..."
+              placeholderTextColor="#64748B"
+              autoFocus
+              selectTextOnFocus
+              onSubmitEditing={handleSaveTitle}
+              onBlur={handleSaveTitle}
+              returnKeyType="done"
+            />
+            <TouchableOpacity
+              style={styles.titleConfirmBtn}
+              onPress={handleSaveTitle}
+              activeOpacity={0.7}
+              accessibilityLabel="Guardar nombre"
+            >
+              <Text style={styles.titleConfirmText}>✓</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.titleCancelBtn}
+              onPress={handleCancelEditing}
+              activeOpacity={0.7}
+              accessibilityLabel="Cancelar edición"
+            >
+              <Text style={styles.titleCancelText}>✕</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <TouchableOpacity
+            style={styles.titleDisplayButton}
+            onPress={handleStartEditing}
+            activeOpacity={0.75}
+            accessibilityLabel="Tocar para editar nombre del mapa"
+          >
+            <Text style={styles.titleDisplayText} numberOfLines={1}>
+              {mapTitle}
+            </Text>
+            <Text style={styles.titleEditIcon}>✏️</Text>
+          </TouchableOpacity>
+        )}
 
         {/* Unobtrusive Cloud Save Status Indicator */}
         <View style={styles.saveBadgeContainer}>
@@ -140,7 +198,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     flex: 1,
   },
-  vaultButton: {
+  menuButton: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#1E293B",
@@ -148,29 +206,17 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     borderRadius: 6,
     marginRight: 10,
+    gap: 6,
   },
-  vaultIcon: {
-    fontSize: 13,
-    marginRight: 4,
+  menuIcon: {
+    color: "#38BDF8",
+    fontSize: 14,
+    fontWeight: "800",
   },
-  vaultText: {
+  menuText: {
     color: "#94A3B8",
     fontSize: 12,
     fontWeight: "600",
-  },
-  menuButton: {
-    width: 28,
-    height: 28,
-    borderRadius: 6,
-    backgroundColor: "#1E293B",
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 10,
-  },
-  menuIcon: {
-    color: "#94A3B8",
-    fontSize: 16,
-    fontWeight: "800",
   },
   divider: {
     width: 1,
@@ -178,15 +224,69 @@ const styles = StyleSheet.create({
     backgroundColor: "#334155",
     marginRight: 12,
   },
-  titleInput: {
+  titleDisplayButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    backgroundColor: "transparent",
+    gap: 6,
+    maxWidth: 260,
+  },
+  titleDisplayText: {
     color: "#F8FAFC",
     fontSize: 14,
     fontWeight: "700",
-    minWidth: 180,
+  },
+  titleEditIcon: {
+    fontSize: 11,
+    opacity: 0.6,
+  },
+  titleEditContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#1E293B",
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#38BDF8",
+    paddingLeft: 8,
+    paddingRight: 4,
     paddingVertical: 2,
-    paddingHorizontal: 6,
-    borderRadius: 4,
-    backgroundColor: "transparent",
+    gap: 4,
+  },
+  titleInputActive: {
+    color: "#F8FAFC",
+    fontSize: 13,
+    fontWeight: "700",
+    minWidth: 150,
+    paddingVertical: 2,
+  },
+  titleConfirmBtn: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: "rgba(16, 185, 129, 0.25)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  titleConfirmText: {
+    color: "#34D399",
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  titleCancelBtn: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: "rgba(239, 68, 68, 0.2)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  titleCancelText: {
+    color: "#F87171",
+    fontSize: 10,
+    fontWeight: "800",
   },
   centerSection: {
     flexDirection: "row",

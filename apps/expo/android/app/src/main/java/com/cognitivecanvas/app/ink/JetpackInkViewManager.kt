@@ -112,6 +112,18 @@ class JetpackInkViewManager : SimpleViewManager<JetpackInkView>() {
         }
     }
 
+    @ReactProp(name = "loadedStrokesJson")
+    fun setLoadedStrokesJson(view: JetpackInkView, json: String?) {
+        view.loadStrokesFromJson(json)
+    }
+
+    @ReactProp(name = "loadStrokesTrigger")
+    fun setLoadStrokesTrigger(view: JetpackInkView, trigger: Int) {
+        if (trigger > 0) {
+            view.loadStrokesFromJson(view.pendingLoadedStrokesJson)
+        }
+    }
+
     override fun getExportedCustomDirectEventTypeConstants(): Map<String, Any>? {
         return mapOf(
             "topStrokeEnd" to mapOf("registrationName" to "onStrokeEnd"),

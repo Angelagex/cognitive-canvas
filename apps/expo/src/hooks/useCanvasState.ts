@@ -27,9 +27,12 @@ import {
   loadDocument,
   deleteDocument,
   getLastActiveMapId,
+  setLastActiveMapId,
   listDocuments,
   ExtendedCognitiveMapDocument,
   MapDocumentSummary,
+  getUserPreferences,
+  saveUserPreferences,
 } from "../services/StorageService";
 
 export const useCanvasState = () => {
@@ -42,9 +45,10 @@ export const useCanvasState = () => {
   const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isInitialLoadDoneRef = useRef<boolean>(false);
   const isDirtyRef = useRef<boolean>(false);
-  const [dirtyVersion, setDirtyVersion] = useState<number>(0);
   const [showClearConfirmModal, setShowClearConfirmModal] = useState<boolean>(false);
   const [showVaultModal, setShowVaultModal] = useState<boolean>(false);
+  const [toolbarDockSide, setToolbarDockSide] = useState<"left" | "right">("left");
+  const [dirtyVersion, setDirtyVersion] = useState<number>(0);
 
   const markDirty = useCallback(() => {
     isDirtyRef.current = true;
@@ -58,6 +62,19 @@ export const useCanvasState = () => {
     },
     [markDirty]
   );
+
+  const handleToggleDockSide = useCallback(() => {
+    setToolbarDockSide((prev) => {
+      const next = prev === "left" ? "right" : "left";
+      saveUserPreferences({ toolbar_dock_side: next });
+      return next;
+    });
+  }, []);
+
+  const handleChangeDockSide = useCallback((side: "left" | "right") => {
+    setToolbarDockSide(side);
+    saveUserPreferences({ toolbar_dock_side: side });
+  }, []);
 
   // Local Visual AST Engine (Phase 3: 5-level real-time topology & clustering)
   const visualASTEngine = useMemo(() => new VisualASTEngine(), []);
@@ -124,6 +141,8 @@ export const useCanvasState = () => {
   const [undoTrigger, setUndoTrigger] = useState<number>(0);
   const [redoTrigger, setRedoTrigger] = useState<number>(0);
   const [clearTrigger, setClearTrigger] = useState<number>(0);
+  const [loadedStrokesJson, setLoadedStrokesJson] = useState<string>("");
+  const [loadStrokesTrigger, setLoadStrokesTrigger] = useState<number>(0);
 
   // Compilation & Drawer
   const [isDrawerOpen, setIsDrawerOpen] = useState<boolean>(false);
@@ -140,7 +159,11 @@ export const useCanvasState = () => {
     let isMounted = true;
     const restoreLastActiveMap = async () => {
       try {
-        const lastId = await getLastActiveMapId();
+        let lastId = await getLastActiveMapId();
+        const list = await listDocuments();
+        if (!lastId && list.length > 0) {
+          lastId = list[0].map_id;
+        }
         if (lastId && isMounted) {
           const doc = await loadDocument(lastId);
           if (doc && isMounted) {
@@ -151,19 +174,29 @@ export const useCanvasState = () => {
             if (doc.metadata?.canvas_translate_y !== undefined) setCanvasTranslateY(doc.metadata.canvas_translate_y);
             if (doc.metadata?.placed_attributes) setPlacedAttributes(doc.metadata.placed_attributes);
             if (doc.visual_ast_layer) setVisualAST(doc.visual_ast_layer);
-            if (doc.raw_ink_layer?.strokes) {
-              strokesRef.current = doc.raw_ink_layer.strokes;
-              setRawStrokes(doc.raw_ink_layer.strokes);
-            }
+            const strokes = doc.raw_ink_layer?.strokes || [];
+            strokesRef.current = strokes;
+            setRawStrokes(strokes);
+            setStrokeCount(strokes.length);
+            setCanUndo(strokes.length > 0);
+            setCanRedo(false);
+            setLoadedStrokesJson(JSON.stringify(strokes));
+            setLoadStrokesTrigger((prev) => prev + 1);
+
             if (doc.compiled_cognitive_layer) {
               setCompilation(doc.compiled_cognitive_layer);
             }
             setLastSavedAt(doc.metadata.updated_at);
-            console.log(`[useCanvasState] Restored .cmn document: ${doc.metadata.title}`);
+            isDirtyRef.current = false;
+            console.log(`[useCanvasState] Restored .cmn document: ${doc.metadata.title} (${strokes.length} strokes)`);
           }
         }
-        const list = await listDocuments();
         if (isMounted) setSavedMaps(list);
+
+        const prefs = await getUserPreferences();
+        if (isMounted && prefs?.toolbar_dock_side) {
+          setToolbarDockSide(prefs.toolbar_dock_side);
+        }
       } catch (e) {
         console.warn("[useCanvasState] Could not restore previous document:", e);
       } finally {
@@ -865,45 +898,137 @@ export const useCanvasState = () => {
 
   const handleLoadMap = useCallback(async (mapId: string) => {
     try {
+      // If current map has unsaved changes, save it first before switching
+      if (isDirtyRef.current && currentMapId) {
+        if (autoSaveTimerRef.current) {
+          clearTimeout(autoSaveTimerRef.current);
+        }
+        const now = Date.now();
+        const currentDoc: ExtendedCognitiveMapDocument = {
+          map_id: currentMapId,
+          version: "1.0.0",
+          metadata: {
+            title: mapTitle,
+            created_at: lastSavedAt || now,
+            updated_at: now,
+            canvas_scale: canvasScale,
+            canvas_translate_x: canvasTranslateX,
+            canvas_translate_y: canvasTranslateY,
+            placed_attributes: placedAttributes,
+          },
+          raw_ink_layer: {
+            strokes: strokesRef.current,
+          },
+          visual_ast_layer: visualAST,
+          compiled_cognitive_layer: compilation,
+        };
+        await saveDocument(currentDoc);
+        isDirtyRef.current = false;
+      }
+
       const doc = await loadDocument(mapId);
       if (doc) {
         setCurrentMapId(doc.map_id);
+        await setLastActiveMapId(doc.map_id);
         if (doc.metadata?.title) setMapTitle(doc.metadata.title);
         if (doc.metadata?.canvas_scale !== undefined) setCanvasScale(doc.metadata.canvas_scale);
         if (doc.metadata?.canvas_translate_x !== undefined) setCanvasTranslateX(doc.metadata.canvas_translate_x);
         if (doc.metadata?.canvas_translate_y !== undefined) setCanvasTranslateY(doc.metadata.canvas_translate_y);
         if (doc.metadata?.placed_attributes) setPlacedAttributes(doc.metadata.placed_attributes);
         if (doc.visual_ast_layer) setVisualAST(doc.visual_ast_layer);
-        if (doc.raw_ink_layer?.strokes) {
-          strokesRef.current = doc.raw_ink_layer.strokes;
-          setRawStrokes(doc.raw_ink_layer.strokes);
-        }
+        
+        const strokes = doc.raw_ink_layer?.strokes || [];
+        strokesRef.current = strokes;
+        strokeBBoxesRef.current.clear();
+        setRawStrokes(strokes);
+        setStrokeCount(strokes.length);
+        setCanUndo(strokes.length > 0);
+        setCanRedo(false);
+        setLoadedStrokesJson(JSON.stringify(strokes));
+        setLoadStrokesTrigger((prev) => prev + 1);
+
         if (doc.compiled_cognitive_layer) {
           setCompilation(doc.compiled_cognitive_layer);
         } else {
           setCompilation(null);
         }
         setLastSavedAt(doc.metadata.updated_at);
+        isDirtyRef.current = false;
+        console.log(`[useCanvasState] Switched to .cmn map: ${doc.metadata.title} (${strokes.length} strokes)`);
       }
     } catch (e) {
       console.error("[useCanvasState] Load map error:", e);
     }
-  }, []);
+  }, [
+    currentMapId,
+    mapTitle,
+    lastSavedAt,
+    canvasScale,
+    canvasTranslateX,
+    canvasTranslateY,
+    placedAttributes,
+    visualAST,
+    compilation,
+  ]);
 
-  const handleNewMap = useCallback(() => {
+  const handleNewMap = useCallback(async () => {
+    // If current map has unsaved changes, save it first before creating new map
+    if (isDirtyRef.current && currentMapId) {
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+      }
+      const now = Date.now();
+      const currentDoc: ExtendedCognitiveMapDocument = {
+        map_id: currentMapId,
+        version: "1.0.0",
+        metadata: {
+          title: mapTitle,
+          created_at: lastSavedAt || now,
+          updated_at: now,
+          canvas_scale: canvasScale,
+          canvas_translate_x: canvasTranslateX,
+          canvas_translate_y: canvasTranslateY,
+          placed_attributes: placedAttributes,
+        },
+        raw_ink_layer: {
+          strokes: strokesRef.current,
+        },
+        visual_ast_layer: visualAST,
+        compiled_cognitive_layer: compilation,
+      };
+      await saveDocument(currentDoc);
+      isDirtyRef.current = false;
+    }
+
     setClearTrigger((prev) => prev + 1);
+    setLoadedStrokesJson("[]");
+    setLoadStrokesTrigger((prev) => prev + 1);
     setPlacedAttributes([]);
     setVisualAST({ entities: [], connectors: [] });
     setCompilation(null);
     strokesRef.current = [];
     strokeBBoxesRef.current.clear();
     setRawStrokes([]);
+    setStrokeCount(0);
+    setCanUndo(false);
+    setCanRedo(false);
     const newId = `map_${Date.now()}`;
     setCurrentMapId(newId);
+    await setLastActiveMapId(newId);
     setMapTitle("Nuevo Mapa Mental");
     setLastSavedAt(null);
     isDirtyRef.current = false;
-  }, []);
+  }, [
+    currentMapId,
+    mapTitle,
+    lastSavedAt,
+    canvasScale,
+    canvasTranslateX,
+    canvasTranslateY,
+    placedAttributes,
+    visualAST,
+    compilation,
+  ]);
 
   const handleDeleteMap = useCallback(
     async (mapId: string) => {
@@ -956,6 +1081,8 @@ export const useCanvasState = () => {
     undoTrigger,
     redoTrigger,
     clearTrigger,
+    loadedStrokesJson,
+    loadStrokesTrigger,
     isDrawerOpen,
     setIsDrawerOpen,
     isCompiling,
@@ -1011,5 +1138,8 @@ export const useCanvasState = () => {
     handleConfirmClear,
     handleCancelClear,
     handleDeleteMap,
+    toolbarDockSide,
+    handleToggleDockSide,
+    handleChangeDockSide,
   };
 };

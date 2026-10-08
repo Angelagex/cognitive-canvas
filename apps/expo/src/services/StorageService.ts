@@ -159,3 +159,49 @@ export async function getLastActiveMapId(): Promise<string | null> {
     return null;
   }
 }
+
+/**
+ * Sets the map ID of the last opened/edited document
+ */
+export async function setLastActiveMapId(mapId: string): Promise<void> {
+  try {
+    await FileSystem.writeAsStringAsync(LAST_MAP_KEY_FILE, mapId, {
+      encoding: FileSystem.EncodingType.UTF8,
+    });
+  } catch (err) {
+    console.warn("[StorageService] Failed to set last active map id:", err);
+  }
+}
+
+const USER_PREFS_FILE = `${FileSystem.documentDirectory}user_preferences.json`;
+
+export interface UserPreferences {
+  toolbar_dock_side: "left" | "right";
+}
+
+export async function getUserPreferences(): Promise<UserPreferences> {
+  try {
+    const fileInfo = await FileSystem.getInfoAsync(USER_PREFS_FILE);
+    if (!fileInfo.exists) {
+      return { toolbar_dock_side: "left" };
+    }
+    const content = await FileSystem.readAsStringAsync(USER_PREFS_FILE, {
+      encoding: FileSystem.EncodingType.UTF8,
+    });
+    return JSON.parse(content);
+  } catch {
+    return { toolbar_dock_side: "left" };
+  }
+}
+
+export async function saveUserPreferences(prefs: Partial<UserPreferences>): Promise<void> {
+  try {
+    const current = await getUserPreferences();
+    const updated = { ...current, ...prefs };
+    await FileSystem.writeAsStringAsync(USER_PREFS_FILE, JSON.stringify(updated), {
+      encoding: FileSystem.EncodingType.UTF8,
+    });
+  } catch (err) {
+    console.warn("[StorageService] Failed to save user preferences:", err);
+  }
+}
