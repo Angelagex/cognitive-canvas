@@ -1,1135 +1,190 @@
-import { useState, useCallback, useMemo, useRef, useEffect } from "react";
-import { NativeSyntheticEvent } from "react-native";
-import {
-  BrushType,
-  StrokeEndEvent,
-  TransformEvent,
-  BarrelButtonEvent,
-  SelectionChangedEvent,
-  PlacedAttribute,
-  PassiveAttributeType,
-  CanvasBackgroundType,
-  EraserMode,
-  HoverEvent,
-  HoverTimeoutEvent,
-  FingerTapEvent,
-  EntityBoundingBox,
-} from "../types/canvas";
-import {
-  CognitiveCompilerOutput,
-  RawInkStroke,
-  VisualASTLayer,
-  VisualASTEntity,
-  VisualASTEngine,
-} from "@cognitive-canvas/core";
-import {
-  saveDocument,
-  loadDocument,
-  deleteDocument,
-  getLastActiveMapId,
-  setLastActiveMapId,
-  listDocuments,
-  ExtendedCognitiveMapDocument,
-  MapDocumentSummary,
-  getUserPreferences,
-  saveUserPreferences,
-} from "../services/StorageService";
+import { useState, useCallback } from "react";
+import { useCanvasTools } from "./canvas/useCanvasTools";
+import { useCanvasViewport } from "./canvas/useCanvasViewport";
+import { useCanvasAst } from "./canvas/useCanvasAst";
+import { useCanvasDocument } from "./canvas/useCanvasDocument";
+import { useCanvasHover } from "./canvas/useCanvasHover";
+import { useCognitiveCompilation } from "./canvas/useCognitiveCompilation";
 
 export const useCanvasState = () => {
-  // Document metadata & Local .cmn Persistence
-  const [currentMapId, setCurrentMapId] = useState<string>(() => `map_${Date.now()}`);
-  const [mapTitle, setMapTitle] = useState<string>("Mapa Mental - Redes Neuronales");
-  const [isSaving, setIsSaving] = useState<boolean>(false);
-  const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
-  const [savedMaps, setSavedMaps] = useState<MapDocumentSummary[]>([]);
-  const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const isInitialLoadDoneRef = useRef<boolean>(false);
-  const isDirtyRef = useRef<boolean>(false);
-  const [showClearConfirmModal, setShowClearConfirmModal] = useState<boolean>(false);
+  // 1. Tools, Colors & Dock Side State
+  const tools = useCanvasTools();
+
+  // 2. Viewport & Pan / Zoom State
+  const viewport = useCanvasViewport();
+
+  // 3. Modals State
   const [showVaultModal, setShowVaultModal] = useState<boolean>(false);
-  const [toolbarDockSide, setToolbarDockSide] = useState<"left" | "right">("left");
-  const [dirtyVersion, setDirtyVersion] = useState<number>(0);
-
-  const markDirty = useCallback(() => {
-    isDirtyRef.current = true;
-    setDirtyVersion((v) => v + 1);
-  }, []);
-
-  const handleTitleChange = useCallback(
-    (newTitle: string) => {
-      setMapTitle(newTitle);
-      markDirty();
-    },
-    [markDirty]
-  );
-
-  const handleToggleDockSide = useCallback(() => {
-    setToolbarDockSide((prev) => {
-      const next = prev === "left" ? "right" : "left";
-      saveUserPreferences({ toolbar_dock_side: next });
-      return next;
-    });
-  }, []);
-
-  const handleChangeDockSide = useCallback((side: "left" | "right") => {
-    setToolbarDockSide(side);
-    saveUserPreferences({ toolbar_dock_side: side });
-  }, []);
-
-  // Local Visual AST Engine (Phase 3: 5-level real-time topology & clustering)
-  const visualASTEngine = useMemo(() => new VisualASTEngine(), []);
-  const [visualAST, setVisualAST] = useState<VisualASTLayer>({ entities: [], connectors: [] });
-  const [rawStrokes, setRawStrokes] = useState<RawInkStroke[]>([]);
-
-  // Tools & Styling
-  const [activeBrush, setActiveBrush] = useState<BrushType>("pen");
-  const [activeColor, setActiveColor] = useState<string>("#38BDF8");
-  const [activeWidth, setActiveWidth] = useState<number>(18);
-  const [eraserMode, setEraserMode] = useState<EraserMode>("stroke");
-  const [backgroundType, setBackgroundType] = useState<CanvasBackgroundType>("dot_grid");
-  const [favoriteColors, setFavoriteColors] = useState<string[]>([
-    "#38BDF8", // Electric Blue
-    "#F43F5E", // Rose Carmine
-    "#10B981", // Emerald Green
-  ]);
-  const [stylusOnly, setStylusOnly] = useState<boolean>(true); // S-Pen palm rejection by default
-
-  const updateFavoriteColor = useCallback((index: number, newColor: string) => {
-    setFavoriteColors((prev) => {
-      const next = [...prev];
-      if (index >= 0 && index < next.length) {
-        next[index] = newColor;
-      }
-      return next;
-    });
-    setActiveColor(newColor);
-  }, []);
-
-  // Selection state (Lasso)
-  const [hasSelection, setHasSelection] = useState<boolean>(false);
-  const [selectedCount, setSelectedCount] = useState<number>(0);
-  const [deleteSelectionTrigger, setDeleteSelectionTrigger] = useState<number>(0);
-  const [clearSelectionTrigger, setClearSelectionTrigger] = useState<number>(0);
-
-  // Placed Cognitive Attributes (GRINDE / PACER metadata badges)
-  const [placedAttributes, setPlacedAttributes] = useState<PlacedAttribute[]>([
-    {
-      id: "attr-1",
-      type: "CAUSAL_MECHANISM",
-      title: "Mecanismo Causal",
-      note: "La retropropagación calcula derivadas parciales mediante la regla de la cadena",
-      worldX: 350,
-      worldY: 280,
-    },
-  ]);
-
-  // History & Undo / Redo
-  const [canUndo, setCanUndo] = useState<boolean>(false);
-  const [canRedo, setCanRedo] = useState<boolean>(false);
-  const [strokeCount, setStrokeCount] = useState<number>(0);
-
-  // Viewport & Zoom
-  const [displayZoom, setDisplayZoom] = useState<number>(100);
-  const [canvasScale, setCanvasScale] = useState<number>(1.0);
-  const [canvasTranslateX, setCanvasTranslateX] = useState<number>(0.0);
-  const [canvasTranslateY, setCanvasTranslateY] = useState<number>(0.0);
-
-  // Native Triggers (one-way command pulses, zero bridge ping-pong)
-  const [zoomInTrigger, setZoomInTrigger] = useState<number>(0);
-  const [zoomOutTrigger, setZoomOutTrigger] = useState<number>(0);
-  const [resetZoomTrigger, setResetZoomTrigger] = useState<number>(0);
-  const [undoTrigger, setUndoTrigger] = useState<number>(0);
-  const [redoTrigger, setRedoTrigger] = useState<number>(0);
-  const [clearTrigger, setClearTrigger] = useState<number>(0);
-  const [loadedStrokesJson, setLoadedStrokesJson] = useState<string>("");
-  const [loadStrokesTrigger, setLoadStrokesTrigger] = useState<number>(0);
-
-  // Compilation & Drawer
-  const [isDrawerOpen, setIsDrawerOpen] = useState<boolean>(false);
-  const [isCompiling, setIsCompiling] = useState<boolean>(false);
-  const [compilation, setCompilation] = useState<CognitiveCompilerOutput | null>(null);
-
-  // Debounced AST parsing reference (eliminates writing latency on rapid stroke sequences)
-  const parseAstDebounceRef = useRef<NodeJS.Timeout | null>(null);
-  const strokesRef = useRef<RawInkStroke[]>([]);
-  const strokeBBoxesRef = useRef<Map<string, EntityBoundingBox>>(new Map());
-
-  // Restore last active .cmn map document on startup
-  useEffect(() => {
-    let isMounted = true;
-    const restoreLastActiveMap = async () => {
-      try {
-        let lastId = await getLastActiveMapId();
-        const list = await listDocuments();
-        if (!lastId && list.length > 0) {
-          lastId = list[0].map_id;
-        }
-        if (lastId && isMounted) {
-          const doc = await loadDocument(lastId);
-          if (doc && isMounted) {
-            setCurrentMapId(doc.map_id);
-            if (doc.metadata?.title) setMapTitle(doc.metadata.title);
-            if (doc.metadata?.canvas_scale !== undefined) setCanvasScale(doc.metadata.canvas_scale);
-            if (doc.metadata?.canvas_translate_x !== undefined) setCanvasTranslateX(doc.metadata.canvas_translate_x);
-            if (doc.metadata?.canvas_translate_y !== undefined) setCanvasTranslateY(doc.metadata.canvas_translate_y);
-            if (doc.metadata?.placed_attributes) setPlacedAttributes(doc.metadata.placed_attributes);
-            if (doc.visual_ast_layer) setVisualAST(doc.visual_ast_layer);
-            const strokes = doc.raw_ink_layer?.strokes || [];
-            strokesRef.current = strokes;
-            setRawStrokes(strokes);
-            setStrokeCount(strokes.length);
-            setCanUndo(strokes.length > 0);
-            setCanRedo(false);
-            setLoadedStrokesJson(JSON.stringify(strokes));
-            setLoadStrokesTrigger((prev) => prev + 1);
-
-            if (doc.compiled_cognitive_layer) {
-              setCompilation(doc.compiled_cognitive_layer);
-            }
-            setLastSavedAt(doc.metadata.updated_at);
-            isDirtyRef.current = false;
-            console.log(`[useCanvasState] Restored .cmn document: ${doc.metadata.title} (${strokes.length} strokes)`);
-          }
-        }
-        if (isMounted) setSavedMaps(list);
-
-        const prefs = await getUserPreferences();
-        if (isMounted && prefs?.toolbar_dock_side) {
-          setToolbarDockSide(prefs.toolbar_dock_side);
-        }
-      } catch (e) {
-        console.warn("[useCanvasState] Could not restore previous document:", e);
-      } finally {
-        isInitialLoadDoneRef.current = true;
-      }
-    };
-
-    restoreLastActiveMap();
-
-    return () => {
-      isMounted = false;
-      if (parseAstDebounceRef.current) clearTimeout(parseAstDebounceRef.current);
-      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
-    };
-  }, []);
-
-  // 1.5-second debounced auto-save to .cmn file format (Master Spec 5.3)
-  useEffect(() => {
-    if (!isInitialLoadDoneRef.current) return;
-    if (!isDirtyRef.current) return;
-
-    if (autoSaveTimerRef.current) {
-      clearTimeout(autoSaveTimerRef.current);
-    }
-
-    autoSaveTimerRef.current = setTimeout(async () => {
-      if (!isDirtyRef.current) return;
-      try {
-        setIsSaving(true);
-        const now = Date.now();
-        const doc: ExtendedCognitiveMapDocument = {
-          map_id: currentMapId,
-          version: "1.0.0",
-          metadata: {
-            title: mapTitle,
-            created_at: lastSavedAt || now,
-            updated_at: now,
-            canvas_scale: canvasScale,
-            canvas_translate_x: canvasTranslateX,
-            canvas_translate_y: canvasTranslateY,
-            placed_attributes: placedAttributes,
-          },
-          raw_ink_layer: {
-            strokes: strokesRef.current,
-          },
-          visual_ast_layer: visualAST,
-          compiled_cognitive_layer: compilation,
-        };
-
-        await saveDocument(doc);
-        isDirtyRef.current = false;
-        setLastSavedAt(now);
-        const list = await listDocuments();
-        setSavedMaps(list);
-      } catch (err) {
-        console.error("[useCanvasState] Auto-save error:", err);
-      } finally {
-        setIsSaving(false);
-      }
-    }, 1500);
-  }, [
-    dirtyVersion,
-    currentMapId,
-    mapTitle,
-    placedAttributes,
-    visualAST,
-    compilation,
-    canvasScale,
-    canvasTranslateX,
-    canvasTranslateY,
-  ]);
-
-  // Event Callbacks
-  const handleStrokeEnd = useCallback(
-    (event: NativeSyntheticEvent<StrokeEndEvent>) => {
-      const { strokeCount: count, canUndo: undoPossible, canRedo: redoPossible, strokes } = event.nativeEvent;
-      setStrokeCount(count);
-      if (undoPossible !== undefined) setCanUndo(undoPossible);
-      else setCanUndo(count > 0);
-      if (redoPossible !== undefined) setCanRedo(redoPossible);
-
-      if (strokes) {
-        strokesRef.current = strokes;
-        markDirty();
-
-        // Cache bounding boxes of newly added strokes once in O(1)
-        const bboxes = strokeBBoxesRef.current;
-        for (const strk of strokes) {
-          if (!bboxes.has(strk.id) && strk.points && strk.points.length > 0) {
-            let sMinX = strk.points[0].x;
-            let sMaxX = strk.points[0].x;
-            let sMinY = strk.points[0].y;
-            let sMaxY = strk.points[0].y;
-            for (let i = 1; i < strk.points.length; i++) {
-              const pt = strk.points[i];
-              if (pt.x < sMinX) sMinX = pt.x;
-              if (pt.x > sMaxX) sMaxX = pt.x;
-              if (pt.y < sMinY) sMinY = pt.y;
-              if (pt.y > sMaxY) sMaxY = pt.y;
-            }
-            bboxes.set(strk.id, { xmin: sMinX, ymin: sMinY, xmax: sMaxX, ymax: sMaxY });
-          }
-        }
-
-        // Debounce heavy AST parsing & React state updates so continuous letter handwriting at 120Hz stays butter-smooth
-        if (parseAstDebounceRef.current) {
-          clearTimeout(parseAstDebounceRef.current);
-        }
-
-        parseAstDebounceRef.current = setTimeout(() => {
-          setRawStrokes(strokes);
-          try {
-            // Passive context mapping from placed attributes to entity keys
-            const passiveMap: Record<string, string> = {};
-            placedAttributes.forEach((attr) => {
-              passiveMap[attr.id] = `${attr.type}: ${attr.title} - ${attr.note}`;
-            });
-
-            const ast = visualASTEngine.parseVisualAST(strokes, passiveMap, canvasScale);
-            setVisualAST(ast);
-            console.log(`[VisualASTEngine] Live AST updated: ${ast.entities.length} entities, ${ast.connectors.length} connectors`);
-            if (ast.causal_loops && ast.causal_loops.length > 0) {
-              console.log(`[VisualASTEngine] 🔄 Causal loops detected: ${ast.causal_loops.length}`);
-              ast.causal_loops.forEach((loop, idx) => {
-                console.log(
-                  `  [Loop ${idx + 1}] (${loop.loop_type || "ASSOCIATIVE"} ${loop.polarity_sign || ""}): ${loop.cycle_ids.join(" -> ")} (nodes: ${loop.node_count}, directed: ${loop.is_directed ?? true})`
-                );
-              });
-            }
-          } catch (err) {
-            console.warn("[VisualASTEngine] Error parsing live strokes:", err);
-          }
-        }, 280);
-      }
-    },
-    [visualASTEngine, placedAttributes, canvasScale, markDirty]
-  );
-
-  const handleTransform = useCallback((event: NativeSyntheticEvent<TransformEvent>) => {
-    const { scale, translateX, translateY } = event.nativeEvent;
-    setCanvasScale(scale);
-    setCanvasTranslateX(translateX);
-    setCanvasTranslateY(translateY);
-    setDisplayZoom(Math.round(scale * 100));
-  }, []);
-
-  const handleSelectionChanged = useCallback((event: NativeSyntheticEvent<SelectionChangedEvent>) => {
-    const { hasSelection: isSelected, selectedCount: count } = event.nativeEvent;
-    setHasSelection(isSelected);
-    setSelectedCount(count);
-  }, []);
-
-  const handleDeleteSelection = useCallback(() => {
-    setDeleteSelectionTrigger((prev) => prev + 1);
-    setHasSelection(false);
-    setSelectedCount(0);
-    markDirty();
-  }, [markDirty]);
-
-  const handleClearSelection = useCallback(() => {
-    setClearSelectionTrigger((prev) => prev + 1);
-    setHasSelection(false);
-    setSelectedCount(0);
-  }, []);
-
-  const handleAddAttribute = useCallback(
-    (type: PassiveAttributeType, title: string, note: string) => {
-      const newAttr: PlacedAttribute = {
-        id: `attr-${Date.now()}`,
-        type,
-        title,
-        note,
-        worldX: (-canvasTranslateX + 400) / canvasScale,
-        worldY: (-canvasTranslateY + 300) / canvasScale,
-      };
-      setPlacedAttributes((prev) => [...prev, newAttr]);
-      markDirty();
-    },
-    [canvasScale, canvasTranslateX, canvasTranslateY, markDirty]
-  );
-
-  const handleDeleteAttribute = useCallback(
-    (id: string) => {
-      setPlacedAttributes((prev) => prev.filter((a) => a.id !== id));
-      markDirty();
-    },
-    [markDirty]
-  );
-
-  // S-Pen Air View / Hover State (Affordance a 1-2 cm)
-  const [hoveredAttribute, setHoveredAttribute] = useState<PlacedAttribute | null>(null);
-  const [hoveredEntityBounds, setHoveredEntityBounds] = useState<EntityBoundingBox | null>(null);
-  const [hoveredEntity, setHoveredEntity] = useState<VisualASTEntity | null>(null);
-  const [unclusteredStrokesInEntity, setUnclusteredStrokesInEntity] = useState<Array<{ id: string; bbox: EntityBoundingBox }> | null>(null);
-  const [activeEntityBounds, setActiveEntityBounds] = useState<EntityBoundingBox | null>(null);
-  const [isAnchorModalOpen, setIsAnchorModalOpen] = useState<boolean>(false);
-  const [hoverScreenX, setHoverScreenX] = useState<number>(0);
-  const [hoverScreenY, setHoverScreenY] = useState<number>(0);
-
-  const handleHover = useCallback((event: NativeSyntheticEvent<HoverEvent>) => {
-    const { worldX, worldY, screenX, screenY, isHovering, entityBounds } = event.nativeEvent;
-
-    if (!isHovering) {
-      setHoveredAttribute(null);
-      setHoveredEntityBounds(null);
-      setHoveredEntity(null);
-      setUnclusteredStrokesInEntity(null);
-      // If stylus exits hover and the modal is not open (floating icon stage), dismiss icon and halo
-      if (!isAnchorModalOpen) {
-        setAnchorTooltip(null);
-        setActiveAnchorEntity(null);
-        setActiveEntityBounds(null);
-      }
-      return;
-    }
-
-    setHoverScreenX(screenX);
-    setHoverScreenY(screenY);
-
-    // 1. Resolve entity bounds from live Visual AST (word/container entity) or native fallback
-    let resolvedEntityBounds: EntityBoundingBox | null = null;
-    const zoomFactor = 1.0 / (canvasScale || 1.0);
-    const hitTolerance = 25 * zoomFactor; // 25dp physical screen tolerance
-    let bestEntity: VisualASTEntity | null = null;
-    let minDistance = Infinity;
-
-    for (const ent of visualAST.entities) {
-      const isInside =
-        worldX >= ent.bbox.xmin - hitTolerance &&
-        worldX <= ent.bbox.xmax + hitTolerance &&
-        worldY >= ent.bbox.ymin - hitTolerance &&
-        worldY <= ent.bbox.ymax + hitTolerance;
-
-      if (isInside) {
-        const cx = (ent.bbox.xmin + ent.bbox.xmax) / 2;
-        const cy = (ent.bbox.ymin + ent.bbox.ymax) / 2;
-        const dist = Math.hypot(worldX - cx, worldY - cy);
-        if (dist < minDistance) {
-          minDistance = dist;
-          bestEntity = ent;
-        }
-      }
-    }
-
-    if (bestEntity) {
-      resolvedEntityBounds = {
-        xmin: bestEntity.bbox.xmin,
-        ymin: bestEntity.bbox.ymin,
-        xmax: bestEntity.bbox.xmax,
-        ymax: bestEntity.bbox.ymax,
-      };
-      setHoveredEntity((prev) => (prev?.id === bestEntity?.id ? prev : bestEntity));
-
-      // Inspector de Agrupación: Detectar trazos dentro del bbox de bestEntity que NO pertenecen a bestEntity
-      const margin = 14 * zoomFactor;
-      const bMinX = bestEntity.bbox.xmin - margin;
-      const bMaxX = bestEntity.bbox.xmax + margin;
-      const bMinY = bestEntity.bbox.ymin - margin;
-      const bMaxY = bestEntity.bbox.ymax + margin;
-
-      const unclustered: Array<{ id: string; bbox: EntityBoundingBox }> = [];
-      const bboxes = strokeBBoxesRef.current;
-
-      for (const strk of strokesRef.current) {
-        if (bestEntity.stroke_ids.includes(strk.id)) continue;
-        const bbox = bboxes.get(strk.id);
-        if (!bbox) continue;
-
-        const centerX = (bbox.xmin + bbox.xmax) / 2;
-        const centerY = (bbox.ymin + bbox.ymax) / 2;
-        const isInside = centerX >= bMinX && centerX <= bMaxX && centerY >= bMinY && centerY <= bMaxY;
-
-        if (isInside) {
-          unclustered.push({ id: strk.id, bbox });
-        }
-      }
-
-      setUnclusteredStrokesInEntity((prev) => {
-        const nextVal = unclustered.length > 0 ? unclustered : null;
-        if (!prev && !nextVal) return prev;
-        if (prev && nextVal && prev.length === nextVal.length && prev.every((p, i) => p.id === nextVal[i].id)) {
-          return prev;
-        }
-        return nextVal;
-      });
-    } else {
-      setHoveredEntity((prev) => (prev === null ? prev : null));
-      setUnclusteredStrokesInEntity((prev) => (prev === null ? prev : null));
-      if (entityBounds) {
-        resolvedEntityBounds = entityBounds;
-      }
-    }
-
-    setHoveredEntityBounds((prev) => {
-      if (!prev && !resolvedEntityBounds) return prev;
-      if (
-        prev &&
-        resolvedEntityBounds &&
-        prev.xmin === resolvedEntityBounds.xmin &&
-        prev.ymin === resolvedEntityBounds.ymin &&
-        prev.xmax === resolvedEntityBounds.xmax &&
-        prev.ymax === resolvedEntityBounds.ymax
-      ) {
-        return prev;
-      }
-      return resolvedEntityBounds;
-    });
-
-    // Check if hovering near or directly over any placed attribute using a uniform 14dp pill halo
-    const match = placedAttributes.find((attr) => {
-      const attrScreenX = attr.worldX * canvasScale + canvasTranslateX;
-      const attrScreenY = attr.worldY * canvasScale + canvasTranslateY;
-      const badgeScale = Math.min(1.2, Math.max(0.7, canvasScale));
-
-      // Approximate badge dimensions matching PlacedAttributeBadges typography and padding
-      const baseWidth = Math.max(120, attr.title.length * 8 + 36);
-      const baseHeight = 34;
-
-      const centerX = attrScreenX + baseWidth / 2;
-      const centerY = attrScreenY + baseHeight / 2;
-      const scaledWidth = baseWidth * badgeScale;
-      const scaledHeight = baseHeight * badgeScale;
-
-      const boxLeft = centerX - scaledWidth / 2;
-      const boxRight = centerX + scaledWidth / 2;
-      const boxTop = centerY - scaledHeight / 2;
-      const boxBottom = centerY + scaledHeight / 2;
-
-      // Distance from hover point (screenX, screenY) to the nearest edge of the badge
-      const dx = Math.max(0, boxLeft - screenX, screenX - boxRight);
-      const dy = Math.max(0, boxTop - screenY, screenY - boxBottom);
-      const distToEdge = Math.sqrt(dx * dx + dy * dy);
-
-      // Uniform 14dp halo conforming directly to the pill silhouette
-      const HALO_MARGIN = 14;
-      return distToEdge <= HALO_MARGIN;
-    });
-
-    if (match) {
-      setHoveredAttribute((prev) => (prev?.id === match.id ? prev : match));
-      setHoverScreenX(screenX);
-      setHoverScreenY(screenY);
-    } else {
-      setHoveredAttribute((prev) => (prev === null ? prev : null));
-      // If stylus moved away from any entity or attribute, dismiss icon if modal is not open
-      if (!resolvedEntityBounds && !isAnchorModalOpen) {
-        setAnchorTooltip(null);
-        setActiveAnchorEntity(null);
-        setActiveEntityBounds(null);
-      }
-    }
-  }, [placedAttributes, canvasScale, canvasTranslateX, canvasTranslateY, isAnchorModalOpen, visualAST]);
-
-  const handleBadgeHover = useCallback((attr: PlacedAttribute | null, screenX?: number, screenY?: number) => {
-    setHoveredAttribute(attr);
-    if (attr && screenX !== undefined && screenY !== undefined) {
-      setHoverScreenX(screenX + 80);
-      setHoverScreenY(screenY);
-    }
-  }, []);
-
-  // Semantic Anchor Tooltip (Air View Hover Dwell 800ms)
-  const [activeAnchorEntity, setActiveAnchorEntity] = useState<PlacedAttribute | null>(null);
-  const [anchorTooltip, setAnchorTooltip] = useState<{
-    visible: boolean;
-    screenX: number;
-    screenY: number;
-    worldX: number;
-    worldY: number;
-  } | null>(null);
-
-  // Hover timeout dwell (800ms) only highlights entity inspection (no floating icon popup)
-  const handleHoverTimeout = useCallback(
-    (event: NativeSyntheticEvent<HoverTimeoutEvent>) => {
-      // Hover dwell no longer shows the intrusive floating pin.
-      // Word selection & pin activation is now driven cleanly by finger touch (Single Finger Tap).
-    },
-    []
-  );
-
-  // Single Finger Tap: Tapping a handwritten word reveals the "+ Pin de Atributo" icon
-  const handleFingerTap = useCallback(
-    (event: NativeSyntheticEvent<FingerTapEvent>) => {
-      const { worldX, worldY, screenX, screenY } = event.nativeEvent;
-      console.log("[SemanticAnchor] Finger tap triggered at:", { worldX, worldY, screenX, screenY });
-
-      // 1. Check if user tapped directly on a placed attribute badge
-      const tappedAttr = placedAttributes.find((attr) => {
-        const attrScreenX = attr.worldX * canvasScale + canvasTranslateX;
-        const attrScreenY = attr.worldY * canvasScale + canvasTranslateY;
-        const baseWidth = Math.max(120, attr.title.length * 8 + 36);
-        const baseHeight = 34;
-        return (
-          screenX >= attrScreenX &&
-          screenX <= attrScreenX + baseWidth &&
-          screenY >= attrScreenY &&
-          screenY <= attrScreenY + baseHeight
-        );
-      });
-
-      if (tappedAttr) {
-        setHoveredAttribute(tappedAttr);
-        return;
-      }
-
-      // 2. Check if user tapped on a handwritten word or container entity
-      const hitTolerance = 30; // 30dp touch tolerance for fingertip
-      let matchedEntity: VisualASTEntity | null = null;
-      let minDistance = Infinity;
-
-      for (const ent of visualAST.entities) {
-        const isInside =
-          worldX >= ent.bbox.xmin - hitTolerance &&
-          worldX <= ent.bbox.xmax + hitTolerance &&
-          worldY >= ent.bbox.ymin - hitTolerance &&
-          worldY <= ent.bbox.ymax + hitTolerance;
-
-        if (isInside) {
-          const cx = (ent.bbox.xmin + ent.bbox.xmax) / 2;
-          const cy = (ent.bbox.ymin + ent.bbox.ymax) / 2;
-          const dist = Math.hypot(worldX - cx, worldY - cy);
-          if (dist < minDistance) {
-            minDistance = dist;
-            matchedEntity = ent;
-          }
-        }
-      }
-
-      if (matchedEntity) {
-        // Finger tap on word entity: Lock in bounds and reveal floating "+ Pin de Atributo"
-        setActiveAnchorEntity(null);
-        setActiveEntityBounds({
-          xmin: matchedEntity.bbox.xmin,
-          ymin: matchedEntity.bbox.ymin,
-          xmax: matchedEntity.bbox.xmax,
-          ymax: matchedEntity.bbox.ymax,
-        });
-        setIsAnchorModalOpen(false); // starts in floating icon stage
-        setAnchorTooltip({
-          visible: true,
-          screenX,
-          screenY,
-          worldX,
-          worldY,
-        });
-      } else {
-        // Finger tap on blank canvas: dismiss floating icon & active entity selection
-        if (!isAnchorModalOpen) {
-          setAnchorTooltip(null);
-          setActiveAnchorEntity(null);
-          setActiveEntityBounds(null);
-        }
-      }
-    },
-    [placedAttributes, canvasScale, canvasTranslateX, canvasTranslateY, visualAST, isAnchorModalOpen]
-  );
-
-  // Barrel button: No anchor icon or halo triggered
-  const handleBarrelButton = useCallback(
-    (event: NativeSyntheticEvent<BarrelButtonEvent>) => {
-      const { x, y, worldX, worldY } = event.nativeEvent;
-      console.log("[SemanticAnchor] S-Pen Barrel button pressed (anchor trigger disabled):", { x, y, worldX, worldY });
-    },
-    []
-  );
-
-  const handleCloseAnchorTooltip = useCallback(() => {
-    setAnchorTooltip(null);
-    setActiveAnchorEntity(null);
-    setActiveEntityBounds(null);
-    setIsAnchorModalOpen(false);
-  }, []);
-
-  const handleAnchorModalOpen = useCallback(() => {
-    setIsAnchorModalOpen(true);
-  }, []);
-
-  const handleSaveAnchorTooltip = useCallback(
-    (type: PassiveAttributeType, title: string, note: string, worldX: number, worldY: number) => {
-      const newAttr: PlacedAttribute = {
-        id: `attr-${Date.now()}`,
-        type,
-        title,
-        note,
-        worldX,
-        worldY,
-      };
-      setPlacedAttributes((prev) => [...prev, newAttr]);
-      setAnchorTooltip(null);
-      setActiveAnchorEntity(null);
-      setActiveEntityBounds(null);
-      setIsAnchorModalOpen(false);
-    },
-    []
-  );
-
-  // Action Triggers
-  const handleUndo = useCallback(() => {
-    setUndoTrigger((prev) => prev + 1);
-    markDirty();
-  }, [markDirty]);
-
-  const handleRedo = useCallback(() => {
-    setRedoTrigger((prev) => prev + 1);
-    markDirty();
-  }, [markDirty]);
-
-  const handleClear = useCallback(() => {
-    setClearTrigger((prev) => prev + 1);
-    setStrokeCount(0);
-    setCanUndo(false);
-    setCanRedo(false);
-    strokesRef.current = [];
-    strokeBBoxesRef.current.clear();
-    setRawStrokes([]);
-    setVisualAST({ entities: [], connectors: [] });
-    setPlacedAttributes([]);
-    setCompilation(null);
-    isDirtyRef.current = true;
-  }, []);
+  const [showClearConfirmModal, setShowClearConfirmModal] = useState<boolean>(false);
+
+  // 4. Compilation Drawer & Justin Sung Learning Engine
+  const compiler = useCognitiveCompilation();
+
+  // Dirty State Tracker (will be passed from document)
+  let markDirtyFn: () => void = () => {};
+
+  // 5. AST & Native Ink Layer (Strokes, AST Engine, Undo/Redo)
+  const ast = useCanvasAst({
+    canvasScale: viewport.canvasScale,
+    getPlacedAttributes: () => doc.placedAttributesRef.current,
+    markDirty: () => markDirtyFn(),
+  });
+
+  // 6. Document & Persistence Layer (.cmn format, Vault, Auto-Save)
+  const doc = useCanvasDocument({
+    canvasScale: viewport.canvasScale,
+    canvasTranslateX: viewport.canvasTranslateX,
+    canvasTranslateY: viewport.canvasTranslateY,
+    setCanvasScale: viewport.setCanvasScale,
+    setCanvasTranslateX: viewport.setCanvasTranslateX,
+    setCanvasTranslateY: viewport.setCanvasTranslateY,
+    strokesRef: ast.strokesRef,
+    strokeBBoxesRef: ast.strokeBBoxesRef,
+    setRawStrokes: ast.setRawStrokes,
+    setStrokeCount: ast.setStrokeCount,
+    setCanUndo: ast.setCanUndo,
+    setCanRedo: ast.setCanRedo,
+    setLoadedStrokesJson: ast.setLoadedStrokesJson,
+    setLoadStrokesTrigger: ast.setLoadStrokesTrigger,
+    setClearTrigger: ast.setClearTrigger,
+    visualAST: ast.visualAST,
+    setVisualAST: ast.setVisualAST,
+    compilation: compiler.compilation,
+    setCompilation: compiler.setCompilation,
+    setToolbarDockSide: tools.setToolbarDockSide,
+  });
+
+  markDirtyFn = doc.markDirty;
+
+  // 7. S-Pen Air View Hover & Semantic Anchoring
+  const hover = useCanvasHover({
+    placedAttributes: doc.placedAttributes,
+    setPlacedAttributes: doc.setPlacedAttributes,
+    canvasScale: viewport.canvasScale,
+    canvasTranslateX: viewport.canvasTranslateX,
+    canvasTranslateY: viewport.canvasTranslateY,
+    visualAST: ast.visualAST,
+    strokesRef: ast.strokesRef,
+    strokeBBoxesRef: ast.strokeBBoxesRef,
+    markDirty: doc.markDirty,
+  });
 
   const handleRequestClear = useCallback(() => {
     setShowClearConfirmModal(true);
   }, []);
 
   const handleConfirmClear = useCallback(() => {
-    handleClear();
+    ast.handleClear();
+    doc.setPlacedAttributes([]);
+    compiler.setCompilation(null);
     setShowClearConfirmModal(false);
-  }, [handleClear]);
+  }, [ast.handleClear, doc.setPlacedAttributes, compiler.setCompilation]);
 
   const handleCancelClear = useCallback(() => {
     setShowClearConfirmModal(false);
   }, []);
 
-  const handleZoomIn = useCallback(() => {
-    setZoomInTrigger((prev) => prev + 1);
-  }, []);
-
-  const handleZoomOut = useCallback(() => {
-    setZoomOutTrigger((prev) => prev + 1);
-  }, []);
-
-  const handleResetZoom = useCallback(() => {
-    setResetZoomTrigger((prev) => prev + 1);
-    setDisplayZoom(100);
-  }, []);
-
-  const handleToggleStylusOnly = useCallback(() => {
-    setStylusOnly((prev) => !prev);
-  }, []);
-
-  const handleCompile = useCallback(() => {
-    setIsCompiling(true);
-    // Mock compilation grounding with Justin Sung GRINDE + PACER
-    setTimeout(() => {
-      setCompilation({
-        map_metadata: {
-          title: "Mapa Mental - Redes Neuronales",
-          domain_theme: "Machine Learning / Deep Learning",
-          total_nodes: 2,
-          total_edges: 1,
-        },
-        nodes: [
-          {
-            id: "node_1",
-            visual_bounding_box: { ymin: 100, xmin: 100, ymax: 200, xmax: 300 },
-            detected_content: "Concepto Principal: Redes Neuronales",
-            passive_context: null,
-            pacer_classification: "CONCEPTUAL",
-            deducible_from_context: true,
-          },
-          {
-            id: "node_2",
-            visual_bounding_box: { ymin: 300, xmin: 100, ymax: 400, xmax: 300 },
-            detected_content: "Backpropagation algorithm v1.0",
-            passive_context: "Fórmula de derivación en cadena",
-            pacer_classification: "EVIDENCE",
-            deducible_from_context: false,
-          },
-        ],
-        edges: [
-          {
-            source_node_id: "node_1",
-            target_node_id: "node_2",
-            label: "calcula gradientes en",
-            is_cross_link: true,
-            relation_nature: "CAUSAL",
-          },
-        ],
-        grinde_audit: {
-          cross_link_density_score: 0.35,
-          non_verbal_balance_score: 0.85,
-          linear_thinking_risk: false,
-          feedback_critique: "Excelente densidad de relaciones causales y cross-links no lineales.",
-        },
-        learning_engine_outputs: {
-          anki_flashcards: [
-            {
-              source_node_id: "node_1",
-              card_type: "CLOZE",
-              front: "Backpropagation",
-              back: "Calcula gradientes",
-            },
-          ],
-          high_road_transfer_prompts: [
-            {
-              core_concept_ids: ["node_2"],
-              unstructured_scenario: "Optimización de flujo en un sistema termodinámico cerrado.",
-              guiding_question: "¿Cómo aplicarías la regla de la cadena de Backpropagation en la minimización de entropía?",
-            },
-          ],
-          derring_effect_challenges: [
-            {
-              flawed_premise: "Aumentar la tasa de aprendizaje a 100 acelerará siempre la convergencia óptima.",
-              corrective_task: "Explica cómo la divergencia de gradientes desestabiliza la superficie de pérdida.",
-              canonical_solution: "Tasas excesivas provocan explosión de gradientes y oscilaciones fuera del mínimo local.",
-            },
-          ],
-          contrasting_cases_icc: [
-            {
-              case_a: "Descenso de gradiente estocástico (SGD)",
-              case_b: "Descenso de gradiente por lotes (Batch GD)",
-              invariant_discovery_prompt: "Identifica el compromiso entre velocidad de convergencia y estabilidad en la superficie de pérdida.",
-            },
-          ],
-        },
-        anki_flashcards: [
-          {
-            source_node_id: "node_1",
-            target_node_id: "node_2",
-            card_type: "CLOZE",
-            front: "Backpropagation",
-            back: "Calcula gradientes",
-            cloze_text: "Backpropagation calcula el {{c1::gradiente de la función de pérdida}} mediante la regla de la cadena.",
-          },
-        ],
-        high_road_transfer_prompts: [
-          "¿Cómo aplicarías la regla de la cadena de Backpropagation en la optimización de un sistema termodinámico?",
-        ],
-        derring_effect_challenges: [
-          "Desafío: ¿Qué ocurre si la tasa de aprendizaje se establece en 100?",
-        ],
-        contrasting_cases_icc: [
-          {
-            case_a: "Descenso de gradiente estocástico (SGD)",
-            case_b: "Descenso de gradiente por lotes (Batch GD)",
-            underlying_invariant_prompt: "Identifica el compromiso entre velocidad de convergencia y estabilidad en la superficie de pérdida.",
-          },
-        ],
-      });
-      setIsCompiling(false);
-      setIsDrawerOpen(true);
-    }, 600);
-  }, []);
-
-  const handleSaveMap = useCallback(async () => {
-    try {
-      setIsSaving(true);
-      const now = Date.now();
-      const doc: ExtendedCognitiveMapDocument = {
-        map_id: currentMapId,
-        version: "1.0.0",
-        metadata: {
-          title: mapTitle,
-          created_at: lastSavedAt || now,
-          updated_at: now,
-          canvas_scale: canvasScale,
-          canvas_translate_x: canvasTranslateX,
-          canvas_translate_y: canvasTranslateY,
-          placed_attributes: placedAttributes,
-        },
-        raw_ink_layer: {
-          strokes: strokesRef.current,
-        },
-        visual_ast_layer: visualAST,
-        compiled_cognitive_layer: compilation,
-      };
-
-      await saveDocument(doc);
-      setLastSavedAt(now);
-      const list = await listDocuments();
-      setSavedMaps(list);
-    } catch (e) {
-      console.error("[useCanvasState] Manual save error:", e);
-    } finally {
-      setIsSaving(false);
-    }
-  }, [
-    currentMapId,
-    mapTitle,
-    lastSavedAt,
-    canvasScale,
-    canvasTranslateX,
-    canvasTranslateY,
-    placedAttributes,
-    visualAST,
-    compilation,
-  ]);
-
-  const handleLoadMap = useCallback(async (mapId: string) => {
-    try {
-      // If current map has unsaved changes, save it first before switching
-      if (isDirtyRef.current && currentMapId) {
-        if (autoSaveTimerRef.current) {
-          clearTimeout(autoSaveTimerRef.current);
-        }
-        const now = Date.now();
-        const currentDoc: ExtendedCognitiveMapDocument = {
-          map_id: currentMapId,
-          version: "1.0.0",
-          metadata: {
-            title: mapTitle,
-            created_at: lastSavedAt || now,
-            updated_at: now,
-            canvas_scale: canvasScale,
-            canvas_translate_x: canvasTranslateX,
-            canvas_translate_y: canvasTranslateY,
-            placed_attributes: placedAttributes,
-          },
-          raw_ink_layer: {
-            strokes: strokesRef.current,
-          },
-          visual_ast_layer: visualAST,
-          compiled_cognitive_layer: compilation,
-        };
-        await saveDocument(currentDoc);
-        isDirtyRef.current = false;
-      }
-
-      const doc = await loadDocument(mapId);
-      if (doc) {
-        setCurrentMapId(doc.map_id);
-        await setLastActiveMapId(doc.map_id);
-        if (doc.metadata?.title) setMapTitle(doc.metadata.title);
-        if (doc.metadata?.canvas_scale !== undefined) setCanvasScale(doc.metadata.canvas_scale);
-        if (doc.metadata?.canvas_translate_x !== undefined) setCanvasTranslateX(doc.metadata.canvas_translate_x);
-        if (doc.metadata?.canvas_translate_y !== undefined) setCanvasTranslateY(doc.metadata.canvas_translate_y);
-        if (doc.metadata?.placed_attributes) setPlacedAttributes(doc.metadata.placed_attributes);
-        if (doc.visual_ast_layer) setVisualAST(doc.visual_ast_layer);
-        
-        const strokes = doc.raw_ink_layer?.strokes || [];
-        strokesRef.current = strokes;
-        strokeBBoxesRef.current.clear();
-        setRawStrokes(strokes);
-        setStrokeCount(strokes.length);
-        setCanUndo(strokes.length > 0);
-        setCanRedo(false);
-        setLoadedStrokesJson(JSON.stringify(strokes));
-        setLoadStrokesTrigger((prev) => prev + 1);
-
-        if (doc.compiled_cognitive_layer) {
-          setCompilation(doc.compiled_cognitive_layer);
-        } else {
-          setCompilation(null);
-        }
-        setLastSavedAt(doc.metadata.updated_at);
-        isDirtyRef.current = false;
-        console.log(`[useCanvasState] Switched to .cmn map: ${doc.metadata.title} (${strokes.length} strokes)`);
-      }
-    } catch (e) {
-      console.error("[useCanvasState] Load map error:", e);
-    }
-  }, [
-    currentMapId,
-    mapTitle,
-    lastSavedAt,
-    canvasScale,
-    canvasTranslateX,
-    canvasTranslateY,
-    placedAttributes,
-    visualAST,
-    compilation,
-  ]);
-
-  const handleNewMap = useCallback(async () => {
-    // If current map has unsaved changes, save it first before creating new map
-    if (isDirtyRef.current && currentMapId) {
-      if (autoSaveTimerRef.current) {
-        clearTimeout(autoSaveTimerRef.current);
-      }
-      const now = Date.now();
-      const currentDoc: ExtendedCognitiveMapDocument = {
-        map_id: currentMapId,
-        version: "1.0.0",
-        metadata: {
-          title: mapTitle,
-          created_at: lastSavedAt || now,
-          updated_at: now,
-          canvas_scale: canvasScale,
-          canvas_translate_x: canvasTranslateX,
-          canvas_translate_y: canvasTranslateY,
-          placed_attributes: placedAttributes,
-        },
-        raw_ink_layer: {
-          strokes: strokesRef.current,
-        },
-        visual_ast_layer: visualAST,
-        compiled_cognitive_layer: compilation,
-      };
-      await saveDocument(currentDoc);
-      isDirtyRef.current = false;
-    }
-
-    setClearTrigger((prev) => prev + 1);
-    setLoadedStrokesJson("[]");
-    setLoadStrokesTrigger((prev) => prev + 1);
-    setPlacedAttributes([]);
-    setVisualAST({ entities: [], connectors: [] });
-    setCompilation(null);
-    strokesRef.current = [];
-    strokeBBoxesRef.current.clear();
-    setRawStrokes([]);
-    setStrokeCount(0);
-    setCanUndo(false);
-    setCanRedo(false);
-    const newId = `map_${Date.now()}`;
-    setCurrentMapId(newId);
-    await setLastActiveMapId(newId);
-    setMapTitle("Nuevo Mapa Mental");
-    setLastSavedAt(null);
-    isDirtyRef.current = false;
-  }, [
-    currentMapId,
-    mapTitle,
-    lastSavedAt,
-    canvasScale,
-    canvasTranslateX,
-    canvasTranslateY,
-    placedAttributes,
-    visualAST,
-    compilation,
-  ]);
-
-  const handleDeleteMap = useCallback(
-    async (mapId: string) => {
-      try {
-        await deleteDocument(mapId);
-        const list = await listDocuments();
-        setSavedMaps(list);
-        if (mapId === currentMapId) {
-          handleNewMap();
-        }
-      } catch (e) {
-        console.error("[useCanvasState] Delete map error:", e);
-      }
-    },
-    [currentMapId, handleNewMap]
-  );
-
   return {
-    currentMapId,
-    mapTitle,
-    setMapTitle,
-    handleTitleChange,
-    isSaving,
-    lastSavedAt,
-    savedMaps,
-    handleSaveMap,
-    handleLoadMap,
-    handleNewMap,
-    activeBrush,
-    setActiveBrush,
-    activeColor,
-    setActiveColor,
-    activeWidth,
-    setActiveWidth,
-    eraserMode,
-    setEraserMode,
-    backgroundType,
-    setBackgroundType,
-    favoriteColors,
-    setFavoriteColors,
-    updateFavoriteColor,
-    stylusOnly,
-    canUndo,
-    canRedo,
-    strokeCount,
-    displayZoom,
-    zoomInTrigger,
-    zoomOutTrigger,
-    resetZoomTrigger,
-    undoTrigger,
-    redoTrigger,
-    clearTrigger,
-    loadedStrokesJson,
-    loadStrokesTrigger,
-    isDrawerOpen,
-    setIsDrawerOpen,
-    isCompiling,
-    compilation,
-    hasSelection,
-    selectedCount,
-    deleteSelectionTrigger,
-    clearSelectionTrigger,
-    handleSelectionChanged,
-    handleDeleteSelection,
-    handleClearSelection,
-    placedAttributes,
-    handleAddAttribute,
-    handleDeleteAttribute,
-    hoveredAttribute,
-    activeAnchorEntity,
-    hoveredEntityBounds,
-    hoveredEntity,
-    unclusteredStrokesInEntity,
-    activeEntityBounds,
-    isAnchorModalOpen,
-    handleAnchorModalOpen,
-    hoverScreenX,
-    hoverScreenY,
-    handleHover,
-    handleBadgeHover,
-    anchorTooltip,
-    handleHoverTimeout,
-    handleFingerTap,
-    handleCloseAnchorTooltip,
-    handleSaveAnchorTooltip,
-    canvasScale,
-    canvasTranslateX,
-    canvasTranslateY,
-    handleStrokeEnd,
-    handleTransform,
-    handleBarrelButton,
-    handleUndo,
-    handleRedo,
-    handleClear,
-    handleZoomIn,
-    handleZoomOut,
-    handleResetZoom,
-    handleToggleStylusOnly,
-    handleCompile,
-    visualAST,
-    rawStrokes,
+    // Document
+    currentMapId: doc.currentMapId,
+    mapTitle: doc.mapTitle,
+    setMapTitle: doc.setMapTitle,
+    handleTitleChange: doc.handleTitleChange,
+    isSaving: doc.isSaving,
+    lastSavedAt: doc.lastSavedAt,
+    savedMaps: doc.savedMaps,
+    handleSaveMap: doc.handleSaveMap,
+    handleLoadMap: doc.handleLoadMap,
+    handleNewMap: doc.handleNewMap,
+    handleDeleteMap: doc.handleDeleteMap,
+    placedAttributes: doc.placedAttributes,
+    handleAddAttribute: doc.handleAddAttribute,
+    handleDeleteAttribute: doc.handleDeleteAttribute,
+
+    // Tools
+    activeBrush: tools.activeBrush,
+    setActiveBrush: tools.setActiveBrush,
+    activeColor: tools.activeColor,
+    setActiveColor: tools.setActiveColor,
+    activeWidth: tools.activeWidth,
+    setActiveWidth: tools.setActiveWidth,
+    eraserMode: tools.eraserMode,
+    setEraserMode: tools.setEraserMode,
+    backgroundType: tools.backgroundType,
+    setBackgroundType: tools.setBackgroundType,
+    favoriteColors: tools.favoriteColors,
+    setFavoriteColors: tools.setFavoriteColors,
+    updateFavoriteColor: tools.updateFavoriteColor,
+    stylusOnly: tools.stylusOnly,
+    handleToggleStylusOnly: tools.handleToggleStylusOnly,
+    toolbarDockSide: tools.toolbarDockSide,
+    handleToggleDockSide: tools.handleToggleDockSide,
+    handleChangeDockSide: tools.handleChangeDockSide,
+
+    // Viewport
+    displayZoom: viewport.displayZoom,
+    zoomInTrigger: viewport.zoomInTrigger,
+    zoomOutTrigger: viewport.zoomOutTrigger,
+    resetZoomTrigger: viewport.resetZoomTrigger,
+    canvasScale: viewport.canvasScale,
+    canvasTranslateX: viewport.canvasTranslateX,
+    canvasTranslateY: viewport.canvasTranslateY,
+    handleZoomIn: viewport.handleZoomIn,
+    handleZoomOut: viewport.handleZoomOut,
+    handleResetZoom: viewport.handleResetZoom,
+    handleTransform: viewport.handleTransform,
+
+    // AST & Ink Bridge
+    visualAST: ast.visualAST,
+    rawStrokes: ast.rawStrokes,
+    strokeCount: ast.strokeCount,
+    canUndo: ast.canUndo,
+    canRedo: ast.canRedo,
+    undoTrigger: ast.undoTrigger,
+    redoTrigger: ast.redoTrigger,
+    clearTrigger: ast.clearTrigger,
+    loadedStrokesJson: ast.loadedStrokesJson,
+    loadStrokesTrigger: ast.loadStrokesTrigger,
+    hasSelection: ast.hasSelection,
+    selectedCount: ast.selectedCount,
+    deleteSelectionTrigger: ast.deleteSelectionTrigger,
+    clearSelectionTrigger: ast.clearSelectionTrigger,
+    handleStrokeEnd: ast.handleStrokeEnd,
+    handleUndo: ast.handleUndo,
+    handleRedo: ast.handleRedo,
+    handleClear: ast.handleClear,
+    handleSelectionChanged: ast.handleSelectionChanged,
+    handleDeleteSelection: ast.handleDeleteSelection,
+    handleClearSelection: ast.handleClearSelection,
+
+    // Compilation
+    isDrawerOpen: compiler.isDrawerOpen,
+    setIsDrawerOpen: compiler.setIsDrawerOpen,
+    isCompiling: compiler.isCompiling,
+    compilation: compiler.compilation,
+    handleCompile: compiler.handleCompile,
+
+    // Air View Hover & Semantic Anchoring
+    hoveredAttribute: hover.hoveredAttribute,
+    activeAnchorEntity: hover.activeAnchorEntity,
+    hoveredEntityBounds: hover.hoveredEntityBounds,
+    hoveredEntity: hover.hoveredEntity,
+    unclusteredStrokesInEntity: hover.unclusteredStrokesInEntity,
+    activeEntityBounds: hover.activeEntityBounds,
+    isAnchorModalOpen: hover.isAnchorModalOpen,
+    handleAnchorModalOpen: hover.handleAnchorModalOpen,
+    hoverScreenX: hover.hoverScreenX,
+    hoverScreenY: hover.hoverScreenY,
+    handleHover: hover.handleHover,
+    handleBadgeHover: hover.handleBadgeHover,
+    anchorTooltip: hover.anchorTooltip,
+    handleHoverTimeout: hover.handleHoverTimeout,
+    handleFingerTap: hover.handleFingerTap,
+    handleBarrelButton: hover.handleBarrelButton,
+    handleCloseAnchorTooltip: hover.handleCloseAnchorTooltip,
+    handleSaveAnchorTooltip: hover.handleSaveAnchorTooltip,
+
+    // Modals
     showVaultModal,
     setShowVaultModal,
     showClearConfirmModal,
@@ -1137,9 +192,5 @@ export const useCanvasState = () => {
     handleRequestClear,
     handleConfirmClear,
     handleCancelClear,
-    handleDeleteMap,
-    toolbarDockSide,
-    handleToggleDockSide,
-    handleChangeDockSide,
   };
 };

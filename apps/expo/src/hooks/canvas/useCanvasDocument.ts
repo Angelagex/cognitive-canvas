@@ -1,0 +1,453 @@
+import { useState, useRef, useEffect, useCallback } from "react";
+import {
+  saveDocument,
+  loadDocument,
+  deleteDocument,
+  getLastActiveMapId,
+  setLastActiveMapId,
+  listDocuments,
+  ExtendedCognitiveMapDocument,
+  MapDocumentSummary,
+  getUserPreferences,
+} from "../../services/StorageService";
+import { PlacedAttribute, EntityBoundingBox, PassiveAttributeType } from "../../types/canvas";
+import { VisualASTLayer, RawInkStroke } from "@cognitive-canvas/core";
+
+interface UseCanvasDocumentProps {
+  canvasScale: number;
+  canvasTranslateX: number;
+  canvasTranslateY: number;
+  setCanvasScale: (scale: number) => void;
+  setCanvasTranslateX: (tx: number) => void;
+  setCanvasTranslateY: (ty: number) => void;
+  strokesRef: React.MutableRefObject<RawInkStroke[]>;
+  strokeBBoxesRef: React.MutableRefObject<Map<string, EntityBoundingBox>>;
+  setRawStrokes: (strokes: RawInkStroke[]) => void;
+  setStrokeCount: (count: number) => void;
+  setCanUndo: (can: boolean) => void;
+  setCanRedo: (can: boolean) => void;
+  setLoadedStrokesJson: (json: string) => void;
+  setLoadStrokesTrigger: React.Dispatch<React.SetStateAction<number>>;
+  setClearTrigger: React.Dispatch<React.SetStateAction<number>>;
+  visualAST: VisualASTLayer;
+  setVisualAST: (ast: VisualASTLayer) => void;
+  compilation: any;
+  setCompilation: (comp: any) => void;
+  setToolbarDockSide: (side: "left" | "right") => void;
+}
+
+export const useCanvasDocument = ({
+  canvasScale,
+  canvasTranslateX,
+  canvasTranslateY,
+  setCanvasScale,
+  setCanvasTranslateX,
+  setCanvasTranslateY,
+  strokesRef,
+  strokeBBoxesRef,
+  setRawStrokes,
+  setStrokeCount,
+  setCanUndo,
+  setCanRedo,
+  setLoadedStrokesJson,
+  setLoadStrokesTrigger,
+  setClearTrigger,
+  visualAST,
+  setVisualAST,
+  compilation,
+  setCompilation,
+  setToolbarDockSide,
+}: UseCanvasDocumentProps) => {
+  const [currentMapId, setCurrentMapId] = useState<string>(() => `map_${Date.now()}`);
+  const [mapTitle, setMapTitle] = useState<string>("Mapa Mental - Redes Neuronales");
+  const [isSaving, setIsSaving] = useState<boolean>(false);
+  const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
+  const [savedMaps, setSavedMaps] = useState<MapDocumentSummary[]>([]);
+  const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const isInitialLoadDoneRef = useRef<boolean>(false);
+
+  // Placed Cognitive Attributes
+  const [placedAttributes, setPlacedAttributes] = useState<PlacedAttribute[]>([
+    {
+      id: "attr-1",
+      type: "CAUSAL_MECHANISM",
+      title: "Mecanismo Causal",
+      note: "La retropropagación calcula derivadas parciales mediante la regla de la cadena",
+      worldX: 350,
+      worldY: 280,
+    },
+  ]);
+  const placedAttributesRef = useRef<PlacedAttribute[]>(placedAttributes);
+  placedAttributesRef.current = placedAttributes;
+
+  // Dirty State Tracker
+  const isDirtyRef = useRef<boolean>(false);
+  const [dirtyVersion, setDirtyVersion] = useState<number>(0);
+
+  const markDirty = useCallback(() => {
+    isDirtyRef.current = true;
+    setDirtyVersion((v) => v + 1);
+  }, []);
+
+  const handleTitleChange = useCallback(
+    (newTitle: string) => {
+      setMapTitle(newTitle);
+      markDirty();
+    },
+    [markDirty]
+  );
+
+  const handleAddAttribute = useCallback(
+    (type: PassiveAttributeType, title: string, note: string) => {
+      const newAttr: PlacedAttribute = {
+        id: `attr-${Date.now()}`,
+        type,
+        title,
+        note,
+        worldX: (-canvasTranslateX + 400) / canvasScale,
+        worldY: (-canvasTranslateY + 300) / canvasScale,
+      };
+      setPlacedAttributes((prev) => [...prev, newAttr]);
+      markDirty();
+    },
+    [canvasScale, canvasTranslateX, canvasTranslateY, markDirty]
+  );
+
+  const handleDeleteAttribute = useCallback(
+    (id: string) => {
+      setPlacedAttributes((prev) => prev.filter((a) => a.id !== id));
+      markDirty();
+    },
+    [markDirty]
+  );
+
+  // Restore last active .cmn map document on startup
+  useEffect(() => {
+    let isMounted = true;
+    const restoreLastActiveMap = async () => {
+      try {
+        let lastId = await getLastActiveMapId();
+        const list = await listDocuments();
+        if (!lastId && list.length > 0) {
+          lastId = list[0].map_id;
+        }
+        if (lastId && isMounted) {
+          const doc = await loadDocument(lastId);
+          if (doc && isMounted) {
+            setCurrentMapId(doc.map_id);
+            if (doc.metadata?.title) setMapTitle(doc.metadata.title);
+            if (doc.metadata?.canvas_scale !== undefined) setCanvasScale(doc.metadata.canvas_scale);
+            if (doc.metadata?.canvas_translate_x !== undefined) setCanvasTranslateX(doc.metadata.canvas_translate_x);
+            if (doc.metadata?.canvas_translate_y !== undefined) setCanvasTranslateY(doc.metadata.canvas_translate_y);
+            if (doc.metadata?.placed_attributes) setPlacedAttributes(doc.metadata.placed_attributes);
+            if (doc.visual_ast_layer) setVisualAST(doc.visual_ast_layer);
+            const strokes = doc.raw_ink_layer?.strokes || [];
+            strokesRef.current = strokes;
+            setRawStrokes(strokes);
+            setStrokeCount(strokes.length);
+            setCanUndo(strokes.length > 0);
+            setCanRedo(false);
+            setLoadedStrokesJson(JSON.stringify(strokes));
+            setLoadStrokesTrigger((prev) => prev + 1);
+
+            if (doc.compiled_cognitive_layer) {
+              setCompilation(doc.compiled_cognitive_layer);
+            }
+            setLastSavedAt(doc.metadata.updated_at);
+            isDirtyRef.current = false;
+            console.log(`[useCanvasDocument] Restored .cmn document: ${doc.metadata.title} (${strokes.length} strokes)`);
+          }
+        }
+        if (isMounted) setSavedMaps(list);
+
+        const prefs = await getUserPreferences();
+        if (isMounted && prefs?.toolbar_dock_side) {
+          setToolbarDockSide(prefs.toolbar_dock_side);
+        }
+      } catch (e) {
+        console.warn("[useCanvasDocument] Could not restore previous document:", e);
+      } finally {
+        isInitialLoadDoneRef.current = true;
+      }
+    };
+
+    restoreLastActiveMap();
+
+    return () => {
+      isMounted = false;
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    };
+  }, []);
+
+  // 1.5-second debounced auto-save
+  useEffect(() => {
+    if (!isInitialLoadDoneRef.current) return;
+    if (!isDirtyRef.current) return;
+
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current);
+    }
+
+    autoSaveTimerRef.current = setTimeout(async () => {
+      if (!isDirtyRef.current) return;
+      try {
+        setIsSaving(true);
+        const now = Date.now();
+        const doc: ExtendedCognitiveMapDocument = {
+          map_id: currentMapId,
+          version: "1.0.0",
+          metadata: {
+            title: mapTitle,
+            created_at: lastSavedAt || now,
+            updated_at: now,
+            canvas_scale: canvasScale,
+            canvas_translate_x: canvasTranslateX,
+            canvas_translate_y: canvasTranslateY,
+            placed_attributes: placedAttributes,
+          },
+          raw_ink_layer: {
+            strokes: strokesRef.current,
+          },
+          visual_ast_layer: visualAST,
+          compiled_cognitive_layer: compilation,
+        };
+
+        await saveDocument(doc);
+        isDirtyRef.current = false;
+        setLastSavedAt(now);
+        const list = await listDocuments();
+        setSavedMaps(list);
+      } catch (err) {
+        console.error("[useCanvasDocument] Auto-save error:", err);
+      } finally {
+        setIsSaving(false);
+      }
+    }, 1500);
+  }, [
+    dirtyVersion,
+    currentMapId,
+    mapTitle,
+    placedAttributes,
+    visualAST,
+    compilation,
+    canvasScale,
+    canvasTranslateX,
+    canvasTranslateY,
+  ]);
+
+  const handleSaveMap = useCallback(async () => {
+    try {
+      setIsSaving(true);
+      const now = Date.now();
+      const doc: ExtendedCognitiveMapDocument = {
+        map_id: currentMapId,
+        version: "1.0.0",
+        metadata: {
+          title: mapTitle,
+          created_at: lastSavedAt || now,
+          updated_at: now,
+          canvas_scale: canvasScale,
+          canvas_translate_x: canvasTranslateX,
+          canvas_translate_y: canvasTranslateY,
+          placed_attributes: placedAttributes,
+        },
+        raw_ink_layer: {
+          strokes: strokesRef.current,
+        },
+        visual_ast_layer: visualAST,
+        compiled_cognitive_layer: compilation,
+      };
+
+      await saveDocument(doc);
+      setLastSavedAt(now);
+      const list = await listDocuments();
+      setSavedMaps(list);
+    } catch (e) {
+      console.error("[useCanvasDocument] Manual save error:", e);
+    } finally {
+      setIsSaving(false);
+    }
+  }, [
+    currentMapId,
+    mapTitle,
+    lastSavedAt,
+    canvasScale,
+    canvasTranslateX,
+    canvasTranslateY,
+    placedAttributes,
+    visualAST,
+    compilation,
+  ]);
+
+  const handleLoadMap = useCallback(
+    async (mapId: string) => {
+      try {
+        if (isDirtyRef.current && currentMapId) {
+          if (autoSaveTimerRef.current) {
+            clearTimeout(autoSaveTimerRef.current);
+          }
+          const now = Date.now();
+          const currentDoc: ExtendedCognitiveMapDocument = {
+            map_id: currentMapId,
+            version: "1.0.0",
+            metadata: {
+              title: mapTitle,
+              created_at: lastSavedAt || now,
+              updated_at: now,
+              canvas_scale: canvasScale,
+              canvas_translate_x: canvasTranslateX,
+              canvas_translate_y: canvasTranslateY,
+              placed_attributes: placedAttributes,
+            },
+            raw_ink_layer: {
+              strokes: strokesRef.current,
+            },
+            visual_ast_layer: visualAST,
+            compiled_cognitive_layer: compilation,
+          };
+          await saveDocument(currentDoc);
+          isDirtyRef.current = false;
+        }
+
+        const doc = await loadDocument(mapId);
+        if (doc) {
+          setCurrentMapId(doc.map_id);
+          await setLastActiveMapId(doc.map_id);
+          if (doc.metadata?.title) setMapTitle(doc.metadata.title);
+          if (doc.metadata?.canvas_scale !== undefined) setCanvasScale(doc.metadata.canvas_scale);
+          if (doc.metadata?.canvas_translate_x !== undefined) setCanvasTranslateX(doc.metadata.canvas_translate_x);
+          if (doc.metadata?.canvas_translate_y !== undefined) setCanvasTranslateY(doc.metadata.canvas_translate_y);
+          if (doc.metadata?.placed_attributes) setPlacedAttributes(doc.metadata.placed_attributes);
+          if (doc.visual_ast_layer) setVisualAST(doc.visual_ast_layer);
+
+          const strokes = doc.raw_ink_layer?.strokes || [];
+          strokesRef.current = strokes;
+          strokeBBoxesRef.current.clear();
+          setRawStrokes(strokes);
+          setStrokeCount(strokes.length);
+          setCanUndo(strokes.length > 0);
+          setCanRedo(false);
+          setLoadedStrokesJson(JSON.stringify(strokes));
+          setLoadStrokesTrigger((prev) => prev + 1);
+
+          if (doc.compiled_cognitive_layer) {
+            setCompilation(doc.compiled_cognitive_layer);
+          } else {
+            setCompilation(null);
+          }
+          setLastSavedAt(doc.metadata.updated_at);
+          isDirtyRef.current = false;
+          console.log(`[useCanvasDocument] Switched to .cmn map: ${doc.metadata.title} (${strokes.length} strokes)`);
+        }
+      } catch (e) {
+        console.error("[useCanvasDocument] Load map error:", e);
+      }
+    },
+    [
+      currentMapId,
+      mapTitle,
+      lastSavedAt,
+      canvasScale,
+      canvasTranslateX,
+      canvasTranslateY,
+      placedAttributes,
+      visualAST,
+      compilation,
+    ]
+  );
+
+  const handleNewMap = useCallback(async () => {
+    if (isDirtyRef.current && currentMapId) {
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+      }
+      const now = Date.now();
+      const currentDoc: ExtendedCognitiveMapDocument = {
+        map_id: currentMapId,
+        version: "1.0.0",
+        metadata: {
+          title: mapTitle,
+          created_at: lastSavedAt || now,
+          updated_at: now,
+          canvas_scale: canvasScale,
+          canvas_translate_x: canvasTranslateX,
+          canvas_translate_y: canvasTranslateY,
+          placed_attributes: placedAttributes,
+        },
+        raw_ink_layer: {
+          strokes: strokesRef.current,
+        },
+        visual_ast_layer: visualAST,
+        compiled_cognitive_layer: compilation,
+      };
+      await saveDocument(currentDoc);
+      isDirtyRef.current = false;
+    }
+
+    setClearTrigger((prev) => prev + 1);
+    setLoadedStrokesJson("[]");
+    setLoadStrokesTrigger((prev) => prev + 1);
+    setPlacedAttributes([]);
+    setVisualAST({ entities: [], connectors: [] });
+    setCompilation(null);
+    strokesRef.current = [];
+    strokeBBoxesRef.current.clear();
+    setRawStrokes([]);
+    setStrokeCount(0);
+    setCanUndo(false);
+    setCanRedo(false);
+    const newId = `map_${Date.now()}`;
+    setCurrentMapId(newId);
+    await setLastActiveMapId(newId);
+    setMapTitle("Nuevo Mapa Mental");
+    setLastSavedAt(null);
+    isDirtyRef.current = false;
+  }, [
+    currentMapId,
+    mapTitle,
+    lastSavedAt,
+    canvasScale,
+    canvasTranslateX,
+    canvasTranslateY,
+    placedAttributes,
+    visualAST,
+    compilation,
+  ]);
+
+  const handleDeleteMap = useCallback(
+    async (mapId: string) => {
+      try {
+        await deleteDocument(mapId);
+        const list = await listDocuments();
+        setSavedMaps(list);
+        if (mapId === currentMapId) {
+          handleNewMap();
+        }
+      } catch (e) {
+        console.error("[useCanvasDocument] Delete map error:", e);
+      }
+    },
+    [currentMapId, handleNewMap]
+  );
+
+  return {
+    currentMapId,
+    mapTitle,
+    setMapTitle,
+    handleTitleChange,
+    isSaving,
+    lastSavedAt,
+    savedMaps,
+    handleSaveMap,
+    handleLoadMap,
+    handleNewMap,
+    handleDeleteMap,
+    placedAttributes,
+    setPlacedAttributes,
+    handleAddAttribute,
+    handleDeleteAttribute,
+    markDirty,
+    isDirtyRef,
+    placedAttributesRef,
+  };
+};
