@@ -11,6 +11,7 @@ interface TopHeaderProps {
   onRequestClear: () => void;
   onOpenCompiler: () => void;
   onOpenVaults: () => void;
+  onOpenDocumentMenu?: () => void;
   isSaving?: boolean;
   lastSavedAt?: number | null;
 }
@@ -25,6 +26,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
   onRequestClear,
   onOpenCompiler,
   onOpenVaults,
+  onOpenDocumentMenu,
   isSaving = false,
   lastSavedAt = null,
 }) => {
@@ -36,6 +38,17 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
           <Text style={styles.vaultIcon}>📁</Text>
           <Text style={styles.vaultText}>Bóveda</Text>
         </TouchableOpacity>
+
+        {onOpenDocumentMenu && (
+          <TouchableOpacity
+            style={styles.menuButton}
+            onPress={onOpenDocumentMenu}
+            activeOpacity={0.7}
+            accessibilityLabel="Opciones del documento"
+          >
+            <Text style={styles.menuIcon}>⋮</Text>
+          </TouchableOpacity>
+        )}
 
         <View style={styles.divider} />
 
@@ -144,6 +157,20 @@ const styles = StyleSheet.create({
     color: "#94A3B8",
     fontSize: 12,
     fontWeight: "600",
+  },
+  menuButton: {
+    width: 28,
+    height: 28,
+    borderRadius: 6,
+    backgroundColor: "#1E293B",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 10,
+  },
+  menuIcon: {
+    color: "#94A3B8",
+    fontSize: 16,
+    fontWeight: "800",
   },
   divider: {
     width: 1,

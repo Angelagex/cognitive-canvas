@@ -42,8 +42,22 @@ export const useCanvasState = () => {
   const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isInitialLoadDoneRef = useRef<boolean>(false);
   const isDirtyRef = useRef<boolean>(false);
+  const [dirtyVersion, setDirtyVersion] = useState<number>(0);
   const [showClearConfirmModal, setShowClearConfirmModal] = useState<boolean>(false);
   const [showVaultModal, setShowVaultModal] = useState<boolean>(false);
+
+  const markDirty = useCallback(() => {
+    isDirtyRef.current = true;
+    setDirtyVersion((v) => v + 1);
+  }, []);
+
+  const handleTitleChange = useCallback(
+    (newTitle: string) => {
+      setMapTitle(newTitle);
+      markDirty();
+    },
+    [markDirty]
+  );
 
   // Local Visual AST Engine (Phase 3: 5-level real-time topology & clustering)
   const visualASTEngine = useMemo(() => new VisualASTEngine(), []);
@@ -166,11 +180,10 @@ export const useCanvasState = () => {
     };
   }, []);
 
-  // 2-second debounced auto-save to .cmn file format (Master Spec 5.3)
+  // 1.5-second debounced auto-save to .cmn file format (Master Spec 5.3)
   useEffect(() => {
     if (!isInitialLoadDoneRef.current) return;
     if (!isDirtyRef.current) return;
-    if (rawStrokes.length === 0 && placedAttributes.length === 0) return;
 
     if (autoSaveTimerRef.current) {
       clearTimeout(autoSaveTimerRef.current);
@@ -210,14 +223,17 @@ export const useCanvasState = () => {
       } finally {
         setIsSaving(false);
       }
-    }, 2000);
+    }, 1500);
   }, [
-    rawStrokes,
-    visualAST,
-    placedAttributes,
-    mapTitle,
-    compilation,
+    dirtyVersion,
     currentMapId,
+    mapTitle,
+    placedAttributes,
+    visualAST,
+    compilation,
+    canvasScale,
+    canvasTranslateX,
+    canvasTranslateY,
   ]);
 
   // Event Callbacks
@@ -231,6 +247,7 @@ export const useCanvasState = () => {
 
       if (strokes) {
         strokesRef.current = strokes;
+        markDirty();
 
         // Cache bounding boxes of newly added strokes once in O(1)
         const bboxes = strokeBBoxesRef.current;
@@ -282,7 +299,7 @@ export const useCanvasState = () => {
         }, 280);
       }
     },
-    [visualASTEngine, placedAttributes, canvasScale]
+    [visualASTEngine, placedAttributes, canvasScale, markDirty]
   );
 
   const handleTransform = useCallback((event: NativeSyntheticEvent<TransformEvent>) => {
@@ -303,7 +320,8 @@ export const useCanvasState = () => {
     setDeleteSelectionTrigger((prev) => prev + 1);
     setHasSelection(false);
     setSelectedCount(0);
-  }, []);
+    markDirty();
+  }, [markDirty]);
 
   const handleClearSelection = useCallback(() => {
     setClearSelectionTrigger((prev) => prev + 1);
@@ -311,21 +329,29 @@ export const useCanvasState = () => {
     setSelectedCount(0);
   }, []);
 
-  const handleAddAttribute = useCallback((type: PassiveAttributeType, title: string, note: string) => {
-    const newAttr: PlacedAttribute = {
-      id: `attr-${Date.now()}`,
-      type,
-      title,
-      note,
-      worldX: (-canvasTranslateX + 400) / canvasScale,
-      worldY: (-canvasTranslateY + 300) / canvasScale,
-    };
-    setPlacedAttributes((prev) => [...prev, newAttr]);
-  }, [canvasScale, canvasTranslateX, canvasTranslateY]);
+  const handleAddAttribute = useCallback(
+    (type: PassiveAttributeType, title: string, note: string) => {
+      const newAttr: PlacedAttribute = {
+        id: `attr-${Date.now()}`,
+        type,
+        title,
+        note,
+        worldX: (-canvasTranslateX + 400) / canvasScale,
+        worldY: (-canvasTranslateY + 300) / canvasScale,
+      };
+      setPlacedAttributes((prev) => [...prev, newAttr]);
+      markDirty();
+    },
+    [canvasScale, canvasTranslateX, canvasTranslateY, markDirty]
+  );
 
-  const handleDeleteAttribute = useCallback((id: string) => {
-    setPlacedAttributes((prev) => prev.filter((a) => a.id !== id));
-  }, []);
+  const handleDeleteAttribute = useCallback(
+    (id: string) => {
+      setPlacedAttributes((prev) => prev.filter((a) => a.id !== id));
+      markDirty();
+    },
+    [markDirty]
+  );
 
   // S-Pen Air View / Hover State (Affordance a 1-2 cm)
   const [hoveredAttribute, setHoveredAttribute] = useState<PlacedAttribute | null>(null);
@@ -637,11 +663,13 @@ export const useCanvasState = () => {
   // Action Triggers
   const handleUndo = useCallback(() => {
     setUndoTrigger((prev) => prev + 1);
-  }, []);
+    markDirty();
+  }, [markDirty]);
 
   const handleRedo = useCallback(() => {
     setRedoTrigger((prev) => prev + 1);
-  }, []);
+    markDirty();
+  }, [markDirty]);
 
   const handleClear = useCallback(() => {
     setClearTrigger((prev) => prev + 1);
@@ -897,6 +925,7 @@ export const useCanvasState = () => {
     currentMapId,
     mapTitle,
     setMapTitle,
+    handleTitleChange,
     isSaving,
     lastSavedAt,
     savedMaps,

@@ -42,9 +42,12 @@ const GOODNOTES_PRESETS = [
 ];
 
 const TIP_SIZES = [
-  { label: "Fino", value: 8, dot: 4 },
-  { label: "Medio", value: 18, dot: 8 },
-  { label: "Grueso", value: 32, dot: 13 },
+  { label: "Ultra Fino", value: 4, dot: 3, desc: "0.4 mm" },
+  { label: "Fino", value: 8, dot: 5, desc: "0.8 mm" },
+  { label: "Medio", value: 16, dot: 8, desc: "1.6 mm" },
+  { label: "Grueso", value: 24, dot: 12, desc: "2.4 mm" },
+  { label: "Marcador", value: 36, dot: 16, desc: "3.6 mm" },
+  { label: "Pincel", value: 50, dot: 22, desc: "5.0 mm" },
 ];
 
 const PAPER_TEMPLATES: { id: CanvasBackgroundType; label: string; icon: string }[] = [
@@ -76,6 +79,7 @@ export const GoodnotesToolbar: React.FC<GoodnotesToolbarProps> = ({
 }) => {
   // Modal states
   const [showTemplateMenu, setShowTemplateMenu] = useState(false);
+  const [showSizeMenu, setShowSizeMenu] = useState(false);
   const [showColorCustomizer, setShowColorCustomizer] = useState(false);
   const [editingSlot, setEditingSlot] = useState<number>(0);
   const [customHexInput, setCustomHexInput] = useState<string>("#38BDF8");
@@ -177,32 +181,30 @@ export const GoodnotesToolbar: React.FC<GoodnotesToolbarProps> = ({
 
             <View style={styles.smallDivider} />
 
-            {/* Stroke Widths */}
-            <View style={styles.sizeRow}>
-              {TIP_SIZES.map((s) => {
-                const isSelected = activeWidth === s.value;
-                return (
-                  <TouchableOpacity
-                    key={s.label}
-                    style={[styles.sizeButton, isSelected && styles.sizeButtonActive]}
-                    onPress={() => onSelectWidth(s.value)}
-                    activeOpacity={0.8}
-                  >
-                    <View
-                      style={[
-                        styles.sizeDot,
-                        {
-                          width: s.dot,
-                          height: s.dot,
-                          borderRadius: s.dot / 2,
-                          backgroundColor: isSelected ? "#38BDF8" : "#94A3B8",
-                        },
-                      ]}
-                    />
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
+            {/* Single Compact Stroke Width Trigger */}
+            <TouchableOpacity
+              style={[styles.sizeDropdownTrigger, showSizeMenu && styles.sizeDropdownTriggerActive]}
+              onPress={() => {
+                setShowSizeMenu(!showSizeMenu);
+                setShowTemplateMenu(false);
+              }}
+              activeOpacity={0.7}
+              accessibilityLabel={`Grosor de trazo: ${activeWidth}px`}
+            >
+              <View
+                style={[
+                  styles.sizeIndicatorDot,
+                  {
+                    width: Math.min(Math.max(activeWidth / 2, 4), 14),
+                    height: Math.min(Math.max(activeWidth / 2, 4), 14),
+                    borderRadius: Math.min(Math.max(activeWidth / 2, 4), 14) / 2,
+                    backgroundColor: activeColor,
+                  },
+                ]}
+              />
+              <Text style={styles.sizeTriggerLabel}>{activeWidth}px</Text>
+              <Text style={styles.sizeTriggerArrow}>{showSizeMenu ? "▴" : "▾"}</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </View>
@@ -343,6 +345,47 @@ export const GoodnotesToolbar: React.FC<GoodnotesToolbarProps> = ({
                 >
                   {tmpl.label}
                 </Text>
+                {isSelected && <Text style={styles.dropdownCheck}>✓</Text>}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      )}
+
+      {/* 4. Stroke Width Dropdown Popover */}
+      {showSizeMenu && (
+        <View style={styles.sizeDropdown}>
+          <Text style={styles.dropdownHeader}>GROSOR DE TRAZO</Text>
+          {TIP_SIZES.map((s) => {
+            const isSelected = activeWidth === s.value;
+            return (
+              <TouchableOpacity
+                key={s.label}
+                style={[styles.sizeDropdownItem, isSelected && styles.sizeDropdownItemActive]}
+                onPress={() => {
+                  onSelectWidth(s.value);
+                  setShowSizeMenu(false);
+                }}
+                activeOpacity={0.7}
+              >
+                <View style={styles.sizePreviewLineContainer}>
+                  <View
+                    style={[
+                      styles.sizePreviewLine,
+                      {
+                        height: Math.min(Math.max(s.dot, 2), 16),
+                        borderRadius: Math.min(Math.max(s.dot, 2), 16) / 2,
+                        backgroundColor: isSelected ? "#38BDF8" : activeColor,
+                      },
+                    ]}
+                  />
+                </View>
+                <View style={styles.sizeDropdownTextCol}>
+                  <Text style={[styles.sizeDropdownLabel, isSelected && styles.sizeDropdownLabelActive]}>
+                    {s.label}
+                  </Text>
+                  <Text style={styles.sizeDropdownDesc}>{s.desc} ({s.value}px)</Text>
+                </View>
                 {isSelected && <Text style={styles.dropdownCheck}>✓</Text>}
               </TouchableOpacity>
             );
@@ -834,6 +877,89 @@ const styles = StyleSheet.create({
   dropdownCheck: {
     color: "#38BDF8",
     fontWeight: "800",
+  },
+
+  // Single Stroke Width Selector Dropdown
+  sizeDropdownTrigger: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#1E293B",
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 7,
+    borderWidth: 1,
+    borderColor: "#334155",
+    gap: 6,
+  },
+  sizeDropdownTriggerActive: {
+    borderColor: "#38BDF8",
+    backgroundColor: "#0F172A",
+  },
+  sizeIndicatorDot: {
+    minWidth: 4,
+    minHeight: 4,
+  },
+  sizeTriggerLabel: {
+    color: "#E2E8F0",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  sizeTriggerArrow: {
+    color: "#94A3B8",
+    fontSize: 10,
+    fontWeight: "700",
+  },
+  sizeDropdown: {
+    position: "absolute",
+    top: 58,
+    right: 16,
+    backgroundColor: "#1E293B",
+    borderRadius: 10,
+    padding: 8,
+    borderWidth: 1,
+    borderColor: "#334155",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.45,
+    shadowRadius: 8,
+    elevation: 12,
+    width: 210,
+    zIndex: 100,
+  },
+  sizeDropdownItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 6,
+    gap: 10,
+  },
+  sizeDropdownItemActive: {
+    backgroundColor: "#0F172A",
+  },
+  sizePreviewLineContainer: {
+    width: 36,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  sizePreviewLine: {
+    width: "100%",
+  },
+  sizeDropdownTextCol: {
+    flex: 1,
+  },
+  sizeDropdownLabel: {
+    color: "#CBD5E1",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  sizeDropdownLabelActive: {
+    color: "#38BDF8",
+    fontWeight: "700",
+  },
+  sizeDropdownDesc: {
+    color: "#64748B",
+    fontSize: 10,
   },
 
   // Modal Overlay

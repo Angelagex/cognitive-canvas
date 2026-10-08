@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { StyleSheet, View, SafeAreaView, StatusBar } from "react-native";
 import { useCanvasState } from "./src/hooks/useCanvasState";
 import { TopHeader } from "./src/components/header/TopHeader";
@@ -10,8 +10,10 @@ import { PlacedAttributeBadges } from "./src/components/canvas/PlacedAttributeBa
 import { SemanticAnchorTooltip } from "./src/components/canvas/SemanticAnchorTooltip";
 import { ClearCanvasConfirmModal } from "./src/components/modals/ClearCanvasConfirmModal";
 import { VaultsModal } from "./src/components/modals/VaultsModal";
+import { DocumentActionsModal } from "./src/components/modals/DocumentActionsModal";
 
 export default function App() {
+  const [showDocumentMenu, setShowDocumentMenu] = useState(false);
   const {
     mapTitle,
     setMapTitle,
@@ -83,6 +85,7 @@ export default function App() {
     handleCompile,
     isSaving,
     lastSavedAt,
+    handleTitleChange,
     handleNewMap,
     handleSaveMap,
     currentMapId,
@@ -95,6 +98,7 @@ export default function App() {
     handleConfirmClear,
     handleCancelClear,
     handleDeleteMap,
+    visualAST,
   } = useCanvasState();
 
   return (
@@ -104,7 +108,7 @@ export default function App() {
       {/* 1. Header Superior (48dp) - Bóvedas, Título editable, Auto-Save .cmn, Undo/Redo, Compilar */}
       <TopHeader
         mapTitle={mapTitle}
-        onTitleChange={setMapTitle}
+        onTitleChange={handleTitleChange}
         canUndo={canUndo}
         canRedo={canRedo}
         onUndo={handleUndo}
@@ -112,6 +116,7 @@ export default function App() {
         onRequestClear={handleRequestClear}
         onOpenCompiler={() => setIsDrawerOpen(true)}
         onOpenVaults={() => setShowVaultModal(true)}
+        onOpenDocumentMenu={() => setShowDocumentMenu(true)}
         isSaving={isSaving}
         lastSavedAt={lastSavedAt}
       />
@@ -244,6 +249,32 @@ export default function App() {
           setShowVaultModal(false);
         }}
         onDeleteMap={handleDeleteMap}
+      />
+
+      {/* 8. Modal de Menú de Opciones y Exportación del Documento */}
+      <DocumentActionsModal
+        visible={showDocumentMenu}
+        onClose={() => setShowDocumentMenu(false)}
+        mapTitle={mapTitle}
+        strokeCount={strokeCount}
+        entityCount={visualAST.entities.length}
+        lastSavedAt={lastSavedAt}
+        onOpenVaults={() => {
+          setShowDocumentMenu(false);
+          setShowVaultModal(true);
+        }}
+        onNewMap={() => {
+          setShowDocumentMenu(false);
+          handleNewMap();
+        }}
+        onRequestClear={() => {
+          setShowDocumentMenu(false);
+          handleRequestClear();
+        }}
+        onOpenCompiler={() => {
+          setShowDocumentMenu(false);
+          setIsDrawerOpen(true);
+        }}
       />
     </SafeAreaView>
   );
