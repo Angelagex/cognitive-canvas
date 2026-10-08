@@ -1,6 +1,6 @@
 import React from "react";
 import { StyleSheet, View, Text, TouchableOpacity, Modal, ScrollView } from "react-native";
-import { CognitiveCompilerOutput } from "@cognitive-canvas/core/types";
+import { CognitiveCompilerOutput, PacerClassification } from "@cognitive-canvas/core/types";
 import { RetrievalPanel } from "../RetrievalPanel";
 
 interface CompilerDrawerProps {
@@ -10,6 +10,10 @@ interface CompilerDrawerProps {
   onCompile: () => void;
   isCompiling: boolean;
   strokeCount: number;
+  pacerFilter?: PacerClassification | "ALL";
+  onPacerFilterChange?: (filter: PacerClassification | "ALL") => void;
+  showPacerOverlay?: boolean;
+  onTogglePacerOverlay?: () => void;
 }
 
 export const CompilerDrawer: React.FC<CompilerDrawerProps> = ({
@@ -19,6 +23,10 @@ export const CompilerDrawer: React.FC<CompilerDrawerProps> = ({
   onCompile,
   isCompiling,
   strokeCount,
+  pacerFilter,
+  onPacerFilterChange,
+  showPacerOverlay,
+  onTogglePacerOverlay,
 }) => {
   return (
     <Modal
@@ -64,7 +72,13 @@ export const CompilerDrawer: React.FC<CompilerDrawerProps> = ({
           {/* Scrollable Retrieval Panel with GRINDE, PACER and Anki tabs */}
           <View style={styles.panelContent}>
             {compilation ? (
-              <RetrievalPanel compilation={compilation} />
+              <RetrievalPanel
+                compilation={compilation}
+                pacerFilter={pacerFilter}
+                onPacerFilterChange={onPacerFilterChange}
+                showPacerOverlay={showPacerOverlay}
+                onTogglePacerOverlay={onTogglePacerOverlay}
+              />
             ) : (
               <View style={styles.emptyStateContainer}>
                 <Text style={styles.emptyStateIcon}>📐</Text>

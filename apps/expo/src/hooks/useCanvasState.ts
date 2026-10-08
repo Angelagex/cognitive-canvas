@@ -17,8 +17,20 @@ export const useCanvasState = () => {
   const [showVaultModal, setShowVaultModal] = useState<boolean>(false);
   const [showClearConfirmModal, setShowClearConfirmModal] = useState<boolean>(false);
 
+  // Lazy getters for compilation to break circular dependency
+  let getVisualASTFn: () => any = () => null;
+  let getMapTitleFn: () => string = () => "Mapa Mental";
+  let getCurrentMapIdFn: () => string = () => "canvas_default";
+  let getPlacedAttributesFn: () => any = () => [];
+
   // 4. Compilation Drawer & Justin Sung Learning Engine
-  const compiler = useCognitiveCompilation();
+  const compiler = useCognitiveCompilation({
+    getVisualAST: () => getVisualASTFn(),
+    getMapTitle: () => getMapTitleFn(),
+    getCurrentMapId: () => getCurrentMapIdFn(),
+    getPlacedAttributes: () => getPlacedAttributesFn(),
+    onCompilationComplete: () => markDirtyFn(),
+  });
 
   // Dirty State Tracker (will be passed from document)
   let markDirtyFn: () => void = () => {};
@@ -54,6 +66,10 @@ export const useCanvasState = () => {
     setToolbarDockSide: tools.setToolbarDockSide,
   });
 
+  getVisualASTFn = () => ast.visualAST;
+  getMapTitleFn = () => doc.mapTitle;
+  getCurrentMapIdFn = () => doc.currentMapId;
+  getPlacedAttributesFn = () => doc.placedAttributes;
   markDirtyFn = doc.markDirty;
 
   // 7. S-Pen Air View Hover & Semantic Anchoring
@@ -157,12 +173,16 @@ export const useCanvasState = () => {
     handleDeleteSelection: ast.handleDeleteSelection,
     handleClearSelection: ast.handleClearSelection,
 
-    // Compilation
+    // Compilation & PACER
     isDrawerOpen: compiler.isDrawerOpen,
     setIsDrawerOpen: compiler.setIsDrawerOpen,
     isCompiling: compiler.isCompiling,
     compilation: compiler.compilation,
     handleCompile: compiler.handleCompile,
+    pacerFilter: compiler.pacerFilter,
+    setPacerFilter: compiler.setPacerFilter,
+    showPacerOverlay: compiler.showPacerOverlay,
+    handleTogglePacerOverlay: compiler.handleTogglePacerOverlay,
 
     // Air View Hover & Semantic Anchoring
     hoveredAttribute: hover.hoveredAttribute,

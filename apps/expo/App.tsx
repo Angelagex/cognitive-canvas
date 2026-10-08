@@ -8,6 +8,7 @@ import { FloatingFooter } from "./src/components/footer/FloatingFooter";
 import { CompilerDrawer } from "./src/components/drawer/CompilerDrawer";
 import { PlacedAttributeBadges } from "./src/components/canvas/PlacedAttributeBadges";
 import { SemanticAnchorTooltip } from "./src/components/canvas/SemanticAnchorTooltip";
+import { PacerOverlayLayer } from "./src/components/canvas/PacerOverlayLayer";
 import { ClearCanvasConfirmModal } from "./src/components/modals/ClearCanvasConfirmModal";
 import { DocumentActionsModal } from "./src/components/modals/DocumentActionsModal";
 
@@ -100,6 +101,10 @@ export default function App() {
     visualAST,
     toolbarDockSide,
     handleToggleDockSide,
+    pacerFilter,
+    setPacerFilter,
+    showPacerOverlay,
+    handleTogglePacerOverlay,
   } = useCanvasState();
 
   return (
@@ -172,6 +177,16 @@ export default function App() {
           onFingerTap={handleFingerTap}
         />
 
+        {/* Capa de Superposición PACER (Master Spec Sec 9: Cajas y Badges de Rol Cognitivo) */}
+        <PacerOverlayLayer
+          nodes={compilation?.nodes}
+          canvasScale={canvasScale}
+          canvasTranslateX={canvasTranslateX}
+          canvasTranslateY={canvasTranslateY}
+          activeFilter={pacerFilter}
+          visible={showPacerOverlay}
+        />
+
         {/* Badges de Atributos Cognitivos anclados al lienzo con soporte Air View y Halo Perimetral */}
         <PlacedAttributeBadges
           attributes={placedAttributes}
@@ -221,7 +236,7 @@ export default function App() {
         />
       </View>
 
-      {/* 5. Panel Lateral de Compilación (380dp) */}
+      {/* 5. Panel Lateral de Compilación (380dp) con Auditoría GRINDE, PACER y Práctica Deliberada */}
       <CompilerDrawer
         isOpen={isDrawerOpen}
         onClose={() => setIsDrawerOpen(false)}
@@ -229,6 +244,10 @@ export default function App() {
         onCompile={handleCompile}
         isCompiling={isCompiling}
         strokeCount={strokeCount}
+        pacerFilter={pacerFilter}
+        onPacerFilterChange={setPacerFilter}
+        showPacerOverlay={showPacerOverlay}
+        onTogglePacerOverlay={handleTogglePacerOverlay}
       />
 
       {/* 6. Modal de Confirmación de Borrado Seguro de Lienzo */}

@@ -3,16 +3,39 @@ import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, Alert 
 import { CognitiveCompilerOutput } from "@cognitive-canvas/core/types";
 import { ankiClient } from "../services/AnkiConnectClient";
 
+import { PacerClassification } from "@cognitive-canvas/core/types";
+import { PACER_COLORS } from "./canvas/PacerOverlayLayer";
+
 interface RetrievalPanelProps {
   compilation: CognitiveCompilerOutput | null;
   onRefresh?: () => void;
+  pacerFilter?: PacerClassification | "ALL";
+  onPacerFilterChange?: (filter: PacerClassification | "ALL") => void;
+  showPacerOverlay?: boolean;
+  onTogglePacerOverlay?: () => void;
 }
 
-export const RetrievalPanel: React.FC<RetrievalPanelProps> = ({ compilation }) => {
+export const RetrievalPanel: React.FC<RetrievalPanelProps> = ({
+  compilation,
+  pacerFilter = "ALL",
+  onPacerFilterChange,
+  showPacerOverlay = true,
+  onTogglePacerOverlay,
+}) => {
   const [hostIp, setHostIp] = useState<string>("192.168.1.100");
   const [syncStatus, setSyncStatus] = useState<string>("Sin sincronizar");
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
-  const [activeTab, setActiveTab] = useState<"audit" | "anki" | "transfer" | "cases">("audit");
+  const [activeTab, setActiveTab] = useState<"audit" | "pacer" | "anki" | "transfer" | "cases">("audit");
+  const [internalFilter, setInternalFilter] = useState<PacerClassification | "ALL">(pacerFilter);
+
+  const currentFilter = onPacerFilterChange ? pacerFilter : internalFilter;
+  const setFilter = (f: PacerClassification | "ALL") => {
+    if (onPacerFilterChange) {
+      onPacerFilterChange(f);
+    } else {
+      setInternalFilter(f);
+    }
+  };
 
   const cards = compilation?.anki_flashcards || compilation?.learning_engine_outputs?.anki_flashcards || [];
 
@@ -61,11 +84,15 @@ export const RetrievalPanel: React.FC<RetrievalPanelProps> = ({ compilation }) =
     );
   }
 
-  const { grinde_audit } = compilation;
+  const { grinde_audit, nodes = [] } = compilation;
   const anki_flashcards = compilation.anki_flashcards || compilation.learning_engine_outputs?.anki_flashcards || [];
   const high_road_transfer_prompts = compilation.high_road_transfer_prompts || compilation.learning_engine_outputs?.high_road_transfer_prompts || [];
   const derring_effect_challenges = compilation.derring_effect_challenges || compilation.learning_engine_outputs?.derring_effect_challenges || [];
   const contrasting_cases_icc = compilation.contrasting_cases_icc || compilation.learning_engine_outputs?.contrasting_cases_icc || [];
+
+  const filteredNodes = currentFilter === "ALL"
+    ? nodes
+    : nodes.filter((n) => n.pacer_classification === currentFilter);
 
   return (
     <View style={styles.container}>
@@ -76,6 +103,12 @@ export const RetrievalPanel: React.FC<RetrievalPanelProps> = ({ compilation }) =
           onPress={() => setActiveTab("audit")}
         >
           <Text style={[styles.tabText, activeTab === "audit" && styles.activeTabText]}>GRINDE</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === "pacer" && styles.activeTab]}
+          onPress={() => setActiveTab("pacer")}
+        >
+          <Text style={[styles.tabText, activeTab === "pacer" && styles.activeTabText]}>PACER ({nodes.length})</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.tab, activeTab === "anki" && styles.activeTab]}
@@ -115,6 +148,128 @@ export const RetrievalPanel: React.FC<RetrievalPanelProps> = ({ compilation }) =
               </View>
             </View>
             <Text style={styles.critiqueText}>{grinde_audit.feedback_critique}</Text>
+          </View>
+        )}
+
+        {/* TAB 2: PACER TAXONOMY & INTERACTIVE FILTERS */}
+        {activeTab === "pacer" && (
+          <View style={styles.card}>
+            <View style={styles.pacerHeaderRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.cardTitle}>Taxonomía PACER (Justin Sung)</Text>
+                <Text style={styles.sectionSubtitle}>
+                  Clasificación epistemológica de conceptos según su rol causal y deducibilidad.
+                </Text>
+              </View>
+              {onTogglePacerOverlay && (
+                <TouchableOpacity
+                  style={[
+                    styles.overlayToggleButton,
+                    showPacerOverlay ? styles.overlayToggleActive : styles.overlayToggleInactive,
+                  ]}
+                  onPress={onTogglePacerOverlay}
+                >
+                  <Text style={styles.overlayToggleText}>
+                    {showPacerOverlay ? "👁️ Lienzo ON" : "👁️ Lienzo OFF"}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {/* Filter Chips */}
+            <View style={styles.pacerChipsRow}>
+              <TouchableOpacity
+                style={[
+                  styles.pacerChip,
+                  currentFilter === "ALL" && styles.pacerChipActive,
+                ]}
+                onPress={() => setFilter("ALL")}
+              >
+                <Text
+                  style={[
+                    styles.pacerChipText,
+                    currentFilter === "ALL" && styles.pacerChipTextActive,
+                  ]}
+                >
+                  Todos ({nodes.length})
+                </Text>
+              </TouchableOpacity>
+
+              {(["CONCEPTUAL", "PROCEDURAL", "ANALOGOUS", "EVIDENCE", "REFERENCE"] as PacerClassification[]).map(
+                (type) => {
+                  const count = nodes.filter((n) => n.pacer_classification === type).length;
+                  const info = PACER_COLORS[type];
+                  const isSelected = currentFilter === type;
+
+                  return (
+                    <TouchableOpacity
+                      key={type}
+                      style={[
+                        styles.pacerChip,
+                        { borderColor: info.borderColor },
+                        isSelected && { backgroundColor: info.borderColor },
+                      ]}
+                      onPress={() => setFilter(type)}
+                    >
+                      <Text
+                        style={[
+                          styles.pacerChipText,
+                          { color: isSelected ? "#FFFFFF" : info.color },
+                        ]}
+                      >
+                        {info.letter} · {info.label} ({count})
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                }
+              )}
+            </View>
+
+            {/* Filtered Nodes List */}
+            {filteredNodes.length === 0 ? (
+              <Text style={styles.emptyFilterText}>No hay nodos en esta categoría.</Text>
+            ) : (
+              filteredNodes.map((node) => {
+                const info = PACER_COLORS[node.pacer_classification];
+                return (
+                  <View key={node.id} style={styles.pacerNodeItem}>
+                    <View style={styles.pacerNodeTopRow}>
+                      <View style={[styles.pacerNodeBadge, { backgroundColor: info.borderColor }]}>
+                        <Text style={styles.pacerNodeBadgeLetter}>{info.letter}</Text>
+                      </View>
+                      <Text style={styles.pacerNodeTitle}>{node.detected_content}</Text>
+                      <View
+                        style={[
+                          styles.deducibleBadge,
+                          {
+                            backgroundColor: node.deducible_from_context
+                              ? "rgba(16, 185, 129, 0.2)"
+                              : "rgba(245, 158, 11, 0.2)",
+                          },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.deducibleBadgeText,
+                            {
+                              color: node.deducible_from_context ? "#10B981" : "#F59E0B",
+                            },
+                          ]}
+                        >
+                          {node.deducible_from_context ? "Deducible en red" : "Memorizar en Anki"}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {node.passive_context && (
+                      <Text style={styles.pacerNodeContext}>
+                        📝 Contexto: {node.passive_context}
+                      </Text>
+                    )}
+                  </View>
+                );
+              })
+            )}
           </View>
         )}
 
@@ -446,5 +601,109 @@ const styles = StyleSheet.create({
     color: "#F8FAFC",
     fontSize: 12,
     marginTop: 2,
+  },
+  pacerHeaderRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  overlayToggleButton: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  overlayToggleActive: {
+    backgroundColor: "rgba(14, 165, 233, 0.2)",
+    borderColor: "#0EA5E9",
+  },
+  overlayToggleInactive: {
+    backgroundColor: "rgba(100, 116, 139, 0.2)",
+    borderColor: "#475569",
+  },
+  overlayToggleText: {
+    color: "#F8FAFC",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  pacerChipsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    marginBottom: 12,
+  },
+  pacerChip: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#334155",
+    backgroundColor: "#0F172A",
+  },
+  pacerChipActive: {
+    backgroundColor: "#0EA5E9",
+    borderColor: "#38BDF8",
+  },
+  pacerChipText: {
+    color: "#94A3B8",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  pacerChipTextActive: {
+    color: "#FFFFFF",
+  },
+  emptyFilterText: {
+    color: "#64748B",
+    fontSize: 12,
+    textAlign: "center",
+    paddingVertical: 16,
+  },
+  pacerNodeItem: {
+    backgroundColor: "#0F172A",
+    borderRadius: 6,
+    padding: 8,
+    marginBottom: 6,
+    borderLeftWidth: 3,
+    borderLeftColor: "#334155",
+  },
+  pacerNodeTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  pacerNodeBadge: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 8,
+  },
+  pacerNodeBadgeLetter: {
+    color: "#FFFFFF",
+    fontSize: 11,
+    fontWeight: "900",
+  },
+  pacerNodeTitle: {
+    color: "#F8FAFC",
+    fontSize: 12,
+    fontWeight: "600",
+    flex: 1,
+  },
+  deducibleBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    marginLeft: 6,
+  },
+  deducibleBadgeText: {
+    fontSize: 9,
+    fontWeight: "700",
+  },
+  pacerNodeContext: {
+    color: "#94A3B8",
+    fontSize: 11,
+    marginTop: 4,
+    marginLeft: 28,
   },
 });
