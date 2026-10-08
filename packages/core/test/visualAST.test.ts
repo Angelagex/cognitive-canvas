@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { VisualASTEngine } from "../src/parser/VisualASTEngine";
-import { RawInkStroke } from "../src/types/cognitive";
+import { RawInkStroke, RawInkPoint } from "../src/types/cognitive";
 
 describe("5-Level Digital Ink Parsing & 3-Layer Persistence (ARCHITECTURE_SPEC.md Sec 5)", () => {
   const engine = new VisualASTEngine();
@@ -1416,6 +1416,116 @@ describe("5-Level Digital Ink Parsing & 3-Layer Persistence (ARCHITECTURE_SPEC.m
     expect(result.entities[0].stroke_ids).toContain("h1_stroke");
     expect(result.entities[0].stroke_ids).toContain("h2_stroke");
     expect(result.entities[0].stroke_ids).toContain("y_desc");
+  });
+
+  it("should recognize single-stroke arrow with acute turn hook as an ARROW connector", () => {
+    // Single continuous stroke drawn with stylus at 120Hz: shaft from (100, 150) to (220, 150),
+    // then acute hook backwards to (200, 135)
+    const points: RawInkPoint[] = [];
+    // Shaft (30 points)
+    for (let x = 100; x <= 220; x += 4) {
+      points.push({ x, y: 150 });
+    }
+    // Backward barb hook (7 points)
+    for (let i = 1; i <= 6; i++) {
+      points.push({ x: 220 - i * 3.3, y: 150 - i * 2.5 });
+    }
+
+    const singleArrow: RawInkStroke = {
+      id: "single_arrow_1",
+      color: "#000",
+      width: 3,
+      points,
+    };
+
+    const result = engine.parseVisualAST([singleArrow]);
+
+    expect(result.connectors).toHaveLength(1);
+    expect(result.connectors[0].type).toBe("ARROW");
+    expect(result.connectors[0].directionality).toBe("FORWARD");
+    expect(result.connectors[0].stroke_ids).toEqual(["single_arrow_1"]);
+    expect(result.entities).toHaveLength(0);
+  });
+
+  it("should recognize two-stroke arrow drawn from a word (Demanda ->) as an ARROW connector docked to the word", () => {
+    // Word "Demanda" (two handwriting letter strokes)
+    const dStroke: RawInkStroke = { id: "strk_d", color: "#000", width: 3, points: [{ x: 90, y: 90 }, { x: 120, y: 140 }] };
+    const mStroke: RawInkStroke = { id: "strk_m", color: "#000", width: 3, points: [{ x: 125, y: 110 }, { x: 155, y: 140 }] };
+
+    // Arrow shaft starting near the word and pointing right
+    const arrowShaft: RawInkStroke = { id: "arrow_shaft", color: "#000", width: 3, points: [{ x: 185, y: 130 }, { x: 290, y: 130 }] };
+    // Arrowhead tip at the end of the shaft
+    const arrowTip: RawInkStroke = { id: "arrow_tip", color: "#000", width: 3, points: [{ x: 275, y: 120 }, { x: 290, y: 130 }, { x: 275, y: 140 }] };
+
+    const result = engine.parseVisualAST([dStroke, mStroke, arrowShaft, arrowTip]);
+
+    // Word must be 1 TEXT_BLOCK entity
+    expect(result.entities).toHaveLength(1);
+    expect(result.entities[0].type).toBe("TEXT_BLOCK");
+    expect(result.entities[0].stroke_ids).toContain("strk_d");
+    expect(result.entities[0].stroke_ids).toContain("strk_m");
+
+    // Arrow must be recognized as 1 ARROW connector, NOT absorbed into the word
+    expect(result.connectors).toHaveLength(1);
+    expect(result.connectors[0].type).toBe("ARROW");
+    expect(result.connectors[0].stroke_ids).toContain("arrow_shaft");
+    expect(result.connectors[0].stroke_ids).toContain("arrow_tip");
+    expect(result.connectors[0].source_entity_id).toBe(result.entities[0].id);
+  });
+
+  it("should recognize multi-stroke arrow with 2 separate barb wings as an ARROW connector", () => {
+    // Shaft: (100, 200) to (250, 200)
+    const shaft: RawInkStroke = { id: "s_shaft", color: "#000", width: 3, points: [{ x: 100, y: 200 }, { x: 250, y: 200 }] };
+    // Top barb wing: (250, 200) to (235, 190)
+    const barbTop: RawInkStroke = { id: "s_barb_top", color: "#000", width: 3, points: [{ x: 250, y: 200 }, { x: 235, y: 190 }] };
+    // Bottom barb wing: (250, 200) to (235, 210)
+    const barbBot: RawInkStroke = { id: "s_barb_bot", color: "#000", width: 3, points: [{ x: 250, y: 200 }, { x: 235, y: 210 }] };
+
+    const result = engine.parseVisualAST([shaft, barbTop, barbBot]);
+
+    expect(result.connectors).toHaveLength(1);
+    expect(result.connectors[0].type).toBe("ARROW");
+    expect(result.connectors[0].stroke_ids).toContain("s_shaft");
+    expect(result.entities).toHaveLength(0);
+  });
+
+  it("should cluster P, h, g, y handwriting strokes into 1 TEXT_BLOCK and keep outgoing arrow as ARROW connector", () => {
+    // Handwriting letters P, h, g, y drawn in typical tablet multi-stroke fashion
+    const p_stem: RawInkStroke = { id: "p_stem", color: "#000", width: 3, points: [{ x: 100, y: 100 }, { x: 100, y: 170 }] };
+    const p_loop: RawInkStroke = { id: "p_loop", color: "#000", width: 3, points: [{ x: 100, y: 100 }, { x: 130, y: 120 }, { x: 100, y: 140 }] };
+    const h_stem: RawInkStroke = { id: "h_stem", color: "#000", width: 3, points: [{ x: 145, y: 90 }, { x: 145, y: 170 }] };
+    const h_arch: RawInkStroke = { id: "h_arch", color: "#000", width: 3, points: [{ x: 145, y: 130 }, { x: 175, y: 120 }, { x: 185, y: 170 }] };
+    const g_loop: RawInkStroke = { id: "g_loop", color: "#000", width: 3, points: [{ x: 200, y: 125 }, { x: 225, y: 125 }, { x: 225, y: 165 }, { x: 200, y: 165 }, { x: 200, y: 125 }] };
+    const g_desc: RawInkStroke = { id: "g_desc", color: "#000", width: 3, points: [{ x: 225, y: 135 }, { x: 225, y: 200 }, { x: 200, y: 210 }] };
+    const y_slash: RawInkStroke = { id: "y_slash", color: "#000", width: 3, points: [{ x: 240, y: 125 }, { x: 260, y: 165 }] };
+    const y_desc: RawInkStroke = { id: "y_desc", color: "#000", width: 3, points: [{ x: 270, y: 125 }, { x: 245, y: 200 }] };
+
+    // Outgoing diagram arrow pointing from the word to the right
+    const arrow_shaft: RawInkStroke = { id: "out_arrow_shaft", color: "#000", width: 3, points: [{ x: 290, y: 145 }, { x: 420, y: 145 }] };
+    const arrow_tip: RawInkStroke = { id: "out_arrow_tip", color: "#000", width: 3, points: [{ x: 405, y: 135 }, { x: 420, y: 145 }, { x: 405, y: 155 }] };
+
+    const result = engine.parseVisualAST([
+      p_stem, p_loop,
+      h_stem, h_arch,
+      g_loop, g_desc,
+      y_slash, y_desc,
+      arrow_shaft, arrow_tip
+    ]);
+
+    // Word must be a single entity containing all 8 letter strokes
+    expect(result.entities).toHaveLength(1);
+    expect(result.entities[0].type).toBe("TEXT_BLOCK");
+    expect(result.entities[0].stroke_ids).toHaveLength(8);
+    expect(result.entities[0].stroke_ids).toContain("p_stem");
+    expect(result.entities[0].stroke_ids).toContain("h_stem");
+    expect(result.entities[0].stroke_ids).toContain("g_desc");
+    expect(result.entities[0].stroke_ids).toContain("y_desc");
+
+    // Outgoing arrow must be exactly 1 ARROW connector docked to the word
+    expect(result.connectors).toHaveLength(1);
+    expect(result.connectors[0].type).toBe("ARROW");
+    expect(result.connectors[0].stroke_ids).toEqual(["out_arrow_shaft", "out_arrow_tip"]);
+    expect(result.connectors[0].source_entity_id).toBe(result.entities[0].id);
   });
 });
 

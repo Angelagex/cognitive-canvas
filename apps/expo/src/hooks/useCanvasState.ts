@@ -100,6 +100,8 @@ export const useCanvasState = () => {
 
   // Debounced AST parsing reference (eliminates writing latency on rapid stroke sequences)
   const parseAstDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  const strokesRef = useRef<RawInkStroke[]>([]);
+  const strokeBBoxesRef = useRef<Map<string, EntityBoundingBox>>(new Map());
 
   useEffect(() => {
     return () => {
@@ -119,14 +121,34 @@ export const useCanvasState = () => {
       if (redoPossible !== undefined) setCanRedo(redoPossible);
 
       if (strokes) {
-        setRawStrokes(strokes);
+        strokesRef.current = strokes;
 
-        // Debounce heavy AST parsing so continuous letter handwriting at 120Hz stays butter-smooth
+        // Cache bounding boxes of newly added strokes once in O(1)
+        const bboxes = strokeBBoxesRef.current;
+        for (const strk of strokes) {
+          if (!bboxes.has(strk.id) && strk.points && strk.points.length > 0) {
+            let sMinX = strk.points[0].x;
+            let sMaxX = strk.points[0].x;
+            let sMinY = strk.points[0].y;
+            let sMaxY = strk.points[0].y;
+            for (let i = 1; i < strk.points.length; i++) {
+              const pt = strk.points[i];
+              if (pt.x < sMinX) sMinX = pt.x;
+              if (pt.x > sMaxX) sMaxX = pt.x;
+              if (pt.y < sMinY) sMinY = pt.y;
+              if (pt.y > sMaxY) sMaxY = pt.y;
+            }
+            bboxes.set(strk.id, { xmin: sMinX, ymin: sMinY, xmax: sMaxX, ymax: sMaxY });
+          }
+        }
+
+        // Debounce heavy AST parsing & React state updates so continuous letter handwriting at 120Hz stays butter-smooth
         if (parseAstDebounceRef.current) {
           clearTimeout(parseAstDebounceRef.current);
         }
 
         parseAstDebounceRef.current = setTimeout(() => {
+          setRawStrokes(strokes);
           try {
             // Passive context mapping from placed attributes to entity keys
             const passiveMap: Record<string, string> = {};
@@ -148,7 +170,7 @@ export const useCanvasState = () => {
           } catch (err) {
             console.warn("[VisualASTEngine] Error parsing live strokes:", err);
           }
-        }, 120);
+        }, 280);
       }
     },
     [visualASTEngine, placedAttributes, canvasScale]
@@ -258,7 +280,7 @@ export const useCanvasState = () => {
         xmax: bestEntity.bbox.xmax,
         ymax: bestEntity.bbox.ymax,
       };
-      setHoveredEntity(bestEntity);
+      setHoveredEntity((prev) => (prev?.id === bestEntity?.id ? prev : bestEntity));
 
       // Inspector de Agrupación: Detectar trazos dentro del bbox de bestEntity que NO pertenecen a bestEntity
       const margin = 14 * zoomFactor;
@@ -268,45 +290,52 @@ export const useCanvasState = () => {
       const bMaxY = bestEntity.bbox.ymax + margin;
 
       const unclustered: Array<{ id: string; bbox: EntityBoundingBox }> = [];
+      const bboxes = strokeBBoxesRef.current;
 
-      for (const strk of rawStrokes) {
+      for (const strk of strokesRef.current) {
         if (bestEntity.stroke_ids.includes(strk.id)) continue;
-        if (!strk.points || strk.points.length === 0) continue;
+        const bbox = bboxes.get(strk.id);
+        if (!bbox) continue;
 
-        let sMinX = strk.points[0].x;
-        let sMaxX = strk.points[0].x;
-        let sMinY = strk.points[0].y;
-        let sMaxY = strk.points[0].y;
-        for (let i = 1; i < strk.points.length; i++) {
-          const pt = strk.points[i];
-          if (pt.x < sMinX) sMinX = pt.x;
-          if (pt.x > sMaxX) sMaxX = pt.x;
-          if (pt.y < sMinY) sMinY = pt.y;
-          if (pt.y > sMaxY) sMaxY = pt.y;
-        }
-
-        const centerX = (sMinX + sMaxX) / 2;
-        const centerY = (sMinY + sMaxY) / 2;
+        const centerX = (bbox.xmin + bbox.xmax) / 2;
+        const centerY = (bbox.ymin + bbox.ymax) / 2;
         const isInside = centerX >= bMinX && centerX <= bMaxX && centerY >= bMinY && centerY <= bMaxY;
 
         if (isInside) {
-          unclustered.push({
-            id: strk.id,
-            bbox: { xmin: sMinX, ymin: sMinY, xmax: sMaxX, ymax: sMaxY },
-          });
+          unclustered.push({ id: strk.id, bbox });
         }
       }
 
-      setUnclusteredStrokesInEntity(unclustered.length > 0 ? unclustered : null);
+      setUnclusteredStrokesInEntity((prev) => {
+        const nextVal = unclustered.length > 0 ? unclustered : null;
+        if (!prev && !nextVal) return prev;
+        if (prev && nextVal && prev.length === nextVal.length && prev.every((p, i) => p.id === nextVal[i].id)) {
+          return prev;
+        }
+        return nextVal;
+      });
     } else {
-      setHoveredEntity(null);
-      setUnclusteredStrokesInEntity(null);
+      setHoveredEntity((prev) => (prev === null ? prev : null));
+      setUnclusteredStrokesInEntity((prev) => (prev === null ? prev : null));
       if (entityBounds) {
         resolvedEntityBounds = entityBounds;
       }
     }
 
-    setHoveredEntityBounds(resolvedEntityBounds);
+    setHoveredEntityBounds((prev) => {
+      if (!prev && !resolvedEntityBounds) return prev;
+      if (
+        prev &&
+        resolvedEntityBounds &&
+        prev.xmin === resolvedEntityBounds.xmin &&
+        prev.ymin === resolvedEntityBounds.ymin &&
+        prev.xmax === resolvedEntityBounds.xmax &&
+        prev.ymax === resolvedEntityBounds.ymax
+      ) {
+        return prev;
+      }
+      return resolvedEntityBounds;
+    });
 
     // Check if hovering near or directly over any placed attribute using a uniform 14dp pill halo
     const match = placedAttributes.find((attr) => {
@@ -339,9 +368,11 @@ export const useCanvasState = () => {
     });
 
     if (match) {
-      setHoveredAttribute(match);
+      setHoveredAttribute((prev) => (prev?.id === match.id ? prev : match));
+      setHoverScreenX(screenX);
+      setHoverScreenY(screenY);
     } else {
-      setHoveredAttribute(null);
+      setHoveredAttribute((prev) => (prev === null ? prev : null));
       // If stylus moved away from any entity or attribute, dismiss icon if modal is not open
       if (!resolvedEntityBounds && !isAnchorModalOpen) {
         setAnchorTooltip(null);
@@ -349,7 +380,7 @@ export const useCanvasState = () => {
         setActiveEntityBounds(null);
       }
     }
-  }, [placedAttributes, canvasScale, canvasTranslateX, canvasTranslateY, isAnchorModalOpen, visualAST, rawStrokes]);
+  }, [placedAttributes, canvasScale, canvasTranslateX, canvasTranslateY, isAnchorModalOpen, visualAST]);
 
   const handleBadgeHover = useCallback((attr: PlacedAttribute | null, screenX?: number, screenY?: number) => {
     setHoveredAttribute(attr);

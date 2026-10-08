@@ -40,6 +40,15 @@ export class EntityClusterer {
     const localDim = Math.max(maxDimA, maxDimB);
     const hTilde = localDim >= 12 * zoomFactor ? localDim : Math.max(12 * zoomFactor, scaleHint);
 
+    // Fast Bounding Box Pre-Rejection:
+    // If bounding boxes are separated by more than maximum allowable word proximity,
+    // they can never be in the same entity. Reject in O(1) without computing skeletal point distances.
+    const maxPossibleDx = Math.max(35 * zoomFactor, hTilde * 2.0);
+    const maxPossibleDy = Math.max(40 * zoomFactor, hTilde * 1.25);
+    if (dx > maxPossibleDx || dy > maxPossibleDy) {
+      return false;
+    }
+
     // 1. Direct Physical Touch / Skeletal Point-to-Stroke Connection (MyScript point-to-segment)
     // T-crossing, P-loop touching stem, D-belly touching stem, N/R/Y branch touching stem, cursive ligature
     const skeletalDist = SkeletalDistance.minDistanceBetweenStrokes(a.stroke, b.stroke, zoomFactor);
@@ -83,6 +92,43 @@ export class EntityClusterer {
   }
 
   /**
+   * Validates whether a stroke has the geometry of a handwriting stroke (vertical stem, crossbar, or compact loop).
+   * Rejects long horizontal lines and diagonal lines which represent diagram connectors.
+   */
+  public static isLetterShape(
+    stroke: RawInkStroke,
+    scaleHint: number,
+    zoomFactor: number
+  ): boolean {
+    const pts = stroke.points;
+    if (!pts || pts.length < 2) return true;
+
+    const bbox = SkeletalDistance.computeBoundingBox(pts);
+    const w = bbox.xmax - bbox.xmin;
+    const h = bbox.ymax - bbox.ymin;
+
+    const maxStemW = Math.max(60 * zoomFactor, scaleHint * 1.6);
+    const maxStemH = Math.max(280 * zoomFactor, scaleHint * 4.0);
+
+    const maxBarH = Math.max(30 * zoomFactor, scaleHint * 0.9);
+    const maxBarW = Math.max(65 * zoomFactor, scaleHint * 1.7);
+
+    const maxBodyW = Math.max(65 * zoomFactor, scaleHint * 1.7);
+    const maxBodyH = Math.max(130 * zoomFactor, scaleHint * 2.6);
+
+    // Vertical stem (P, h, t, l, b, d, f, k, p, q, y, j, etc.)
+    const isVerticalStem = w <= maxStemW && h <= maxStemH;
+
+    // Horizontal bar (crossbars like 't', accents, hyphens)
+    const isHorizontalBar = h <= maxBarH && w <= maxBarW;
+
+    // Compact body / loop (o, a, e, c, s, u, v, w, etc.)
+    const isCompactBody = w <= maxBodyW && h <= maxBodyH;
+
+    return isVerticalStem || isHorizontalBar || isCompactBody;
+  }
+
+  /**
    * Checks if a candidate stroke has nearby letter/word neighbors on the same baseline.
    * Crucial: treats letter-scale closed loops (o, a, e, p, b, d) as valid text neighbors,
    * while ignoring arrowheads and long diagram lines.
@@ -93,9 +139,6 @@ export class EntityClusterer {
     scaleHint: number,
     zoomFactor: number
   ): boolean {
-    const maxLetterBoxW = Math.max(140 * zoomFactor, scaleHint * 2.6);
-    const maxLetterBoxH = Math.max(90 * zoomFactor, scaleHint * 2.0);
-
     return allStrokes.some((other) => {
       if (other.stroke.id === target.stroke.id) return false;
       if (other.classification.type === "SCRATCH_OUT") return false;
@@ -103,18 +146,14 @@ export class EntityClusterer {
 
       // If other is a large container box (not letter scale), it's not a text neighbor
       if (other.classification.type === "BOX") {
-        const otherW = other.bbox.xmax - other.bbox.xmin;
-        const otherH = other.bbox.ymax - other.bbox.ymin;
-        if (otherW >= maxLetterBoxW || otherH >= maxLetterBoxH) {
+        if (!this.isLetterShape(other.stroke, scaleHint, zoomFactor)) {
           return false;
         }
       }
 
-      // If other is a long diagram line, it's not a text neighbor
+      // If other is a long diagram line (wide horizontal or diagonal), it's not a text neighbor
       if (other.classification.type === "LINE") {
-        const otherW = other.bbox.xmax - other.bbox.xmin;
-        const otherH = other.bbox.ymax - other.bbox.ymin;
-        if (otherW > maxLetterBoxW || otherH > maxLetterBoxH) {
+        if (!this.isLetterShape(other.stroke, scaleHint, zoomFactor)) {
           return false;
         }
       }

@@ -33,9 +33,9 @@ export class ScaleEstimator {
 
       // Filter out obvious diagram structures from handwriting scale estimation:
       const isLongLine =
-        linearity >= 0.82 &&
-        totalLength >= 80 * zoomFactor &&
-        (w >= 70 * zoomFactor || h >= 70 * zoomFactor);
+        (linearity >= 0.65 || totalLength >= 80 * zoomFactor) &&
+        totalLength >= 60 * zoomFactor &&
+        (w >= 50 * zoomFactor || h >= 50 * zoomFactor);
       const isLargeContainer =
         isClosed &&
         totalLength >= 260 * zoomFactor &&

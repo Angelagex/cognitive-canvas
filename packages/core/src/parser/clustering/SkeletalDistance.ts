@@ -63,6 +63,23 @@ export class SkeletalDistance {
   }
 
   /**
+   * Computes the minimum Euclidean distance from a point to any segment of a stroke.
+   */
+  public static distancePointToStroke(p: { x: number; y: number }, stroke: RawInkStroke): number {
+    const pts = stroke.points;
+    if (!pts || pts.length === 0) return Infinity;
+    if (pts.length === 1) return Math.hypot(p.x - pts[0].x, p.y - pts[0].y);
+    let minDist = Infinity;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const d = this.distancePointToSegment(p, pts[i], pts[i + 1]);
+      if (d < minDist) {
+        minDist = d;
+      }
+    }
+    return minDist;
+  }
+
+  /**
    * Computes the minimum skeletal Euclidean distance between two ink strokes
    * by sampling points and evaluating point-to-segment distances.
    */

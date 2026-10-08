@@ -73,12 +73,24 @@ export class StrokeClassifier implements IStrokeClassifier {
       return { type: "BOX" };
     }
 
-    // Check if small arrowhead hook (open V shape, small length with sharp bend)
-    const maxArrowTipLen = Math.max(110 * zoomFactor, scaleHint * 1.8);
-    if (!isClosed && directDist / (totalLength + 1e-4) >= 0.35 && totalLength < maxArrowTipLen && pts.length >= 3 && pts.length <= 40) {
+    // Check if small arrowhead hook (open V shape, small length with sharp bend and balanced wings)
+    const maxArrowTipDim = Math.max(55 * zoomFactor, Math.min(80 * zoomFactor, scaleHint * 1.0));
+    const maxArrowTipLen = Math.max(90 * zoomFactor, Math.min(130 * zoomFactor, scaleHint * 1.5));
+    const wingSpread = Math.hypot(pts[pts.length - 1].x - pts[0].x, pts[pts.length - 1].y - pts[0].y);
+    const isOpenV = directDist / (totalLength + 1e-4) >= 0.15 && directDist / (totalLength + 1e-4) <= 0.88;
+
+    if (
+      isOpenV &&
+      boxW <= maxArrowTipDim &&
+      boxH <= maxArrowTipDim &&
+      totalLength < maxArrowTipLen &&
+      wingSpread >= 8 * zoomFactor &&
+      pts.length >= 3 &&
+      pts.length <= 300
+    ) {
       let minDot = 1.0;
       let apexFound = false;
-      const step = Math.max(1, Math.floor(pts.length / 8));
+      const step = Math.max(1, Math.floor(pts.length / 10));
       for (let i = step; i < pts.length - step; i++) {
         const v1x = pts[i].x - pts[0].x;
         const v1y = pts[i].y - pts[0].y;
@@ -86,58 +98,74 @@ export class StrokeClassifier implements IStrokeClassifier {
         const v2y = pts[pts.length - 1].y - pts[i].y;
         const len1 = Math.hypot(v1x, v1y);
         const len2 = Math.hypot(v2x, v2y);
-        if (len1 > 3 && len2 > 3) {
+        if (len1 >= 5 * zoomFactor && len2 >= 5 * zoomFactor) {
           const dot = (v1x * v2x + v1y * v2y) / (len1 * len2);
-          if (dot < minDot) {
+          const wingBalance = Math.min(len1, len2) / Math.max(len1, len2);
+          // Both wings of an arrowhead must be comparable in length (>= 0.55) and meet at an acute/sharp angle (dot <= 0.12)
+          if (dot < minDot && wingBalance >= 0.55) {
             minDot = dot;
           }
-          if (dot < 0.65) {
+          if (dot <= 0.12 && wingBalance >= 0.55) {
             apexFound = true;
           }
         }
       }
-      if (apexFound && minDot < 0.65) {
+      if (apexFound && minDot <= 0.12) {
         return { type: "ARROW_HEAD" };
       }
     }
 
-    // Single-stroke arrow: stroke with long body and sharp acute hook/barb at the end
-    // Must be diagram-scale (connecting across canvas), NEVER letter-scale (h, y, t)
-    const minArrowTotalLen = Math.max(110 * zoomFactor, scaleHint * 2.5);
-    const minArrowDirectDist = Math.max(75 * zoomFactor, scaleHint * 1.8);
-    const minArrowShaftLen = Math.max(65 * zoomFactor, scaleHint * 1.6);
+    // Single-stroke arrow: stroke with long body and sharp acute retrograde hook/barb at the end
+    const minArrowTotalLen = Math.max(50 * zoomFactor, Math.min(100 * zoomFactor, scaleHint * 1.3));
+    const minArrowDirectDist = Math.max(30 * zoomFactor, Math.min(70 * zoomFactor, scaleHint * 0.8));
+    const minArrowShaftLen = Math.max(30 * zoomFactor, Math.min(70 * zoomFactor, scaleHint * 0.8));
 
     if (totalLength >= minArrowTotalLen && directDist >= minArrowDirectDist && pts.length >= 6) {
       const pStart = pts[0];
       const pEnd = pts[pts.length - 1];
-      const splitIdx = Math.floor(pts.length * 0.8);
-      const pTurn = pts[splitIdx];
-      const shaftDx = pTurn.x - pStart.x;
-      const shaftDy = pTurn.y - pStart.y;
-      const hookDx = pEnd.x - pTurn.x;
-      const hookDy = pEnd.y - pTurn.y;
-      const shaftLen = Math.hypot(shaftDx, shaftDy);
-      const hookLen = Math.hypot(hookDx, hookDy);
-      if (
-        shaftLen >= minArrowShaftLen &&
-        hookLen >= 10 &&
-        hookLen <= Math.max(55 * zoomFactor, scaleHint * 1.2)
-      ) {
-        const dot = (shaftDx * hookDx + shaftDy * hookDy) / (shaftLen * hookLen);
-        if (dot < -0.2) {
-          return {
-            type: "LINE",
-            geometryType: "STRAIGHT",
-            isArrowShape: true,
-            isCurved: false,
-          };
+
+      // Search for the turnaround apex in the terminal 50% of the stroke
+      const startIdx = Math.max(3, Math.floor(pts.length * 0.5));
+      const endIdx = Math.max(startIdx + 1, pts.length - 2);
+
+      let bestApexIdx = -1;
+      let minAcuteDot = 0.0;
+
+      for (let i = startIdx; i <= endIdx; i++) {
+        const pApex = pts[i];
+        const shaftDx = pApex.x - pStart.x;
+        const shaftDy = pApex.y - pStart.y;
+        const hookDx = pEnd.x - pApex.x;
+        const hookDy = pEnd.y - pApex.y;
+        const shaftLen = Math.hypot(shaftDx, shaftDy);
+        const hookLen = Math.hypot(hookDx, hookDy);
+
+        if (
+          shaftLen >= minArrowShaftLen &&
+          hookLen >= 6 * zoomFactor &&
+          hookLen <= Math.max(65 * zoomFactor, shaftLen * 0.45)
+        ) {
+          const dot = (shaftDx * hookDx + shaftDy * hookDy) / (shaftLen * hookLen);
+          if (dot < -0.35 && dot < minAcuteDot) {
+            minAcuteDot = dot;
+            bestApexIdx = i;
+          }
         }
+      }
+
+      if (bestApexIdx !== -1) {
+        return {
+          type: "LINE",
+          geometryType: "STRAIGHT",
+          isArrowShape: true,
+          isCurved: false,
+        };
       }
     }
 
     // Straight line (distinguishes diagram lines from letter stems like 'H', 'T', 'I', 'P')
     const linearity = directDist / (totalLength + 1e-4);
-    const minLineLen = Math.max(55 * zoomFactor, Math.min(160 * zoomFactor, scaleHint * 1.5));
+    const minLineLen = Math.max(40 * zoomFactor, Math.min(100 * zoomFactor, scaleHint * 0.9));
     if (linearity >= 0.82 && totalLength >= minLineLen) {
       return { type: "LINE", geometryType: "STRAIGHT", isCurved: false };
     }
@@ -157,8 +185,8 @@ export class StrokeClassifier implements IStrokeClassifier {
     }
 
     // Diagram curved connectors connect nodes across canvas (not tiny letter curves like h-arch or y-tail)
-    const minCurvedLen = Math.max(75 * zoomFactor, Math.min(180 * zoomFactor, scaleHint * 1.8));
-    const minCurvedDirectDist = Math.max(55 * zoomFactor, scaleHint * 1.3);
+    const minCurvedLen = Math.max(50 * zoomFactor, Math.min(150 * zoomFactor, scaleHint * 1.4));
+    const minCurvedDirectDist = Math.max(35 * zoomFactor, scaleHint * 1.0);
     if (
       linearity >= 0.35 &&
       totalLength >= minCurvedLen &&
