@@ -88,10 +88,11 @@ Basado en: `MASTER_SPEC.md`, `DECISION_RATIONALE.md` y `UI_AND_CANVAS_SPEC.md`.
     * *Integración:* `VisualASTEngine.parseVisualAST()` conectado en tiempo real en `useCanvasState` con sincronización de `visualASTLayer` activo.
     * *Impacto directo:* La detección de hover y el Halo perimetral operan sobre las `VisualEntity` reales calculadas por el motor AST, agrupando palabras completas (`TEXT_BLOCK`), figuras (`CONTAINER_BOX`) y flechas dirigidas (`ARROW`).
   - [ ] **Alineación de Entidades Semánticas:** Refactorizar `VisualASTEngine` para que produzca objetos `SemanticAnchor` tipados (`MECHANISM`, `ANALOGY`, `EVIDENCE`).
-  - [ ] **Servicio de Persistencia Local (`StorageService.ts`):**
+  - [x] **Servicio de Persistencia Local (`StorageService.ts`):**
     - Guardar y cargar archivos `.cmn` (JSON 3 capas) en `expo-file-system`.
-    - Auto-guardado con debounce de 2 segundos tras finalizar trazo.
-    - Carga/recuperación de mapa al iniciar la app.
+    - Auto-guardado con debounce de 2 segundos tras finalizar trazo o editar metadatos.
+    - Carga/recuperación automática de mapa al iniciar la app (`last_active_map.txt`).
+    - Indicador visual en `TopHeader` (`.cmn al día` / `Guardando...`).
   - [x] **Micro-Tooltip de Entrada de Atributo (Ergonomía de 2 Pasos):**
     - Flujo de 2 pasos: Hover Dwell 800 ms activa Halo Perimetral persistente en la entidad + micro-icono flotante semi-opaco (`＋📌`).
     - Al pulsar el micro-icono se despliega el modal simplificado (un solo input para nota/contexto y botón de dictado rápido de voz `SpeechRecognizer`), manteniendo el halo focalizado hasta guardar o cancelar.
@@ -130,7 +131,7 @@ Basado en: `MASTER_SPEC.md`, `DECISION_RATIONALE.md` y `UI_AND_CANVAS_SPEC.md`.
 ---
 
 ## 🎯 PRÓXIMOS PASOS PRIORITARIOS (ORDEN DE EJECUCIÓN)
-1. [COMPLETADO ✅] **Conexión en Tiempo Real de `VisualASTEngine` y Puente de Tinta (`serializeStrokes` / `onStrokeEnd`):** Trazos normalizados por densidad, serializados en cada evento y parseados por el motor de 5 niveles en tiempo real, sincronizando el `visualASTLayer` activo para alimentar el Halo perimetral y el anclaje semántico.
-2. [EN FOCO ACTUAL ⏩] **Servicio de Persistencia Local (`StorageService.ts`):** Guardar y cargar archivos `.cmn` (JSON 3 capas) en `expo-file-system` con auto-guardado con debounce de 2 segundos.
-3. [SIGUIENTE 🔜] **Sincronización del Backend SST (`compile.ts` y `compilerPrompt.ts`):** Actualizar con el System Prompt oficial y JSON Schema estricto de Gemini 2.0 Flash.
-4. [POSTERIOR 🔜] **Alineación de Entidades Semánticas y Gestos Avanzados de Tinta (Spec 5.2):** Refactorizar `VisualASTEngine` para objetos `SemanticAnchor` tipados y gestos nativos (scratch-out, draw-to-lasso).
+1. [COMPLETADO ✅] **Conexión en Tiempo Real de `VisualASTEngine` y Puente de Tinta:** Trazos normalizados por densidad, serializados en cada evento con caché O(1) de bounds, decimation de 240Hz a 120Hz fluido y parseados por el motor de 5 niveles en tiempo real.
+2. [COMPLETADO ✅] **Servicio de Persistencia Local (`StorageService.ts`):** Guardar y cargar archivos `.cmn` (JSON 3 capas) en `expo-file-system` con auto-guardado debounced de 2 segundos, recuperación al abrir la app e indicador en `TopHeader`.
+3. [EN FOCO ACTUAL ⏩] **Sincronización del Backend SST (`compile.ts` y `compilerPrompt.ts`):** Actualizar con el System Prompt oficial de producción y JSON Schema estricto de Gemini 2.0 Flash (Master Spec Sec 7-8) + Pre-Signed URLs en S3.
+4. [SIGUIENTE 🔜] **Alineación de Entidades Semánticas y Gestos Avanzados de Tinta (Spec 5.2):** Refactorizar `VisualASTEngine` para objetos `SemanticAnchor` tipados y gestos nativos (scratch-out, draw-to-lasso, hold-to-snap).

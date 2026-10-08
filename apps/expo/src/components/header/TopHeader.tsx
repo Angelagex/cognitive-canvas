@@ -8,8 +8,11 @@ interface TopHeaderProps {
   canRedo: boolean;
   onUndo: () => void;
   onRedo: () => void;
-  onClear: () => void;
+  onRequestClear: () => void;
   onOpenCompiler: () => void;
+  onOpenVaults: () => void;
+  isSaving?: boolean;
+  lastSavedAt?: number | null;
 }
 
 export const TopHeader: React.FC<TopHeaderProps> = ({
@@ -19,16 +22,19 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
   canRedo,
   onUndo,
   onRedo,
-  onClear,
+  onRequestClear,
   onOpenCompiler,
+  onOpenVaults,
+  isSaving = false,
+  lastSavedAt = null,
 }) => {
   return (
     <View style={styles.header}>
-      {/* Left: Vaults menu & Editable Title */}
+      {/* Left: Vaults Manager, Title & Discreet Save Indicator */}
       <View style={styles.leftSection}>
-        <TouchableOpacity style={styles.vaultButton}>
+        <TouchableOpacity style={styles.vaultButton} onPress={onOpenVaults} activeOpacity={0.75}>
           <Text style={styles.vaultIcon}>📁</Text>
-          <Text style={styles.vaultText}>Libretas</Text>
+          <Text style={styles.vaultText}>Bóveda</Text>
         </TouchableOpacity>
 
         <View style={styles.divider} />
@@ -41,36 +47,61 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
           placeholderTextColor="#64748B"
           selectTextOnFocus
         />
+
+        {/* Unobtrusive Cloud Save Status Indicator */}
+        <View style={styles.saveBadgeContainer}>
+          {isSaving ? (
+            <View style={styles.savingBadge}>
+              <View style={styles.savingDot} />
+              <Text style={styles.savingText}>Guardando...</Text>
+            </View>
+          ) : lastSavedAt ? (
+            <View style={styles.savedBadge}>
+              <Text style={styles.savedCheck}>☁️✓</Text>
+              <Text style={styles.savedText}>Guardado</Text>
+            </View>
+          ) : null}
+        </View>
       </View>
 
-      {/* Center-Right: Undo / Redo & Clear */}
+      {/* Center-Right: Compact Icon-Only Undo / Redo & Safe Clear */}
       <View style={styles.centerSection}>
         <TouchableOpacity
           style={[styles.historyButton, !canUndo && styles.buttonDisabled]}
           onPress={onUndo}
           disabled={!canUndo}
+          activeOpacity={0.7}
+          accessibilityLabel="Deshacer"
         >
           <Text style={[styles.historyIcon, !canUndo && styles.iconDisabled]}>↶</Text>
-          <Text style={[styles.historyLabel, !canUndo && styles.iconDisabled]}>Deshacer</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
           style={[styles.historyButton, !canRedo && styles.buttonDisabled]}
           onPress={onRedo}
           disabled={!canRedo}
+          activeOpacity={0.7}
+          accessibilityLabel="Rehacer"
         >
           <Text style={[styles.historyIcon, !canRedo && styles.iconDisabled]}>↷</Text>
-          <Text style={[styles.historyLabel, !canRedo && styles.iconDisabled]}>Rehacer</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.clearButton} onPress={onClear}>
+        <View style={styles.smallDivider} />
+
+        {/* Clear with confirmation dialog */}
+        <TouchableOpacity
+          style={styles.clearButton}
+          onPress={onRequestClear}
+          activeOpacity={0.7}
+          accessibilityLabel="Limpiar lienzo con confirmación"
+        >
           <Text style={styles.clearIcon}>🗑️</Text>
         </TouchableOpacity>
       </View>
 
       {/* Far Right: [⚡ Compilar Mapa] */}
       <View style={styles.rightSection}>
-        <TouchableOpacity style={styles.compileButton} onPress={onOpenCompiler}>
+        <TouchableOpacity style={styles.compileButton} onPress={onOpenCompiler} activeOpacity={0.8}>
           <Text style={styles.compileLightning}>⚡</Text>
           <Text style={styles.compileText}>Compilar Mapa</Text>
         </TouchableOpacity>
@@ -169,6 +200,12 @@ const styles = StyleSheet.create({
   clearIcon: {
     fontSize: 13,
   },
+  smallDivider: {
+    width: 1,
+    height: 16,
+    backgroundColor: "#334155",
+    marginHorizontal: 4,
+  },
   rightSection: {
     flexDirection: "row",
     alignItems: "center",
@@ -199,5 +236,52 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "700",
     letterSpacing: 0.2,
+  },
+  saveBadgeContainer: {
+    marginLeft: 10,
+    justifyContent: "center",
+  },
+  savingBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(245, 158, 11, 0.15)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(245, 158, 11, 0.3)",
+    gap: 5,
+  },
+  savingDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#F59E0B",
+  },
+  savingText: {
+    color: "#FBBF24",
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  savedBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(16, 185, 129, 0.12)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.25)",
+    gap: 4,
+  },
+  savedCheck: {
+    color: "#34D399",
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  savedText: {
+    color: "#34D399",
+    fontSize: 11,
+    fontWeight: "600",
   },
 });

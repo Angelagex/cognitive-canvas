@@ -28,7 +28,7 @@ async function streamToBase64(stream: any): Promise<string> {
 export const handler: Handler = async (event) => {
   try {
     const body: CanvasCompilerRequest = typeof event.body === "string" ? JSON.parse(event.body) : event.body || {};
-    const { canvas_id, image_s3_key, image_base64, passive_context_dictionary } = body;
+    const { canvas_id, image_s3_key, image_base64, visual_ast_layer, passive_context_dictionary } = body;
 
     if (!canvas_id) {
       return {
@@ -63,11 +63,20 @@ export const handler: Handler = async (event) => {
       base64Image = await streamToBase64(s3Response.Body);
     }
 
-    // Format user passive context
+    // Format Visual AST topology and user passive context
+    let visualAstText = "";
+    if (visual_ast_layer && (visual_ast_layer.entities?.length > 0 || visual_ast_layer.connectors?.length > 0)) {
+      visualAstText = `\nTOPOLOGÍA VISUAL (Visual AST Layer):\n${JSON.stringify(visual_ast_layer, null, 2)}`;
+    }
+
     let passiveContextText = "";
     if (passive_context_dictionary && Object.keys(passive_context_dictionary).length > 0) {
       passiveContextText = `\nDICCIONARIO DE METADATOS PASIVOS DEL USUARIO:\n${JSON.stringify(passive_context_dictionary, null, 2)}`;
     }
+
+    const userPromptContent =
+      `${visualAstText}\n${passiveContextText}`.trim() ||
+      "Analiza el mapa mental manuscrito en la imagen y compílalo según las directrices.";
 
     const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENAI_API_KEY;
     if (!apiKey) {
@@ -79,7 +88,7 @@ export const handler: Handler = async (event) => {
     // Update canvas status to COMPILING
     await CanvasRepository.update(canvas_id, { status: "COMPILING" }).catch(() => null);
 
-    // Invoke Gemini 2.0 Flash with Structured Outputs
+    // Invoke Gemini 2.0 Flash with Structured Outputs & official system instruction
     const response = await ai.models.generateContent({
       model: "gemini-2.0-flash",
       contents: [
@@ -93,12 +102,13 @@ export const handler: Handler = async (event) => {
               },
             },
             {
-              text: `${SYSTEM_COMPILER_PROMPT}\n${passiveContextText}`,
+              text: userPromptContent,
             },
           ],
         },
       ],
       config: {
+        systemInstruction: SYSTEM_COMPILER_PROMPT,
         responseMimeType: "application/json",
         responseSchema: COGNITIVE_COMPILER_JSON_SCHEMA,
       },
@@ -155,12 +165,12 @@ export const handler: Handler = async (event) => {
         id: `card_${compilationId}_${idx}`,
         canvasId: canvas_id,
         compilationId: compilationId,
-        targetNodeId: card.target_node_id,
+        targetNodeId: card.target_node_id || card.source_node_id || `node_${idx}`,
         cardType: card.card_type,
         front: card.front,
         back: card.back,
         clozeText: card.cloze_text,
-        deckName: card.deck_name,
+        deckName: "CognitiveCanvas",
         syncedToAnki: false,
       }));
       await FlashcardRepository.batchCreate(flashcardInputs);

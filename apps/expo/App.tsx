@@ -8,6 +8,8 @@ import { FloatingFooter } from "./src/components/footer/FloatingFooter";
 import { CompilerDrawer } from "./src/components/drawer/CompilerDrawer";
 import { PlacedAttributeBadges } from "./src/components/canvas/PlacedAttributeBadges";
 import { SemanticAnchorTooltip } from "./src/components/canvas/SemanticAnchorTooltip";
+import { ClearCanvasConfirmModal } from "./src/components/modals/ClearCanvasConfirmModal";
+import { VaultsModal } from "./src/components/modals/VaultsModal";
 
 export default function App() {
   const {
@@ -74,19 +76,32 @@ export default function App() {
     handleBarrelButton,
     handleUndo,
     handleRedo,
-    handleClear,
     handleZoomIn,
     handleZoomOut,
     handleResetZoom,
     handleToggleStylusOnly,
     handleCompile,
+    isSaving,
+    lastSavedAt,
+    handleNewMap,
+    handleSaveMap,
+    currentMapId,
+    savedMaps,
+    handleLoadMap,
+    showVaultModal,
+    setShowVaultModal,
+    showClearConfirmModal,
+    handleRequestClear,
+    handleConfirmClear,
+    handleCancelClear,
+    handleDeleteMap,
   } = useCanvasState();
 
   return (
     <SafeAreaView style={styles.rootContainer}>
       <StatusBar barStyle="light-content" backgroundColor="#0B1120" />
 
-      {/* 1. Header Superior (48dp) - Bóvedas, Título editable, Undo/Redo, Compilar */}
+      {/* 1. Header Superior (48dp) - Bóvedas, Título editable, Auto-Save .cmn, Undo/Redo, Compilar */}
       <TopHeader
         mapTitle={mapTitle}
         onTitleChange={setMapTitle}
@@ -94,8 +109,11 @@ export default function App() {
         canRedo={canRedo}
         onUndo={handleUndo}
         onRedo={handleRedo}
-        onClear={handleClear}
+        onRequestClear={handleRequestClear}
         onOpenCompiler={() => setIsDrawerOpen(true)}
+        onOpenVaults={() => setShowVaultModal(true)}
+        isSaving={isSaving}
+        lastSavedAt={lastSavedAt}
       />
 
       {/* 2. Barra de Herramientas Estilo Goodnotes (56dp + sub-barra contextual) */}
@@ -202,6 +220,30 @@ export default function App() {
         onCompile={handleCompile}
         isCompiling={isCompiling}
         strokeCount={strokeCount}
+      />
+
+      {/* 6. Modal de Confirmación de Borrado Seguro de Lienzo */}
+      <ClearCanvasConfirmModal
+        visible={showClearConfirmModal}
+        onConfirm={handleConfirmClear}
+        onCancel={handleCancelClear}
+      />
+
+      {/* 7. Modal de Gestión de Bóvedas / Mis Mapas Cognitivos */}
+      <VaultsModal
+        visible={showVaultModal}
+        onClose={() => setShowVaultModal(false)}
+        savedMaps={savedMaps}
+        currentMapId={currentMapId}
+        onSelectMap={(mapId) => {
+          handleLoadMap(mapId);
+          setShowVaultModal(false);
+        }}
+        onNewMap={() => {
+          handleNewMap();
+          setShowVaultModal(false);
+        }}
+        onDeleteMap={handleDeleteMap}
       />
     </SafeAreaView>
   );

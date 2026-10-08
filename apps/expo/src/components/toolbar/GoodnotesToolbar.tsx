@@ -119,25 +119,24 @@ export const GoodnotesToolbar: React.FC<GoodnotesToolbarProps> = ({
                   style={[styles.toolButton, isActive && styles.toolButtonActive]}
                   onPress={() => onSelectBrush(t.id)}
                   activeOpacity={0.7}
+                  accessibilityLabel={t.label}
                 >
                   <Text style={styles.toolIcon}>{t.icon}</Text>
-                  <Text style={[styles.toolLabel, isActive && styles.toolLabelActive]}>
-                    {t.label}
-                  </Text>
+                  {isActive && <View style={styles.toolActiveIndicator} />}
                 </TouchableOpacity>
               );
             })}
 
             {/* Selector de Plantilla de Papel */}
             <TouchableOpacity
-              style={[styles.templateButton, showTemplateMenu && styles.templateButtonActive]}
+              style={[styles.toolButton, showTemplateMenu && styles.toolButtonActive]}
               onPress={() => setShowTemplateMenu(!showTemplateMenu)}
               activeOpacity={0.7}
+              accessibilityLabel="Plantilla de papel"
             >
               <Text style={styles.templateIcon}>
                 {PAPER_TEMPLATES.find((p) => p.id === backgroundType)?.icon || "⠇"}
               </Text>
-              <Text style={styles.templateLabel}>Papel</Text>
             </TouchableOpacity>
           </ScrollView>
 
@@ -473,35 +472,40 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   toolButton: {
-    flexDirection: "row",
+    width: 42,
+    height: 42,
     alignItems: "center",
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    borderRadius: 8,
+    justifyContent: "center",
+    borderRadius: 10,
     backgroundColor: "#1E293B",
     borderWidth: 1,
     borderColor: "transparent",
+    position: "relative",
   },
   toolButtonActive: {
     backgroundColor: "#1E3A8A",
     borderColor: "#38BDF8",
     shadowColor: "#38BDF8",
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.3,
-    shadowRadius: 3,
+    shadowOpacity: 0.35,
+    shadowRadius: 4,
+  },
+  toolActiveIndicator: {
+    position: "absolute",
+    bottom: 3,
+    width: 14,
+    height: 2.5,
+    borderRadius: 1.5,
+    backgroundColor: "#38BDF8",
   },
   toolIcon: {
-    fontSize: 16,
-    marginRight: 5,
+    fontSize: 18,
   },
   toolLabel: {
-    color: "#94A3B8",
-    fontSize: 12,
-    fontWeight: "600",
+    display: "none",
   },
   toolLabelActive: {
-    color: "#FFFFFF",
-    fontWeight: "700",
+    display: "none",
   },
   passiveAttrButton: {
     flexDirection: "row",

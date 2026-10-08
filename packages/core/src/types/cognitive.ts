@@ -21,6 +21,7 @@ import {
   ConnectorEdge,
   NormalizedBoundingBox,
   VisualEntityType,
+  VisualAST,
 } from "./visualAst";
 
 // Legacy Aliases for backwards compatibility with existing repositories & tests
@@ -58,6 +59,7 @@ export interface CanvasCompilerRequest {
   canvas_id: string;
   image_s3_key?: string;
   image_base64?: string;
+  visual_ast_layer?: VisualAST;
   passive_context_dictionary?: Record<string, string>;
 }
 

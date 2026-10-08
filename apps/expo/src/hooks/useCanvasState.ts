@@ -22,10 +22,28 @@ import {
   VisualASTEntity,
   VisualASTEngine,
 } from "@cognitive-canvas/core";
+import {
+  saveDocument,
+  loadDocument,
+  deleteDocument,
+  getLastActiveMapId,
+  listDocuments,
+  ExtendedCognitiveMapDocument,
+  MapDocumentSummary,
+} from "../services/StorageService";
 
 export const useCanvasState = () => {
-  // Document metadata
+  // Document metadata & Local .cmn Persistence
+  const [currentMapId, setCurrentMapId] = useState<string>(() => `map_${Date.now()}`);
   const [mapTitle, setMapTitle] = useState<string>("Mapa Mental - Redes Neuronales");
+  const [isSaving, setIsSaving] = useState<boolean>(false);
+  const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
+  const [savedMaps, setSavedMaps] = useState<MapDocumentSummary[]>([]);
+  const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const isInitialLoadDoneRef = useRef<boolean>(false);
+  const isDirtyRef = useRef<boolean>(false);
+  const [showClearConfirmModal, setShowClearConfirmModal] = useState<boolean>(false);
+  const [showVaultModal, setShowVaultModal] = useState<boolean>(false);
 
   // Local Visual AST Engine (Phase 3: 5-level real-time topology & clustering)
   const visualASTEngine = useMemo(() => new VisualASTEngine(), []);
@@ -103,13 +121,104 @@ export const useCanvasState = () => {
   const strokesRef = useRef<RawInkStroke[]>([]);
   const strokeBBoxesRef = useRef<Map<string, EntityBoundingBox>>(new Map());
 
+  // Restore last active .cmn map document on startup
   useEffect(() => {
-    return () => {
-      if (parseAstDebounceRef.current) {
-        clearTimeout(parseAstDebounceRef.current);
+    let isMounted = true;
+    const restoreLastActiveMap = async () => {
+      try {
+        const lastId = await getLastActiveMapId();
+        if (lastId && isMounted) {
+          const doc = await loadDocument(lastId);
+          if (doc && isMounted) {
+            setCurrentMapId(doc.map_id);
+            if (doc.metadata?.title) setMapTitle(doc.metadata.title);
+            if (doc.metadata?.canvas_scale !== undefined) setCanvasScale(doc.metadata.canvas_scale);
+            if (doc.metadata?.canvas_translate_x !== undefined) setCanvasTranslateX(doc.metadata.canvas_translate_x);
+            if (doc.metadata?.canvas_translate_y !== undefined) setCanvasTranslateY(doc.metadata.canvas_translate_y);
+            if (doc.metadata?.placed_attributes) setPlacedAttributes(doc.metadata.placed_attributes);
+            if (doc.visual_ast_layer) setVisualAST(doc.visual_ast_layer);
+            if (doc.raw_ink_layer?.strokes) {
+              strokesRef.current = doc.raw_ink_layer.strokes;
+              setRawStrokes(doc.raw_ink_layer.strokes);
+            }
+            if (doc.compiled_cognitive_layer) {
+              setCompilation(doc.compiled_cognitive_layer);
+            }
+            setLastSavedAt(doc.metadata.updated_at);
+            console.log(`[useCanvasState] Restored .cmn document: ${doc.metadata.title}`);
+          }
+        }
+        const list = await listDocuments();
+        if (isMounted) setSavedMaps(list);
+      } catch (e) {
+        console.warn("[useCanvasState] Could not restore previous document:", e);
+      } finally {
+        isInitialLoadDoneRef.current = true;
       }
     };
+
+    restoreLastActiveMap();
+
+    return () => {
+      isMounted = false;
+      if (parseAstDebounceRef.current) clearTimeout(parseAstDebounceRef.current);
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    };
   }, []);
+
+  // 2-second debounced auto-save to .cmn file format (Master Spec 5.3)
+  useEffect(() => {
+    if (!isInitialLoadDoneRef.current) return;
+    if (!isDirtyRef.current) return;
+    if (rawStrokes.length === 0 && placedAttributes.length === 0) return;
+
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current);
+    }
+
+    autoSaveTimerRef.current = setTimeout(async () => {
+      if (!isDirtyRef.current) return;
+      try {
+        setIsSaving(true);
+        const now = Date.now();
+        const doc: ExtendedCognitiveMapDocument = {
+          map_id: currentMapId,
+          version: "1.0.0",
+          metadata: {
+            title: mapTitle,
+            created_at: lastSavedAt || now,
+            updated_at: now,
+            canvas_scale: canvasScale,
+            canvas_translate_x: canvasTranslateX,
+            canvas_translate_y: canvasTranslateY,
+            placed_attributes: placedAttributes,
+          },
+          raw_ink_layer: {
+            strokes: strokesRef.current,
+          },
+          visual_ast_layer: visualAST,
+          compiled_cognitive_layer: compilation,
+        };
+
+        await saveDocument(doc);
+        isDirtyRef.current = false;
+        setLastSavedAt(now);
+        const list = await listDocuments();
+        setSavedMaps(list);
+      } catch (err) {
+        console.error("[useCanvasState] Auto-save error:", err);
+      } finally {
+        setIsSaving(false);
+      }
+    }, 2000);
+  }, [
+    rawStrokes,
+    visualAST,
+    placedAttributes,
+    mapTitle,
+    compilation,
+    currentMapId,
+  ]);
 
   // Event Callbacks
   const handleStrokeEnd = useCallback(
@@ -539,6 +648,26 @@ export const useCanvasState = () => {
     setStrokeCount(0);
     setCanUndo(false);
     setCanRedo(false);
+    strokesRef.current = [];
+    strokeBBoxesRef.current.clear();
+    setRawStrokes([]);
+    setVisualAST({ entities: [], connectors: [] });
+    setPlacedAttributes([]);
+    setCompilation(null);
+    isDirtyRef.current = true;
+  }, []);
+
+  const handleRequestClear = useCallback(() => {
+    setShowClearConfirmModal(true);
+  }, []);
+
+  const handleConfirmClear = useCallback(() => {
+    handleClear();
+    setShowClearConfirmModal(false);
+  }, [handleClear]);
+
+  const handleCancelClear = useCallback(() => {
+    setShowClearConfirmModal(false);
   }, []);
 
   const handleZoomIn = useCallback(() => {
@@ -662,9 +791,118 @@ export const useCanvasState = () => {
     }, 600);
   }, []);
 
+  const handleSaveMap = useCallback(async () => {
+    try {
+      setIsSaving(true);
+      const now = Date.now();
+      const doc: ExtendedCognitiveMapDocument = {
+        map_id: currentMapId,
+        version: "1.0.0",
+        metadata: {
+          title: mapTitle,
+          created_at: lastSavedAt || now,
+          updated_at: now,
+          canvas_scale: canvasScale,
+          canvas_translate_x: canvasTranslateX,
+          canvas_translate_y: canvasTranslateY,
+          placed_attributes: placedAttributes,
+        },
+        raw_ink_layer: {
+          strokes: strokesRef.current,
+        },
+        visual_ast_layer: visualAST,
+        compiled_cognitive_layer: compilation,
+      };
+
+      await saveDocument(doc);
+      setLastSavedAt(now);
+      const list = await listDocuments();
+      setSavedMaps(list);
+    } catch (e) {
+      console.error("[useCanvasState] Manual save error:", e);
+    } finally {
+      setIsSaving(false);
+    }
+  }, [
+    currentMapId,
+    mapTitle,
+    lastSavedAt,
+    canvasScale,
+    canvasTranslateX,
+    canvasTranslateY,
+    placedAttributes,
+    visualAST,
+    compilation,
+  ]);
+
+  const handleLoadMap = useCallback(async (mapId: string) => {
+    try {
+      const doc = await loadDocument(mapId);
+      if (doc) {
+        setCurrentMapId(doc.map_id);
+        if (doc.metadata?.title) setMapTitle(doc.metadata.title);
+        if (doc.metadata?.canvas_scale !== undefined) setCanvasScale(doc.metadata.canvas_scale);
+        if (doc.metadata?.canvas_translate_x !== undefined) setCanvasTranslateX(doc.metadata.canvas_translate_x);
+        if (doc.metadata?.canvas_translate_y !== undefined) setCanvasTranslateY(doc.metadata.canvas_translate_y);
+        if (doc.metadata?.placed_attributes) setPlacedAttributes(doc.metadata.placed_attributes);
+        if (doc.visual_ast_layer) setVisualAST(doc.visual_ast_layer);
+        if (doc.raw_ink_layer?.strokes) {
+          strokesRef.current = doc.raw_ink_layer.strokes;
+          setRawStrokes(doc.raw_ink_layer.strokes);
+        }
+        if (doc.compiled_cognitive_layer) {
+          setCompilation(doc.compiled_cognitive_layer);
+        } else {
+          setCompilation(null);
+        }
+        setLastSavedAt(doc.metadata.updated_at);
+      }
+    } catch (e) {
+      console.error("[useCanvasState] Load map error:", e);
+    }
+  }, []);
+
+  const handleNewMap = useCallback(() => {
+    setClearTrigger((prev) => prev + 1);
+    setPlacedAttributes([]);
+    setVisualAST({ entities: [], connectors: [] });
+    setCompilation(null);
+    strokesRef.current = [];
+    strokeBBoxesRef.current.clear();
+    setRawStrokes([]);
+    const newId = `map_${Date.now()}`;
+    setCurrentMapId(newId);
+    setMapTitle("Nuevo Mapa Mental");
+    setLastSavedAt(null);
+    isDirtyRef.current = false;
+  }, []);
+
+  const handleDeleteMap = useCallback(
+    async (mapId: string) => {
+      try {
+        await deleteDocument(mapId);
+        const list = await listDocuments();
+        setSavedMaps(list);
+        if (mapId === currentMapId) {
+          handleNewMap();
+        }
+      } catch (e) {
+        console.error("[useCanvasState] Delete map error:", e);
+      }
+    },
+    [currentMapId, handleNewMap]
+  );
+
   return {
+    currentMapId,
     mapTitle,
     setMapTitle,
+    isSaving,
+    lastSavedAt,
+    savedMaps,
+    handleSaveMap,
+    handleLoadMap,
+    handleNewMap,
     activeBrush,
     setActiveBrush,
     activeColor,
@@ -736,5 +974,13 @@ export const useCanvasState = () => {
     handleCompile,
     visualAST,
     rawStrokes,
+    showVaultModal,
+    setShowVaultModal,
+    showClearConfirmModal,
+    setShowClearConfirmModal,
+    handleRequestClear,
+    handleConfirmClear,
+    handleCancelClear,
+    handleDeleteMap,
   };
 };
