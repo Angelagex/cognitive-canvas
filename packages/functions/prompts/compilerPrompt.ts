@@ -13,9 +13,11 @@ Debes responder EXCLUSIVAMENTE con un objeto JSON válido que cumpla estrictamen
 
 ### REGLAS DE EJECUCIÓN Y DIRECTRICES TAXONÓMICAS
 
-#### 1. EXTRACCIÓN Y ALINEACIÓN DE ENTIDADES
-- Valida y complementa las entidades provistas en el Visual AST contra la imagen visual.
-- Asigna coordenadas normalizadas [0-1000] en 'visual_bounding_box' para cada nodo.
+#### 1. EXTRACCIÓN Y ALINEACIÓN ESTRICTA CON EL VISUAL AST
+- El 'Visual AST Layer' provisto contiene las entidades ya segmentadas geométricamente en el lienzo por el S-Pen, cada una con su 'id' único (ej: "entity_1", "entity_2") y su caja delimitadora 'bbox'.
+- ALINEACIÓN ESTRICTA DE IDs: Para cada nodo o concepto que compiles a partir de la imagen que corresponda a una entidad del Visual AST, DEBES REUTILIZAR Y PRESERVAR SU 'id' EXACTO como el 'id' del nodo (ej: id: "entity_1"). No inventes IDs nuevos si la entidad ya está en el AST.
+- En 'visual_bounding_box', conserva exactamente las coordenadas del 'bbox' de la entidad correspondiente { xmin, ymin, xmax, ymax }. Si detectas un elemento nuevo en la imagen no segmentado en el AST, asígnale un nuevo id y sus coordenadas.
+- En 'detected_content', transcribe con precisión el texto o palabra manuscrita de esa entidad (ej: "Photography", "Focus", "gear", "Scenario", "Capture", "Light").
 - Si una entidad es un icono o dibujo gráfico, sintetiza la descripción visual objetiva con el 'passive_context' aportado por el usuario.
 
 #### 2. CLASIFICACIÓN ESTRICTA PACER (Framework Dr. Justin Sung)
@@ -41,11 +43,11 @@ Evalúa la calidad del modelo mental en 'grinde_audit':
 - 'is_cross_link': Marca como 'true' ÚNICAMENTE los enlaces que conectan dos ramas conceptualmente distantes del mapa (evidencia de Reconciliación Integrativa). Si una flecha solo conecta un nodo padre con su hijo inmediato dentro de la misma rama, es 'false'.
 - 'cross_link_density_score': Calcula el ratio: (Número de cross-links) / (Total de edges).
 - 'linear_thinking_risk': Marca como 'true' si el mapa presenta una estructura puramente arborescente (tipo Buzan/resumen lineal) con baja densidad de enlaces cruzados (< 0.20) o ausencia de relaciones causales bidireccionales.
-- 'feedback_critique': Formula una crítica pedagógica constructiva señalando dónde faltan conexiones causales o dónde se recurrió a viñetas lineales disfrazadas.
+- 'feedback_critique': Crítica pedagógica constructiva concisa (MÁXIMO 2 ORACIONES DIRECTAS).
 
-#### 5. MÓDULO DE INTERVENCIONES DE ALTO ORDEN
-Genera desafíos cognitivos basados en la ciencia del aprendizaje:
-- 'high_road_transfer_prompts': Selecciona al menos un nodo CONCEPTUAL o ANALOGOUS nuclear y formula un escenario desestructurado en un dominio completamente disímil pero estructuralmente isomorfo, forzando la abstracción consciente de la regla profunda.
-- 'derring_effect_challenges': Diseña un escenario con un error conceptual intencionado, plausible pero sutil, basado en alterar la relación entre dos nodos del mapa. Exige al aprendiz identificar la anomalía y restaurar la solución canónica.
-- 'contrasting_cases_icc': Diseña una matriz de dos casos contrastantes (Caso A vs. Caso B) que compartan el mismo principio causal subyacente pero difieran en rasgos superficiales, pidiendo al usuario inducir la regla invariante común.
+#### 5. MÓDULO DE INTERVENCIONES DE ALTO ORDEN (DIRECTIVAS DE ALTA CONCISIÓN)
+Genera desafíos cognitivos de alto impacto, manteniendo las respuestas BREVES, ATÓMICAS Y PRECISAS (1-2 oraciones por campo, sin párrafos largos ni relleno):
+- 'high_road_transfer_prompts': Selecciona 1 nodo nuclear. 'unstructured_scenario': 1-2 oraciones en un dominio disímil. 'guiding_question': 1 sola pregunta directa y enfocada.
+- 'derring_effect_challenges': 'flawed_premise' (1 oración con error sutil), 'corrective_task' (1 oración), 'canonical_solution' (1 oración explicando el mecanismo causal real).
+- 'contrasting_cases_icc': 'case_a' (1 oración), 'case_b' (1 oración en contexto contrastante), 'invariant_discovery_prompt' (1 pregunta concisa para inducir la regla invariante).
 `;

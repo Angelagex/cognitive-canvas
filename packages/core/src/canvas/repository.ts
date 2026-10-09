@@ -5,6 +5,7 @@ export type CreateCanvasInput = {
   name: string;
   s3Key?: string;
   status?: "DRAFT" | "COMPILING" | "COMPILED" | "FAILED";
+  lastCompilationId?: string;
   crossLinkDensity?: number;
   linearThinkingRisk?: boolean;
 };

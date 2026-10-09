@@ -4,6 +4,7 @@ vi.mock("sst", () => ({
   Resource: {
     Database: { name: "TestDatabase" },
     MyBucket: { name: "TestBucket" },
+    GeminiApiKey: { value: "test-api-key" },
   },
 }));
 

@@ -1,9 +1,10 @@
 import React from "react";
 import { StyleSheet, View, Text } from "react-native";
-import { CompiledNode, PacerClassification } from "@cognitive-canvas/core/types";
+import { CompiledNode, PacerClassification, VisualASTLayer } from "@cognitive-canvas/core/types";
 
 export interface PacerOverlayLayerProps {
   nodes: CompiledNode[] | null | undefined;
+  visualAST?: VisualASTLayer | null;
   canvasScale: number;
   canvasTranslateX: number;
   canvasTranslateY: number;
@@ -54,6 +55,7 @@ export const PACER_COLORS: Record<
 
 export const PacerOverlayLayer: React.FC<PacerOverlayLayerProps> = ({
   nodes,
+  visualAST,
   canvasScale,
   canvasTranslateX,
   canvasTranslateY,
@@ -69,16 +71,41 @@ export const PacerOverlayLayer: React.FC<PacerOverlayLayerProps> = ({
         const matchesFilter =
           activeFilter === "ALL" || !activeFilter || activeFilter === node.pacer_classification;
 
-        const left = node.visual_bounding_box.xmin * canvasScale + canvasTranslateX;
-        const top = node.visual_bounding_box.ymin * canvasScale + canvasTranslateY;
-        const width =
-          Math.max(30, (node.visual_bounding_box.xmax - node.visual_bounding_box.xmin)) *
-          canvasScale;
-        const height =
-          Math.max(20, (node.visual_bounding_box.ymax - node.visual_bounding_box.ymin)) *
-          canvasScale;
+        // 1. Prioridad: Buscar entidad coincidente en el Visual AST por ID
+        let targetBbox = visualAST?.entities?.find((e) => e.id === node.id)?.bbox;
 
-        // Skip rendering if completely off screen or too small
+        // 2. Respaldo: Si el ID cambió, buscar entidad por coincidencia de texto transcrito o contenido
+        if (!targetBbox && visualAST?.entities && visualAST.entities.length > 0) {
+          const nodeContent = (node.detected_content || "").toLowerCase().trim();
+          if (nodeContent) {
+            const matchedEntity = visualAST.entities.find((e) => {
+              const entText = (e.transcribed_text || "").toLowerCase().trim();
+              return entText && (entText.includes(nodeContent) || nodeContent.includes(entText));
+            });
+            if (matchedEntity) {
+              targetBbox = matchedEntity.bbox;
+            }
+          }
+        }
+
+        // 3. Respaldo: Usar visual_bounding_box devuelto por el compilador
+        if (!targetBbox) {
+          targetBbox = node.visual_bounding_box;
+        }
+
+        if (!targetBbox) return null;
+
+        // Margen visual de comodidad alrededor del texto manuscrito
+        const padX = 10;
+        const padY = 6;
+        const left = (targetBbox.xmin - padX) * canvasScale + canvasTranslateX;
+        const top = (targetBbox.ymin - padY) * canvasScale + canvasTranslateY;
+        const width =
+          Math.max(40, targetBbox.xmax - targetBbox.xmin + padX * 2) * canvasScale;
+        const height =
+          Math.max(30, targetBbox.ymax - targetBbox.ymin + padY * 2) * canvasScale;
+
+        // Skip rendering if completely off screen or invalid
         if (width <= 0 || height <= 0) return null;
 
         const opacity = matchesFilter ? 1 : 0.2;

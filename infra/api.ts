@@ -2,17 +2,23 @@ import { bucket, database } from "./storage";
 
 export const geminiApiKey = new sst.Secret("GeminiApiKey");
 
-export const myApi = new sst.aws.ApiGatewayV2("MyApi", {
+export const compilerWorker = new sst.aws.Function("CompilerWorker", {
+  handler: "packages/functions/src/compileWorker.handler",
   link: [bucket, database, geminiApiKey],
+  timeout: "5 minutes",
+});
+
+export const myApi = new sst.aws.ApiGatewayV2("MyApi", {
+  link: [bucket, database, geminiApiKey, compilerWorker],
 });
 
 myApi.route("GET /", "packages/functions/src/api.handler");
 
-// Cognitive Compiler Endpoint (60s timeout for Gemini 2.0 Flash)
-myApi.route("POST /canvases/{id}/compile", {
-  handler: "packages/functions/src/compile.handler",
-  timeout: "60 seconds",
-});
+// Cognitive Compiler Dispatcher Endpoint (Async dispatch)
+myApi.route("POST /canvases/{id}/compile", "packages/functions/src/compile.handler");
+
+// Canvas Compilation Status & Output Polling Endpoint
+myApi.route("GET /canvases/{id}/compilation", "packages/functions/src/compilation/getByCanvas.handler");
 
 // S3 Pre-Signed Upload URL Endpoint for Canvas PNG Captures
 myApi.route("POST /canvases/{id}/upload-url", "packages/functions/src/uploadUrl.handler");

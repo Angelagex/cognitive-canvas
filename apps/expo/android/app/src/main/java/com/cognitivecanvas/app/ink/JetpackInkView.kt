@@ -1378,20 +1378,71 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
     fun captureBitmap(scaleMultiplier: Float = 2.0f): Bitmap {
         val targetW = (width.coerceAtLeast(1) * scaleMultiplier).toInt()
         val targetH = (height.coerceAtLeast(1) * scaleMultiplier).toInt()
-        val bitmap = Bitmap.createBitmap(targetW, targetH, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(bitmap)
-        canvas.drawColor(Color.parseColor("#090D16"))
-        canvas.scale(scaleMultiplier, scaleMultiplier)
-        val renderMatrix = transformManager.getRenderMatrix()
-        canvas.save()
-        canvas.concat(renderMatrix)
-        drawBackgroundPattern(canvas)
-        viewStrokeRenderer.drawWithStrokes(canvas) { scope ->
-            for (stroke in completedStrokes) {
-                scope.drawStroke(stroke)
+
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+            try {
+                val renderNode = android.graphics.RenderNode("ink_export").apply {
+                    setPosition(0, 0, targetW, targetH)
+                }
+                val canvas = renderNode.beginRecording(targetW, targetH)
+                canvas.drawColor(Color.parseColor("#090D16"))
+                canvas.scale(scaleMultiplier, scaleMultiplier)
+                val renderMatrix = transformManager.getRenderMatrix()
+                canvas.save()
+                canvas.concat(renderMatrix)
+                drawBackgroundPattern(canvas)
+                viewStrokeRenderer.drawWithStrokes(canvas) { scope ->
+                    for (stroke in completedStrokes) {
+                        scope.drawStroke(stroke)
+                    }
+                }
+                canvas.restore()
+                renderNode.endRecording()
+
+                val imageReader = android.media.ImageReader.newInstance(
+                    targetW,
+                    targetH,
+                    android.graphics.PixelFormat.RGBA_8888,
+                    1,
+                    android.hardware.HardwareBuffer.USAGE_GPU_SAMPLED_IMAGE or android.hardware.HardwareBuffer.USAGE_GPU_COLOR_OUTPUT
+                )
+
+                val renderer = android.graphics.HardwareRenderer().apply {
+                    setSurface(imageReader.surface)
+                    setContentRoot(renderNode)
+                }
+
+                val request = renderer.createRenderRequest()
+                request.setWaitForPresent(true)
+                request.syncAndDraw()
+
+                val image = imageReader.acquireNextImage()
+                val hardwareBuffer = image?.hardwareBuffer
+                val hwBitmap = if (hardwareBuffer != null) {
+                    Bitmap.wrapHardwareBuffer(hardwareBuffer, null)
+                } else null
+
+                val softwareBitmap = hwBitmap?.copy(Bitmap.Config.ARGB_8888, false)
+
+                image?.close()
+                hardwareBuffer?.close()
+                imageReader.close()
+                renderer.destroy()
+
+                if (softwareBitmap != null) {
+                    return softwareBitmap
+                }
+            } catch (e: Exception) {
+                android.util.Log.w("JetpackInkView", "HardwareRenderer offscreen capture failed: ${e.message}", e)
             }
         }
-        canvas.restore()
-        return bitmap
+
+        // Fallback for devices without HardwareRenderer
+        val fallbackBitmap = Bitmap.createBitmap(targetW, targetH, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(fallbackBitmap)
+        canvas.drawColor(Color.parseColor("#090D16"))
+        canvas.scale(scaleMultiplier, scaleMultiplier)
+        drawBackgroundPattern(canvas)
+        return fallbackBitmap
     }
 }

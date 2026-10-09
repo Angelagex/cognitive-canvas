@@ -300,31 +300,65 @@ export function compileMapLocally(params: CompileParams): CognitiveCompilerOutpu
 export async function compileCognitiveMap(params: CompileParams): Promise<CognitiveCompilerOutput> {
   const apiUrl = params.apiUrl || process.env.EXPO_PUBLIC_API_URL;
 
+  console.log(`[CompilationService] 🌐 Iniciando compilación cognitiva para mapa: "${params.title}" (ID: ${params.canvasId})`);
+  console.log(`[CompilationService] 🌐 URL del Backend: ${apiUrl || "⚠️ NO CONFIGURADA (se usará evaluador local)"}`);
+
   if (apiUrl) {
     try {
-      console.log(`[CompilationService] 🌐 Invoking SST Backend at ${apiUrl}...`);
+      console.log(`[CompilationService] 🔄 Preparando datos para el backend SST...`);
       const passiveDict = buildPassiveContextDictionary(params.visualAST, params.placedAttributes);
 
       // Attempt high-res offscreen canvas capture if imageBase64 was not explicitly provided
       let imageBase64 = params.imageBase64;
       if (!imageBase64) {
+        console.log(`[CompilationService] 📸 Capturando imagen PNG en alta resolución del lienzo...`);
         try {
-          const capture = await exportHighResPng(2.0);
+          const capture = await exportHighResPng(1.0);
+          console.log(`[CompilationService] 📸 Resultado exportHighResPng:`, capture);
+
           if (capture?.uri) {
             imageBase64 = await FileSystem.readAsStringAsync(capture.uri, {
               encoding: FileSystem.EncodingType.Base64,
             });
-            console.log(`[CompilationService] 📸 High-res canvas image captured (${capture.width}x${capture.height})`);
+            console.log(
+              `[CompilationService] 📸 Imagen Base64 generada con éxito (${imageBase64.length} chars, resolución ${capture.width}x${capture.height})`
+            );
+          } else {
+            console.warn(
+              `[CompilationService] ⚠️ exportHighResPng devolvió un objeto sin URI:`,
+              capture
+            );
           }
-        } catch {
-          // Fall back without image payload if offscreen capture is unavailable
+        } catch (captureErr: any) {
+          console.error(
+            `[CompilationService] ❌ Falló la captura de imagen PNG en el lienzo:`,
+            captureErr?.message || captureErr
+          );
         }
+      } else {
+        console.log(`[CompilationService] 📸 Imagen Base64 ya provista en params (${imageBase64.length} chars).`);
       }
 
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 20000); // 20s timeout
+      const timeoutMs = 45000; // 45s timeout para permitir inferencia multimodal de Gemini
+      const timeoutId = setTimeout(() => {
+        console.warn(`[CompilationService] ⏰ Timeout de ${timeoutMs / 1000}s alcanzado esperando al Backend SST.`);
+        controller.abort();
+      }, timeoutMs);
 
-      const response = await fetch(`${apiUrl}/canvases/${params.canvasId}/compile`, {
+      const endpointUrl = `${apiUrl}/canvases/${params.canvasId}/compile`;
+      console.log(`[CompilationService] 🚀 Enviando POST a: ${endpointUrl}`);
+      console.log(`[CompilationService] 📦 Datos enviados:`, {
+        canvas_id: params.canvasId,
+        tieneImagen: Boolean(imageBase64),
+        longitudBase64: imageBase64?.length || 0,
+        nodosAST: params.visualAST?.entities?.length || 0,
+        conectoresAST: params.visualAST?.connectors?.length || 0,
+        metadatosPasivos: Object.keys(passiveDict).length,
+      });
+
+      const startTime = Date.now();
+      const response = await fetch(endpointUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         signal: controller.signal,
@@ -337,26 +371,74 @@ export async function compileCognitiveMap(params: CompileParams): Promise<Cognit
       });
 
       clearTimeout(timeoutId);
+      const latency = Date.now() - startTime;
+      console.log(`[CompilationService] 📡 Backend respondió en ${latency}ms con HTTP ${response.status} (${response.statusText})`);
 
-      if (response.ok) {
-        const data = await response.json();
+      if (response.status === 202 || (response.ok && !response.headers.get("content-type")?.includes("json"))) {
+        console.log(`[CompilationService] ⏳ Tarea asíncrona aceptada (HTTP ${response.status}). Iniciando sondeo (polling)...`);
+      }
+
+      if (response.ok || response.status === 202) {
+        const data = await response.json().catch(() => ({}));
         if (data.output) {
-          console.log(`[CompilationService] ✅ Server compilation success with Gemini 2.0 Flash`);
+          console.log(`[CompilationService] ✅ Compilación síncrona exitosa recibida.`);
+          console.log(`[CompilationService] 📊 Nodos recibidos: ${data.output.nodes?.length || 0}, Enlaces: ${data.output.edges?.length || 0}`);
           return data.output;
         }
+
+        // Si es 202 o el status es COMPILING, entramos en polling
+        if (response.status === 202 || data.status === "COMPILING") {
+          console.log(`[CompilationService] ⏳ Tarea en segundo plano. Sondeando resultado en ${apiUrl}/canvases/${params.canvasId}/compilation...`);
+          const pollUrl = `${apiUrl}/canvases/${params.canvasId}/compilation`;
+          const pollStart = Date.now();
+          const maxPollMs = 90000; // 90s máximo
+          const pollIntervalMs = 2000; // cada 2s
+
+          while (Date.now() - pollStart < maxPollMs) {
+            await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+            try {
+              const pollRes = await fetch(pollUrl);
+              if (pollRes.ok) {
+                const pollData = await pollRes.json();
+                const elapsedSec = ((Date.now() - pollStart) / 1000).toFixed(1);
+                console.log(`[CompilationService] 🔄 Sondeo [${elapsedSec}s]: status = ${pollData.status}`);
+
+                if (pollData.status === "COMPILED" && pollData.output) {
+                  console.log(`[CompilationService] 🎉 Compilación asíncrona completada exitosamente en ${elapsedSec}s.`);
+                  console.log(`[CompilationService] 📊 Nodos: ${pollData.output.nodes?.length || 0}, Enlaces: ${pollData.output.edges?.length || 0}`);
+                  return pollData.output;
+                }
+
+                if (pollData.status === "FAILED") {
+                  throw new Error(pollData.error || "El backend reportó fallo en la compilación.");
+                }
+              } else {
+                console.warn(`[CompilationService] ⚠️ Sondeo devolvió HTTP ${pollRes.status}`);
+              }
+            } catch (pollErr: any) {
+              if (pollErr?.message?.includes("fallo en la compilación")) {
+                throw pollErr;
+              }
+              console.warn(`[CompilationService] ⚠️ Reintentando sondeo tras aviso:`, pollErr?.message || pollErr);
+            }
+          }
+          throw new Error("Tiempo de espera agotado (90s) esperando la compilación del backend.");
+        }
       } else {
-        console.warn(
-          `[CompilationService] Backend returned HTTP ${response.status}. Falling back to local evaluation.`
+        const errorText = await response.text().catch(() => "");
+        console.error(
+          `[CompilationService] ❌ Backend retornó error HTTP ${response.status}: ${errorText}`
         );
       }
     } catch (err: any) {
-      console.warn(
-        `[CompilationService] Backend call failed (${err?.message}). Falling back to local evaluation.`
+      console.error(
+        `[CompilationService] ❌ Error en invocación de Backend (${err?.name || "Error"}: ${err?.message}):`,
+        err
       );
     }
   }
 
   // Local compilation fallback
-  console.log(`[CompilationService] ⚡ Running local cognitive evaluation grounded in AST...`);
+  console.log(`[CompilationService] ⚡ Ejecutando evaluador cognitivo local offline de contingencia...`);
   return compileMapLocally(params);
 }

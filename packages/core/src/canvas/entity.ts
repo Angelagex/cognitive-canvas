@@ -27,6 +27,10 @@ export const CanvasEntity = new Entity(
         type: ["DRAFT", "COMPILING", "COMPILED", "FAILED"] as const,
         default: "DRAFT",
       },
+      lastCompilationId: {
+        type: "string",
+        required: false,
+      },
       crossLinkDensity: {
         type: "number",
         required: false,

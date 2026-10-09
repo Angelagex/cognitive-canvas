@@ -180,6 +180,7 @@ export default function App() {
         {/* Capa de Superposición PACER (Master Spec Sec 9: Cajas y Badges de Rol Cognitivo) */}
         <PacerOverlayLayer
           nodes={compilation?.nodes}
+          visualAST={visualAST}
           canvasScale={canvasScale}
           canvasTranslateX={canvasTranslateX}
           canvasTranslateY={canvasTranslateY}

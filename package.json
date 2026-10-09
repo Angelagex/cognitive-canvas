@@ -9,6 +9,7 @@
   "scripts": {
     "tablet": "./scripts/install-app.sh",
     "build:android": "./scripts/install-app.sh",
+    "leapp": "./scripts/sync-leapp.sh",
     "generate-entity": "tsx packages/scripts/src/generate-entity.ts",
     "prepare": ""
   },

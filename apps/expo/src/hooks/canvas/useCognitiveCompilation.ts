@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { CognitiveCompilerOutput, VisualAST, PacerClassification } from "@cognitive-canvas/core/types";
 import { PlacedAttribute } from "../../types/canvas";
 import { compileCognitiveMap } from "../../services/CompilationService";
@@ -14,6 +14,7 @@ export interface UseCognitiveCompilationProps {
 export const useCognitiveCompilation = (props?: UseCognitiveCompilationProps) => {
   const [isDrawerOpen, setIsDrawerOpen] = useState<boolean>(false);
   const [isCompiling, setIsCompiling] = useState<boolean>(false);
+  const isCompilingRef = useRef<boolean>(false);
   const [compilation, setCompilation] = useState<CognitiveCompilerOutput | null>(null);
   const [pacerFilter, setPacerFilter] = useState<PacerClassification | "ALL">("ALL");
   const [showPacerOverlay, setShowPacerOverlay] = useState<boolean>(true);
@@ -23,6 +24,11 @@ export const useCognitiveCompilation = (props?: UseCognitiveCompilationProps) =>
   }, []);
 
   const handleCompile = useCallback(async () => {
+    if (isCompilingRef.current) {
+      console.warn("[useCognitiveCompilation] ⚠️ Compilation already in progress. Ignoring duplicate trigger.");
+      return;
+    }
+    isCompilingRef.current = true;
     setIsCompiling(true);
     try {
       const visualAST = props?.getVisualAST ? props.getVisualAST() : null;
@@ -46,6 +52,7 @@ export const useCognitiveCompilation = (props?: UseCognitiveCompilationProps) =>
     } catch (err) {
       console.error("[useCognitiveCompilation] Compilation error:", err);
     } finally {
+      isCompilingRef.current = false;
       setIsCompiling(false);
     }
   }, [props]);
