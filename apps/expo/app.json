@@ -3,7 +3,7 @@
     "name": "Cognitive Canvas",
     "slug": "cognitive-canvas",
     "version": "1.0.0",
-    "orientation": "landscape",
+    "orientation": "default",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
