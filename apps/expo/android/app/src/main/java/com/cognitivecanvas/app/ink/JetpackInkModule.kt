@@ -15,10 +15,75 @@ import com.facebook.react.bridge.ReadableMap
 import java.io.File
 import java.io.FileOutputStream
 
+import com.facebook.react.bridge.ReadableArray
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+
 class JetpackInkModule(private val reactContext: ReactApplicationContext) :
     ReactContextBaseJavaModule(reactContext) {
 
+    init {
+        // Precargar modelo offline en segundo plano al iniciar la app
+        CoroutineScope(Dispatchers.IO).launch {
+            DigitalInkModelManager.ensureModelReady("es")
+        }
+    }
+
     override fun getName(): String = "JetpackInkModule"
+
+    @ReactMethod
+    fun initializeDigitalInk(options: ReadableMap?, promise: Promise) {
+        val lang = if (options?.hasKey("language") == true) options.getString("language") ?: "es" else "es"
+        DigitalInkModelManager.ensureModelReady(lang) { success ->
+            if (success) {
+                promise.resolve(true)
+            } else {
+                promise.reject("ERR_MODEL_INIT", "No se pudo descargar o inicializar el modelo Digital Ink.")
+            }
+        }
+    }
+
+    @ReactMethod
+    fun recognizeInkStrokes(strokesArray: ReadableArray, promise: Promise) {
+        CoroutineScope(Dispatchers.Default).launch {
+            try {
+                val strokeList = mutableListOf<InkStrokeData>()
+                for (i in 0 until strokesArray.size()) {
+                    val strokeMap = strokesArray.getMap(i) ?: continue
+                    val id = if (strokeMap.hasKey("id")) strokeMap.getString("id") ?: "stroke_$i" else "stroke_$i"
+                    val pointsArray = if (strokeMap.hasKey("points")) strokeMap.getArray("points") else null
+                    if (pointsArray == null) continue
+
+                    val pointList = mutableListOf<InkPointData>()
+                    for (j in 0 until pointsArray.size()) {
+                        val pMap = pointsArray.getMap(j) ?: continue
+                        val x = pMap.getDouble("x").toFloat()
+                        val y = pMap.getDouble("y").toFloat()
+                        val t = if (pMap.hasKey("t")) pMap.getDouble("t").toLong() else (j * 10).toLong()
+                        pointList.add(InkPointData(x, y, t))
+                    }
+                    if (pointList.isNotEmpty()) {
+                        strokeList.add(InkStrokeData(id, pointList))
+                    }
+                }
+
+                val result = DigitalInkWorker.recognizeStrokes(strokeList)
+                val resultMap = Arguments.createMap().apply {
+                    putString("transcription", result.transcription)
+                    putDouble("confidence", result.confidence.toDouble())
+                    putBoolean("isTextBlock", result.isTextBlock)
+                    val candidatesArray = Arguments.createArray()
+                    result.candidates.forEach { candidatesArray.pushString(it) }
+                    putArray("candidates", candidatesArray)
+                }
+
+                promise.resolve(resultMap)
+            } catch (e: Exception) {
+                promise.reject("ERR_RECOGNIZE_FAILED", e.message, e)
+            }
+        }
+    }
 
     @ReactMethod
     fun exportHighResPng(options: ReadableMap?, promise: Promise) {

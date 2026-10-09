@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo, useCallback } from "react";
+import { useState, useRef, useMemo, useCallback, useEffect } from "react";
 import { NativeSyntheticEvent } from "react-native";
 import {
   StrokeEndEvent,
@@ -11,6 +11,7 @@ import {
   VisualASTLayer,
   RawInkStroke,
 } from "@cognitive-canvas/core";
+import { recognizeInkStrokes, initializeDigitalInk } from "../../components/JetpackInkCanvas";
 
 interface UseCanvasAstProps {
   canvasScale: number;
@@ -51,6 +52,15 @@ export const useCanvasAst = ({
   const parseAstDebounceRef = useRef<NodeJS.Timeout | null>(null);
   const strokesRef = useRef<RawInkStroke[]>([]);
   const strokeBBoxesRef = useRef<Map<string, EntityBoundingBox>>(new Map());
+
+  // Inicializar modelo de reconocimiento de tinta local de ML Kit en segundo plano
+  useEffect(() => {
+    initializeDigitalInk("es")
+      .then((ok) => {
+        if (ok) console.log("[useCanvasAst] 🖋️ Motor ML Kit Digital Ink listo en español.");
+      })
+      .catch((err) => console.warn("[useCanvasAst] Error inicializando ML Kit Digital Ink:", err));
+  }, []);
 
   const handleStrokeEnd = useCallback(
     (event: NativeSyntheticEvent<StrokeEndEvent>) => {
@@ -98,6 +108,35 @@ export const useCanvasAst = ({
             const ast = visualASTEngine.parseVisualAST(strokes, passiveMap, canvasScale);
             setVisualAST(ast);
             console.log(`[VisualASTEngine] Live AST updated: ${ast.entities.length} entities, ${ast.connectors.length} connectors`);
+
+            // Enriquecimiento asíncrono en segundo plano con ML Kit Digital Ink (Visual AST V2)
+            if (ast.entities && ast.entities.length > 0) {
+              const pendingTextEntities = ast.entities.filter(
+                (e) => e.type === "TEXT_BLOCK" && !e.transcribed_text
+              );
+              if (pendingTextEntities.length > 0) {
+                Promise.all(
+                  pendingTextEntities.map(async (ent) => {
+                    const entStrokes = strokes.filter((s) => ent.stroke_ids.includes(s.id));
+                    if (entStrokes.length > 0) {
+                      const res = await recognizeInkStrokes(entStrokes);
+                      if (res.transcription && res.isTextBlock) {
+                        ent.transcribed_text = res.transcription;
+                        ent.ml_kit_payload = {
+                          transcription: res.transcription,
+                          confidence: res.confidence,
+                          candidates: res.candidates,
+                        };
+                      }
+                    }
+                  })
+                )
+                  .then(() => {
+                    setVisualAST({ ...ast });
+                  })
+                  .catch(() => null);
+              }
+            }
           } catch (err) {
             console.warn("[VisualASTEngine] Error parsing live strokes:", err);
           }

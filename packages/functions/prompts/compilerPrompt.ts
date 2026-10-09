@@ -17,7 +17,7 @@ Debes responder EXCLUSIVAMENTE con un objeto JSON válido que cumpla estrictamen
 - El 'Visual AST Layer' provisto contiene las entidades ya segmentadas geométricamente en el lienzo por el S-Pen, cada una con su 'id' único (ej: "entity_1", "entity_2") y su caja delimitadora 'bbox'.
 - ALINEACIÓN ESTRICTA DE IDs: Para cada nodo o concepto que compiles a partir de la imagen que corresponda a una entidad del Visual AST, DEBES REUTILIZAR Y PRESERVAR SU 'id' EXACTO como el 'id' del nodo (ej: id: "entity_1"). No inventes IDs nuevos si la entidad ya está en el AST.
 - En 'visual_bounding_box', conserva exactamente las coordenadas del 'bbox' de la entidad correspondiente { xmin, ymin, xmax, ymax }. Si detectas un elemento nuevo en la imagen no segmentado en el AST, asígnale un nuevo id y sus coordenadas.
-- En 'detected_content', transcribe con precisión el texto o palabra manuscrita de esa entidad (ej: "Photography", "Focus", "gear", "Scenario", "Capture", "Light").
+- En 'detected_content', utiliza primordialmente el 'transcribed_text' provisto en la entidad del Visual AST (el cual fue reconocido localmente por el motor de tinta digital de la tablet a nivel de trazo). Corrobora visualmente con la imagen para resolver cualquier ambigüedad semántica o errata menor.
 - Si una entidad es un icono o dibujo gráfico, sintetiza la descripción visual objetiva con el 'passive_context' aportado por el usuario.
 
 #### 2. CLASIFICACIÓN ESTRICTA PACER (Framework Dr. Justin Sung)

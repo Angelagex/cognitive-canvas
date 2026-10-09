@@ -35,6 +35,16 @@ export interface SemanticAnchor {
 }
 
 /**
+ * ML Kit Digital Ink Recognition Payload (Visual AST V2)
+ */
+export interface MLKitPayload {
+  transcription: string | null;
+  confidence: number;
+  language?: string;
+  candidates?: string[];
+}
+
+/**
  * Visual AST Entity Types (Level 1: Stroke Classification)
  */
 export type VisualEntityType = "TEXT_BLOCK" | "SKETCH_ICON" | "CONTAINER_BOX";
@@ -53,6 +63,7 @@ export interface VisualEntity {
   context_window?: string | null; // Feature: 1-hop semantic context window
   child_ids?: string[]; // Level 4: Hierarchical containment inside CONTAINER_BOX
   is_scratched_out?: boolean; // Feature 6: In-AST scratch-out flag
+  ml_kit_payload?: MLKitPayload | null; // Visual AST V2: On-device recognition
 }
 
 /**
@@ -76,6 +87,7 @@ export interface ConnectorEdge {
   target_entity_id?: string; // Magnetically docked target entity id
   directionality: ConnectorDirectionality;
   label?: string; // Adjacent handwritten relational label (e.g. "inhibe", "restringe a")
+  inferred_label?: string | null; // Visual AST V2: Edge-snapped relational text
   is_curved?: boolean; // Feature 2: Curved Bézier or Elbow connector
   geometry_type?: ConnectorGeometryType; // Feature 2: Structural geometry
   polarity?: "POSITIVE" | "NEGATIVE" | "UNKNOWN"; // Feature: Influence signs ('+' | '-')

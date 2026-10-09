@@ -114,11 +114,35 @@ Basado en: `MASTER_SPEC.md`, `DECISION_RATIONALE.md` y `UI_AND_CANVAS_SPEC.md`.
 
 ---
 
+### FASE 6: VISUAL AST V2 — PIPELINE HÍBRIDO (ML KIT + GEMINI) (PLANIFICADA 📋)
+*Basado en la especificación detallada: `.antigravity/docs/VISUAL_AST_V2_PLAN.md`.*
+- [ ] **6.1 Contratos y Tipos (`packages/core`):**
+  - Incorporación de `ml_kit_payload` (`transcription`, `confidence`) en `VisualEntity`.
+  - Soporte de etiquetas inferidas (`inferred_label`) en `ConnectorEdge`.
+- [ ] **6.2 Módulo Nativo de ML Kit Digital Ink en Kotlin (`apps/expo/android`):**
+  - Dependencia de Google ML Kit Digital Ink Recognition (`digital-ink-recognition:18.1.0`).
+  - Gestor de modelos offline `DigitalInkModelManager.kt` (`es` / `en`).
+  - Worker en corrutina en segundo plano con debounce de 500 ms tras `ACTION_UP`.
+  - Algoritmo de Fusión Espacial Incremental (Spatial Cluster Merging) para escritura pausada.
+  - Clasificación de trazos por confianza (>= 0.70 `TEXT_BLOCK`, < 0.70 `SKETCH_ICON`).
+- [ ] **6.3 Puente Nativo y Sincronización en React Native (`apps/expo`):**
+  - Evento de emisión de AST enriquecido en `useCanvasAst.ts`.
+  - Persistencia de `ml_kit_payload` en archivos `.cmn`.
+- [ ] **6.4 Optimización del Compilador Gemini en la Nube (`packages/functions`):**
+  - Actualización de prompt y conciliación de cajas PACER sobre el texto transcrito de ML Kit.
+- [ ] **6.5 Validación en Hardware Real (Galaxy Tab S10 Lite):**
+  - Casos de prueba: *"Photography"*, escritura pausada *"photo"* + *"graphy"*, flechas con etiqueta *"inhibe"*.
+
+---
+
 ## 🎯 PRÓXIMOS PASOS PRIORITARIOS (ORDEN DE EJECUCIÓN)
 1. [COMPLETADO ✅] **Persistencia Bidireccional `.cmn` y Restauración Nativa:** Trazos y documentos restaurados sin pérdida en Android con cambio de mapas en la Bóveda.
-2. [COMPLETADO ✅] **Refactorización y Componentización:** `useCanvasState` y `GoodnotesToolbar` limpios, modulares y desacoplados. Git index limpio.
-3. [COMPLETADO ✅] **Backend SST & Compilador Híbrido (`compile.ts`, `uploadUrl.ts`, `CompilationService.ts`):** Pre-signed URLs en S3 y compilación cognitiva conectada al AST real del usuario.
+2. [COMPLETADO ✅] **Refactorización y Componentización:** `useCanvasState` y `GoodnotesToolbar` limpios, modulares y desacoplados.
+3. [COMPLETADO ✅] **Backend SST & Compilador Híbrido Asíncrono:** Job Pattern 202 Accepted + Polling implementado; límite de 29s de API Gateway eliminado.
 4. [COMPLETADO ✅] **Filtros por Colores PACER en el Lienzo:** Capa `PacerOverlayLayer` y pestaña PACER con filtrado interactivo en tiempo real en la tablet.
 5. [COMPLETADO ✅] **Sincronización AnkiConnect / AnkiDroid:** Exportación fluida de flashcards de Evidencia/Referencia directamente a la colección de Anki y archivos TSV para AnkiDroid.
-6. [COMPLETADO ✅] **Puntero Láser Efímero y Exportación PNG de Alta Resolución (Fase 2.5):** Herramienta de láser Feynman (1.5s auto-fade) y captura fuera de pantalla nativa (`exportHighResPng`) integrada en el pipeline multimodal.
-7. [SIGUIENTE 🔜] **Despliegue y Validación en Hardware Real (Galaxy Tab S10 Lite):** Probar el flujo completo (dibujo con pluma/resaltador/láser, snapping 450ms, borrado scratch-out, hover dwell 800ms, compilación multimodal con captura PNG, visualización de cajas PACER sobre el lienzo y exportación a Anki) en la tablet física (`npm run tablet` o `./scripts/install-app.sh`).
+6. [COMPLETADO ✅] **Puntero Láser Efímero y Exportación PNG:** Herramienta de láser Feynman y captura fuera de pantalla nativa.
+7. [COMPLETADO ✅] **Soporte de Rotación Completa:** Habilitada orientación `fullSensor` (portrait y landscape hacia ambos lados).
+8. [SIGUIENTE 🔜] **Ejecución de Fase 6 — Visual AST V2 (Pipeline Híbrido ML Kit + Gemini):**
+   - Implementar el clasificador de texto on-device en Kotlin (`DigitalInkRecognition`) y Spatial Cluster Merging para erradicar las falsas flechas en palabras como *"Photography"*.
+

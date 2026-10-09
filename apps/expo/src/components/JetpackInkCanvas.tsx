@@ -21,6 +21,37 @@ import {
 
 export * from "../types/canvas";
 
+export interface DigitalInkRecognitionResult {
+  transcription: string | null;
+  confidence: number;
+  isTextBlock: boolean;
+  candidates: string[];
+}
+
+/**
+ * Recognizes text and characters from a set of strokes using on-device ML Kit Digital Ink Recognition
+ */
+export async function recognizeInkStrokes(
+  strokes: Array<{ id: string; points: Array<{ x: number; y: number; t?: number }> }>
+): Promise<DigitalInkRecognitionResult> {
+  const { JetpackInkModule } = NativeModules;
+  if (!JetpackInkModule?.recognizeInkStrokes) {
+    return { transcription: null, confidence: 0, isTextBlock: false, candidates: [] };
+  }
+  return await JetpackInkModule.recognizeInkStrokes(strokes);
+}
+
+/**
+ * Initializes and downloads the on-device ML Kit Digital Ink Recognition language model
+ */
+export async function initializeDigitalInk(language = "es"): Promise<boolean> {
+  const { JetpackInkModule } = NativeModules;
+  if (!JetpackInkModule?.initializeDigitalInk) {
+    return false;
+  }
+  return await JetpackInkModule.initializeDigitalInk({ language });
+}
+
 /**
  * Captures high-resolution offscreen PNG bitmap from native Jetpack Ink view
  * @param scaleMultiplier Scaling factor (default 2.0x for crisp Retina/DPI output)
