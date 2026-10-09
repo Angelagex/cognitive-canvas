@@ -37,41 +37,38 @@ Los líderes de la industria (MyScript, Goodnotes) emplean una **arquitectura h�
 +-----------------------------------------------------------------------------+
 | FASE 1: CAPTURA Y BUFFERING A 120 HZ (UI Thread / Native / GPU)            |
 | - androidx.ink + InProgressStrokesView (Renderizado con latencia < 10 ms)   |
-| - Almacenamiento continuo de Stroke(x, y, t, p) en memoria nativa           |
+| - getScreenToWorldMatrix(): Entrada transformada directamente a World Space |
+| - Almacenamiento continuo de Stroke(x, y, t, p) en coordenadas de mundo     |
 +--------------------------------------+--------------------------------------+
                                        |
-                                       | Evento: onStrokeEnd + Debounce 500 ms
+                                       | Evento: onStrokeEnd + Debounce 280 ms
                                        v
 +-----------------------------------------------------------------------------+
 | FASE 2: PIPELINE LOCAL EN SEGUNDO PLANO (Kotlin Background Coroutine)       |
 |                                                                             |
-|  [Paso 2.1: Filtro Gestual]                                                 |
-|  - Patrón en zigzag denso ---> ¿Scratch-out? ---> Poda del buffer y aborta  |
+|  [Paso 2.1: Normalización Canónica Zoom-Invariante (DigitalInkWorker)]       |
+|  - Cálculo de Bounding Box envolvente [minX, minY, maxX, maxY]              |
+|  - Traslación al origen: (x - minX, y - minY)                               |
+|  - Escala canónica isotrópica: factor = 160dp / height (Aspect Ratio fijo)  |
 |                                                                             |
-|  [Paso 2.2: Separación Morfológica Previa]                                  |
-|  - Aspect ratio >> 1, baja tortuosidad, abierto ---> CANDIDATE_CONNECTOR    |
-|  - Trazo compacto, bucles, densidad de curvatura ---> CANDIDATE_CLUSTER     |
+|  [Paso 2.2: Inferencia ML Kit Digital Ink Recognition]                     |
+|  - Modelo On-Device ('es' / 'en') procesa trazos normalizados canónicos     |
+|    * Confianza >= 0.65 ---> TEXT_BLOCK (Palabra/Línea + BBox + Texto)       |
+|    * Confianza <  0.65 ---> SKETCH_ICON (Metáfora visual / Icono AABB)      |
 |                                                                             |
-|  [Paso 2.3: Inferencia ML Kit Digital Ink Recognition]                     |
-|  - Modelo On-Device ('es' / 'en') procesa CANDIDATE_CLUSTER                 |
-|    * Confianza >= 0.70 ---> TEXT_BLOCK (Palabra/Línea + BBox + Texto)       |
-|    * Confianza <  0.70 ---> SKETCH_ICON (Metáfora visual / Icono AABB)      |
-|                                                                             |
-|  [Paso 2.4: Fusión Espacial Incremental (Spatial Cluster Merging)]          |
-|  - ¿Nuevo trazo adyacente a TEXT_BLOCK existente?                           |
+|  [Paso 2.3: Fusión Espacial Incremental (Spatial Cluster Merging)]          |
+|  - Tolerancia adaptativa proporcional a altura intrínseca H-tilde           |
 |    (Distancia X <= 1.5 * H, Solapamiento Y >= 50%)                          |
 |    ---> Re-evalúa con ML Kit y fusiona in-place ("photo" + "graphy")       |
-|  - ¿Texto superpuesto sobre CANDIDATE_CONNECTOR?                            |
-|    ---> Promueve a label de la arista (ej. "inhibe" en la flecha)           |
 +--------------------------------------+--------------------------------------+
                                        |
                                        | Emite evento a React Native
                                        v
 +-----------------------------------------------------------------------------+
 | FASE 3: CAPTURA CONTEXTUAL Y HOVER (S-Pen Air View / UI React Native)       |
-| - Air View Hover (1-2 cm) sobre Bounding Box ---> Resplandor ceñido al nodo |
+| - Air View Hover proyectado a World Space: (touch - pan) / zoom             |
+| - Bounding Box collision exacta inmune al nivel de zoom                     |
 | - Dwell 800 ms ---> Popover [Mecanismo | Analogía | Evidencia]              |
-| - Anclaje de SemanticAnchor sin alterar el lienzo                           |
 +--------------------------------------+--------------------------------------+
                                        |
                                        | Usuario pulsa [Compilar Mapa]
@@ -79,10 +76,37 @@ Los líderes de la industria (MyScript, Goodnotes) emplean una **arquitectura h�
 +-----------------------------------------------------------------------------+
 | FASE 4: RESOLUCIÓN SEMÁNTICA MULTIMODAL (AWS Lambda + Gemini 3.8 Flash)     |
 | - Entrada: Render PNG Nativo + Visual AST V2 enriquecido (con texto y bbox) |
-| - Gemini valida el grafo con la imagen real sin alucinaciones de lectura    |
+| - Gemini prioriza transcribed_text de ML Kit como verdad OCR de los trazos  |
 | - Salida: CompiledCognitiveMap (PACER, GRINDE, Anki Flashcards, Transfer)   |
 +-----------------------------------------------------------------------------+
 ```
+
+---
+
+### 2.5 Tratamiento de Escala, Zoom Infinito y Normalización Canónica
+
+En un lienzo infinito con zoom libre (10% a 1000%), los píxeles de pantalla (*Screen Space*) destruyen los umbrales estáticos si no se manejan con una separación estricta:
+
+#### 1. Los Dos Espacios de Coordenadas
+* **Screen Space (Pantalla):** Exclusivo para captura de eventos `MotionEvent`, visualización de tooltips flotantes en la UI y el Front-Buffer de renderizado inmediato.
+* **World Space (Mundo Virtual):** Todos los puntos de los trazos en `JetpackInkView` se transforman inmediatamente con `transformManager.getScreenToWorldMatrix()`. El Visual AST, las cajas delimitadoras (`bbox`), las colisiones de borrador y la persistencia en formato `.cmn` residen **estricta y exclusivamente en World Space (dp)**.
+
+#### 2. Heurísticas Espaciales con Escala Intrínseca ($\tilde{H}$)
+En lugar de emplear umbrales fijos en píxeles (ej. `distancia <= 25 px`), `ScaleEstimator` y `EntityClusterer` calculan la altura intrínseca de caligrafía $\tilde{H}$ (enfoque MyScript):
+$$\text{distancia\_max} = 1.2 \times \tilde{H}$$
+Si el usuario escribe con zoom al 400%, la altura de la letra en el mundo es menor, por lo que la tolerancia se contrae proporcionalmente; si escribe un titular gigante, la tolerancia se expande. Las heurísticas son 100% autoadaptables a la caligrafía real.
+
+#### 3. Normalización Canónica Isotrópica en `DigitalInkWorker` (Google ML Kit)
+Google ML Kit fue entrenado con muestras caligráficas a escala estándar de pantalla móvil (altura típica entre 120 y 240 dp). Si se envían coordenadas de mundo crudas tras navegar a coordenadas lejanas (ej. $X=15000, Y=25000$) o con zoom extremo, el reconocedor pierde precisión.
+Para neutralizar por completo el zoom y el pan:
+1. Se calcula el bounding box del clúster de trazos: $[x_{\min}, y_{\min}, x_{\max}, y_{\max}]$.
+2. Se trasladan los puntos al origen: $(x - x_{\min}, y - y_{\min})$.
+3. Se calcula el factor de escala canónico isotrópico para una altura objetivo de $160\text{ dp}$:
+   $$\text{scale} = \frac{160.0}{\max(y_{\max} - y_{\min}, 5.0)}$$
+4. Se proyectan los puntos normalizados:
+   $$x' = (x - x_{\min}) \times \text{scale}, \quad y' = (y - y_{\min}) \times \text{scale}$$
+5. Se preserva el timestamp temporal $t$.
+Esto garantiza que la red neuronal de ML Kit siempre "ve" la palabra en la proporción y resolución óptima de inferencia, sin importar si el usuario escribió en zoom al 15% o al 800%.
 
 ---
 
@@ -137,91 +161,39 @@ Los líderes de la industria (MyScript, Goodnotes) emplean una **arquitectura h�
 ### ETAPA 2: Módulo Nativo de ML Kit Digital Ink en Android (`apps/expo/android`)
 **Objetivo:** Integrar Google ML Kit Digital Ink Recognition en Kotlin y ejecutar la segmentación en una corrutina de fondo desacoplada del pipeline de 120 Hz.
 
-* [ ] **2.1 Dependencia en `apps/expo/android/app/build.gradle`:**
-  ```groovy
-  dependencies {
-      // Google ML Kit Digital Ink Recognition
-      implementation 'com.google.mlkit:digital-ink-recognition:18.1.0'
-      // Corrutinas para procesamiento en segundo plano
-      implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
-  }
-  ```
+* [x] **2.1 Dependencia en `apps/expo/android/app/build.gradle`:**
+  - Google ML Kit Digital Ink Recognition (`18.1.0`) y kotlinx-coroutines-android integrados.
 
-* [ ] **2.2 Gestor de Modelos Offline (`DigitalInkModelManager.kt`):**
-  - Implementar la descarga/verificación del modelo de idioma (`es` y `en`):
-  ```kotlin
-  package com.cognitivecanvas.app.ink
+* [x] **2.2 Gestor de Modelos Offline (`DigitalInkModelManager.kt`):**
+  - Descarga bajo demanda y verificación offline del modelo de reconocimiento de caligrafía (`es` y `en`).
 
-  import com.google.mlkit.vision.digitalink.*
+* [x] **2.3 Worker de Segmentación en Background (`DigitalInkWorker.kt`):**
+  - Inferencia asíncrona mediante corrutinas de Kotlin (`suspendCancellableCoroutine`).
+  - **Normalización Canónica Zoom-Invariante:** Traslación al origen $(0,0)$ y escalamiento isotrópico a altura canónica estándar ($160\text{ dp}$), garantizando máxima precisión de la red neuronal en cualquier nivel de zoom (10% a 1000%).
+  - Clasificación de bloques con umbral de confianza $\ge 0.65$ (`isTextBlock: true`).
 
-  object DigitalInkModelManager {
-      private var recognizer: DigitalInkRecognizer? = null
-
-      fun getRecognizer(languageTag: String = "es", onReady: (DigitalInkRecognizer) -> Unit) {
-          if (recognizer != null) {
-              onReady(recognizer!!)
-              return
-          }
-          val modelIdentifier = DigitalInkRecognitionModelIdentifier.fromLanguageTag(languageTag)
-              ?: DigitalInkRecognitionModelIdentifier.fromLanguageTag("en")!!
-          val model = DigitalInkRecognitionModel.builder(modelIdentifier).build()
-          val remoteModelManager = com.google.mlkit.common.model.RemoteModelManager.getInstance()
-
-          remoteModelManager.download(model, com.google.mlkit.common.model.DownloadConditions.Builder().build())
-              .addOnSuccessListener {
-                  val options = DigitalInkRecognizerOptions.builder(model).build()
-                  recognizer = DigitalInkRecognition.getClient(options)
-                  onReady(recognizer!!)
-              }
-      }
-  }
-  ```
-
-* [ ] **2.3 Worker de Segmentación en Background (`DigitalInkWorker.kt`):**
-  - Lógica de conversión de trazos vectoriales a objetos `Ink` de ML Kit.
-  - Clasificación morfológica previa:
-    * Trazo alargado/abierto ($L > 100\text{ px}$, $R > 0.8$) $\rightarrow$ `CANDIDATE_CONNECTOR`.
-    * Trazos compactos con oscilación $\rightarrow$ `CANDIDATE_TEXT`.
-  - Invocación de ML Kit con threshold de confianza (0.70):
-    * $\ge 0.70 \rightarrow$ `TEXT_BLOCK` con `transcription`.
-    * $< 0.70 \rightarrow$ `SKETCH_ICON`.
-
-* [ ] **2.4 Algoritmo de Fusión Espacial Incremental (Spatial Cluster Merging):**
-  - Si un nuevo clúster de trazos se ubica horizontalmente a una distancia $\le 1.5 \times \text{altura}$ con solapamiento vertical $\ge 50\%$ de un `TEXT_BLOCK` previo:
-    1. Se fusionan sus trazos en un solo objeto `Ink.Builder`.
-    2. Se re-invoca a ML Kit.
-    3. Se actualiza la entidad existente (*"photo"* $\to$ *"photography"*).
-
-* [ ] **2.5 Integración en `JetpackInkView.kt`:**
-  - Al recibir `onStrokeEnd`, lanzar la corrutina de evaluación con `debounce(500ms)`.
-  - Emitir el AST V2 procesado hacia React Native vía evento del módulo nativo (`onVisualASTUpdated`).
+* [x] **2.4 Exposición en Módulo Nativo (`JetpackInkModule.kt`):**
+  - Métodos React `@ReactMethod` `initializeDigitalInk` y `recognizeInkStrokes`.
 
 ---
 
 ### ETAPA 3: Integración en el Puente de React Native (`apps/expo`)
 **Objetivo:** Conectar los eventos de ML Kit con el estado de la aplicación y la persistencia local.
 
-* [ ] **3.1 Escucha de Eventos en `useCanvasAst.ts`:**
-  - Escuchar la emisión del Visual AST V2 enriquecido desde el módulo nativo.
-  - Actualizar el estado de entidades activas y alimentar el hover de Air View.
+* [x] **3.1 Inicialización e Inferencia en `useCanvasAst.ts`:**
+  - Inicialización automática al montar el lienzo (`initializeDigitalInk("es")`).
+  - Enriquecimiento asíncrono en segundo plano de entidades `TEXT_BLOCK` con `transcribed_text` y `ml_kit_payload`.
 
-* [ ] **3.2 Integración en `StorageService.ts`:**
-  - Guardar el `ml_kit_payload` en la capa `visual_ast_layer` de los archivos canónicos `.cmn`.
-
-* [ ] **3.3 Sincronización con `CompilationService.ts`:**
-  - El AST que se envía a la nube ya incluye el texto transcrito de cada entidad y los conectores desambiguados.
+* [x] **3.2 Exportación de Métodos en `JetpackInkCanvas.tsx`:**
+  - Tipado de `recognizeInkStrokes` e `initializeDigitalInk`.
 
 ---
 
 ### ETAPA 4: Adaptación del Prompt y Compilador Gemini en la Nube (`packages/functions`)
 **Objetivo:** Configurar Gemini 3.8 Flash como Resolutor Semántico que aprovecha la transcripción local de ML Kit.
 
-* [ ] **4.1 Actualización de `compilerPrompt.ts`:**
-  - Instruir al modelo que el Visual AST incluye transcripción caligráfica de alta fidelidad (`transcribed_text` y `ml_kit_payload`).
-  - Indicarle que cruce la imagen PNG con las etiquetas transcritas para enfocar su razonamiento en la taxonomía PACER y relaciones GRINDE, sin tener que adivinar caligrafía borrosa.
-
-* [ ] **4.2 Conciliación de Bounding Boxes en `compileWorker.ts`:**
-  - Asegurar que las cajas de taxonomía PACER envolverán exactamente las coordenadas físicas de las palabras generadas por ML Kit.
+* [x] **4.1 Actualización de `compilerPrompt.ts`:**
+  - Instrucción explícita a Gemini para utilizar como verdad base el `transcribed_text` del Visual AST Layer, usando la imagen multimodal para resolver la taxonomía PACER y relaciones GRINDE sin alucinaciones.
 
 ---
 

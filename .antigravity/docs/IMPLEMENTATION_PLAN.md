@@ -143,6 +143,10 @@ Basado en: `MASTER_SPEC.md`, `DECISION_RATIONALE.md` y `UI_AND_CANVAS_SPEC.md`.
 5. [COMPLETADO ✅] **Sincronización AnkiConnect / AnkiDroid:** Exportación fluida de flashcards de Evidencia/Referencia directamente a la colección de Anki y archivos TSV para AnkiDroid.
 6. [COMPLETADO ✅] **Puntero Láser Efímero y Exportación PNG:** Herramienta de láser Feynman y captura fuera de pantalla nativa.
 7. [COMPLETADO ✅] **Soporte de Rotación Completa:** Habilitada orientación `fullSensor` (portrait y landscape hacia ambos lados).
-8. [SIGUIENTE 🔜] **Ejecución de Fase 6 — Visual AST V2 (Pipeline Híbrido ML Kit + Gemini):**
-   - Implementar el clasificador de texto on-device en Kotlin (`DigitalInkRecognition`) y Spatial Cluster Merging para erradicar las falsas flechas en palabras como *"Photography"*.
+8. [COMPLETADO ✅] **Ejecución de Fase 6 — Visual AST V2 (Pipeline Híbrido ML Kit + Gemini):**
+   - Implementado clasificador on-device en Kotlin (`DigitalInkRecognition`) con inicialización offline y puente React Native.
+   - Normalización canónica de trazos (traslación a origen y escalamiento isotrópico a 160 dp) para total invariancia ante zoom/pan.
+   - Alineación del System Prompt de Gemini 3.8 Flash para tomar `transcribed_text` local como verdad base.
+9. [SIGUIENTE 🔜] **Validación y Pruebas en Hardware Real (Samsung Galaxy Tab S10 Lite):**
+   - Compilación del APK y validación de palabras cursivas complejas (*"Photography"*), conectores y compilación multimodal.
 
