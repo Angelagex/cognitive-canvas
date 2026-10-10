@@ -53,7 +53,7 @@ export const CompilerDrawer: React.FC<CompilerDrawerProps> = ({
           {/* Action Trigger Banner */}
           <View style={styles.actionBanner}>
             <View style={styles.bannerInfo}>
-              <Text style={styles.bannerTitle}>Auditoría GRINDE & Tarjetas Anki</Text>
+              <Text style={styles.bannerTitle}>Evaluación Macro-Cognitiva & Islas</Text>
               <Text style={styles.bannerSubtitle}>
                 {strokeCount > 0 ? `${strokeCount} trazos listos en lienzo` : "Dibuja tu mapa para compilar"}
               </Text>
@@ -69,7 +69,7 @@ export const CompilerDrawer: React.FC<CompilerDrawerProps> = ({
             </TouchableOpacity>
           </View>
 
-          {/* Scrollable Retrieval Panel with GRINDE, PACER and Anki tabs */}
+          {/* Scrollable Retrieval Panel with Macro-Cognitive Evaluation */}
           <View style={styles.panelContent}>
             {compilation ? (
               <RetrievalPanel
@@ -81,11 +81,11 @@ export const CompilerDrawer: React.FC<CompilerDrawerProps> = ({
               />
             ) : (
               <View style={styles.emptyStateContainer}>
-                <Text style={styles.emptyStateIcon}>📐</Text>
-                <Text style={styles.emptyStateTitle}>Lienzo listo para auditar</Text>
+                <Text style={styles.emptyStateIcon}>🏝️</Text>
+                <Text style={styles.emptyStateTitle}>Lienzo listo para evaluar</Text>
                 <Text style={styles.emptyStateDescription}>
-                  Dibuja tus conceptos, relaciones causales y cross-links con el S-Pen.
-                  Presiona "Ejecutar IA" para auditar con Gemini 2.0 Flash y generar tarjetas cloze.
+                  Dibuja tus conceptos y relaciones causales con el S-Pen.
+                  Presiona "Ejecutar IA" para auditar las macro-islas, nivel de madurez 1-4 y activar la Capa Fantasma (Ghost Overlay).
                 </Text>
               </View>
             )}

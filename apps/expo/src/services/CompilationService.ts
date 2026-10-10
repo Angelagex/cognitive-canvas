@@ -245,6 +245,8 @@ export function compileMapLocally(params: CompileParams): CognitiveCompilerOutpu
     const tgt = nodes.find((n) => n.id === mainEdge.target_node_id)?.detected_content || "Efecto";
     derringChallenges.push({
       flawed_premise: `Si se elimina por completo "${src}", "${tgt}" se incrementará automáticamente sin efectos colaterales.`,
+      challenge_prompt: `Explica por qué esta afirmación es falsa analizando el mecanismo de "${mainEdge.label}".`,
+      canonical_resolution: `Existe una relación de dependencia donde ${src} influye en ${tgt}; anularlo rompe el balance del sistema causal.`,
       corrective_task: `Explica por qué esta afirmación es falsa analizando el mecanismo de "${mainEdge.label}".`,
       canonical_solution: `Existe una relación de dependencia donde ${src} influye en ${tgt}; anularlo rompe el balance del sistema causal.`,
     });
@@ -260,6 +262,55 @@ export function compileMapLocally(params: CompileParams): CognitiveCompilerOutpu
   }
 
   const output: CognitiveCompilerOutput = {
+    map_overview: {
+      core_theme: title || "Esquema Cognitivo",
+      maturity_level: linearThinkingRisk ? 1 : crossLinkDensity >= 0.4 ? 3 : 2,
+      maturity_diagnosis: feedbackCritique,
+      bridge_to_next_level:
+        "Formular conexiones causales explícitas entre los cúmulos más distantes para alcanzar reconciliación integrativa.",
+    },
+    macro_islands:
+      nodes.length > 0
+        ? [
+            {
+              island_name: "Cúmulo Conceptual",
+              associated_entity_ids: nodes.map((n) => n.id),
+              is_isolated: false,
+            },
+          ]
+        : [],
+    pedagogical_interventions: {
+      procedural_zones: [],
+      relational_anchoring_suggestions: [],
+      anki_exceptions: ankiFlashcards.slice(0, 2).map((c) => ({
+        front: c.front,
+        back: c.back,
+        why_not_deducible: "Dato no deducible de referencia",
+      })),
+    },
+    high_order_retrieval: {
+      cross_island_causal_question:
+        "¿De qué manera una perturbación en este esquema alteraría los resultados en condiciones límite?",
+      high_road_transfer: {
+        unstructured_scenario:
+          highRoadPrompts[0]?.unstructured_scenario ||
+          "Un sistema disímil gobernado por la misma dinámica causal.",
+        guiding_question:
+          highRoadPrompts[0]?.guiding_question ||
+          "¿Cómo se proyecta la regla invariable a ese nuevo contexto?",
+      },
+      derring_effect: {
+        flawed_premise:
+          derringChallenges[0]?.flawed_premise ||
+          "Eliminar la variable principal no tiene impacto en la estabilidad de la red.",
+        challenge_prompt:
+          derringChallenges[0]?.corrective_task ||
+          "Identifica la contradicción con el principio causal.",
+        canonical_resolution:
+          derringChallenges[0]?.canonical_solution ||
+          "Existe acoplamiento causal; alterar una variable repercute en todo el sistema.",
+      },
+    },
     map_metadata: {
       title: title || "Mapa Mental",
       domain_theme: "Cognitive Knowledge Map",

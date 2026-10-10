@@ -11,6 +11,8 @@ import { SemanticAnchorTooltip } from "./src/components/canvas/SemanticAnchorToo
 import { PacerOverlayLayer } from "./src/components/canvas/PacerOverlayLayer";
 import { ClearCanvasConfirmModal } from "./src/components/modals/ClearCanvasConfirmModal";
 import { DocumentActionsModal } from "./src/components/modals/DocumentActionsModal";
+import { GhostOverlay } from "./src/components/canvas/GhostOverlay";
+import { cognitiveLayerStore } from "./src/stores/useCognitiveLayerStore";
 
 export default function App() {
   const [showDocumentMenu, setShowDocumentMenu] = useState(false);
@@ -168,7 +170,10 @@ export default function App() {
           clearSelectionTrigger={clearSelectionTrigger}
           loadedStrokesJson={loadedStrokesJson}
           loadStrokesTrigger={loadStrokesTrigger}
-          onStrokeEnd={handleStrokeEnd}
+          onStrokeEnd={(e) => {
+            handleStrokeEnd(e);
+            cognitiveLayerStore.markAsDirty();
+          }}
           onTransform={handleTransform}
           onBarrelButton={handleBarrelButton}
           onSelectionChanged={handleSelectionChanged}
@@ -177,16 +182,26 @@ export default function App() {
           onFingerTap={handleFingerTap}
         />
 
-        {/* Capa de Superposición PACER (Master Spec Sec 9: Cajas y Badges de Rol Cognitivo) */}
-        <PacerOverlayLayer
-          nodes={compilation?.nodes}
+        {/* Capa Fantasma Semántica HUD (Ghost Overlay - Macro-Islas y Puentes) */}
+        <GhostOverlay
           visualAST={visualAST}
           canvasScale={canvasScale}
           canvasTranslateX={canvasTranslateX}
           canvasTranslateY={canvasTranslateY}
-          activeFilter={pacerFilter}
-          visible={showPacerOverlay}
         />
+
+        {/* Capa de Superposición PACER (Retrocompatibilidad) */}
+        {compilation?.nodes && (
+          <PacerOverlayLayer
+            nodes={compilation.nodes}
+            visualAST={visualAST}
+            canvasScale={canvasScale}
+            canvasTranslateX={canvasTranslateX}
+            canvasTranslateY={canvasTranslateY}
+            activeFilter={pacerFilter}
+            visible={showPacerOverlay}
+          />
+        )}
 
         {/* Badges de Atributos Cognitivos anclados al lienzo con soporte Air View y Halo Perimetral */}
         <PlacedAttributeBadges

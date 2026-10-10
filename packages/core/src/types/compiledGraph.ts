@@ -114,7 +114,7 @@ export interface HighRoadTransferPrompt {
  * Derring Effect Challenge (Wong & Lim)
  * Intentional plausible misconception to be identified and rectified
  */
-export interface DerringEffectChallenge {
+export interface LegacyDerringEffectChallenge {
   flawed_premise: string;
   corrective_task: string;
   canonical_solution: string;
@@ -144,190 +144,207 @@ export interface LearningEngineOutputs {
  * Complete Compiled Cognitive Map Structure
  * 1:1 Match with MASTER_SPEC.md Section 8 JSON Schema
  */
-export interface CompiledCognitiveMap {
-  map_metadata: MapMetadata;
-  nodes: CompiledNode[];
-  edges: CompiledEdge[];
-  grinde_audit: GrindeAudit;
-  learning_engine_outputs: LearningEngineOutputs;
+/**
+ * Macro-Cognitive Architecture Types (Dr. Justin Sung / iCanStudy & Mirror Mapping)
+ * Based on GHOST_OVERLAY_AND_MACRO_PIPELINE_SPEC.md & COGNITIVE_ARCHITECTURE_DECISION_RECORD.md
+ */
+
+export type MaturityLevel = 1 | 2 | 3 | 4;
+
+export interface MapOverview {
+  core_theme: string;
+  maturity_level: MaturityLevel;
+  maturity_diagnosis: string;
+  bridge_to_next_level: string;
+}
+
+export interface MacroIsland {
+  island_name: string;
+  associated_entity_ids: string[];
+  is_isolated: boolean;
+}
+
+export interface ProceduralZone {
+  zone_name: string;
+  entity_ids: string[];
+  deliberate_practice_prompt: string;
+}
+
+export interface RelationalAnchoringSuggestion {
+  target_content: string;
+  suggested_connection: string;
+}
+
+export interface AnkiException {
+  front: string;
+  back: string;
+  why_not_deducible: string;
+}
+
+export interface HighRoadTransfer {
+  unstructured_scenario: string;
+  guiding_question: string;
+}
+
+export interface DerringEffectChallenge {
+  flawed_premise: string;
+  challenge_prompt: string;
+  canonical_resolution: string;
+  // Optional backward compat
+  corrective_task?: string;
+  canonical_solution?: string;
+}
+
+export interface HighOrderRetrieval {
+  cross_island_causal_question: string;
+  high_road_transfer: HighRoadTransfer;
+  derring_effect: DerringEffectChallenge;
+}
+
+export interface PedagogicalInterventions {
+  procedural_zones: ProceduralZone[];
+  relational_anchoring_suggestions: RelationalAnchoringSuggestion[];
+  anki_exceptions: AnkiException[];
+}
+
+export interface CompiledMacroCognitiveMap {
+  map_overview: MapOverview;
+  macro_islands: MacroIsland[];
+  pedagogical_interventions: PedagogicalInterventions;
+  high_order_retrieval: HighOrderRetrieval;
 }
 
 /**
- * Formal JSON Schema for Gemini 2.0 Flash Structured Outputs
+ * Complete Compiled Cognitive Map Structure (Maintained for backward-compatibility)
+ */
+export interface CompiledCognitiveMap {
+  map_overview?: MapOverview;
+  macro_islands?: MacroIsland[];
+  pedagogical_interventions?: PedagogicalInterventions;
+  high_order_retrieval?: HighOrderRetrieval;
+  // Legacy fields
+  map_metadata?: MapMetadata;
+  nodes?: CompiledNode[];
+  edges?: CompiledEdge[];
+  grinde_audit?: GrindeAudit;
+  learning_engine_outputs?: LearningEngineOutputs;
+}
+
+/**
+ * Formal JSON Schema for Gemini 2.0 / 3.8 Flash Structured Outputs
+ * 1:1 match with JSON SQUEMA.md
  */
 export const COMPILER_JSON_SCHEMA = {
   $schema: "http://json-schema.org/draft-07/schema#",
-  title: "CompiledCognitiveMap",
+  title: "MacroCognitiveEvaluation",
   type: "object",
   properties: {
-    map_metadata: {
+    map_overview: {
       type: "object",
       properties: {
-        title: { type: "string" },
-        domain_theme: { type: "string" },
-        total_nodes: { type: "integer" },
-        total_edges: { type: "integer" },
+        core_theme: { type: "string" },
+        maturity_level: { type: "integer", enum: [1, 2, 3, 4] },
+        maturity_diagnosis: {
+          type: "string",
+          description: "Diagnóstico de por qué está en este nivel (máximo 2 oraciones).",
+        },
+        bridge_to_next_level: {
+          type: "string",
+          description: "Acción relacional concreta para subir de nivel.",
+        },
       },
-      required: ["title", "domain_theme", "total_nodes", "total_edges"],
+      required: ["core_theme", "maturity_level", "maturity_diagnosis", "bridge_to_next_level"],
     },
-    nodes: {
+    macro_islands: {
       type: "array",
+      description: "Lista de las principales regiones conceptuales identificadas.",
       items: {
         type: "object",
         properties: {
-          id: { type: "string" },
-          visual_bounding_box: {
-            type: "object",
-            properties: {
-              ymin: { type: "number" },
-              xmin: { type: "number" },
-              ymax: { type: "number" },
-              xmax: { type: "number" },
-            },
-            required: ["ymin", "xmin", "ymax", "xmax"],
-          },
-          detected_content: { type: "string" },
-          passive_context: { type: "string" },
-          pacer_classification: {
-            type: "string",
-            enum: ["PROCEDURAL", "ANALOGOUS", "CONCEPTUAL", "EVIDENCE", "REFERENCE"],
-          },
-          grinde_traits: {
-            type: "array",
-            items: {
-              type: "string",
-              enum: [
-                "GROUPED",
-                "REFLECTIVE",
-                "INTERCONNECTED",
-                "NON_VERBAL",
-                "DIRECTIONAL",
-                "EMPHASIZED",
-              ],
-            },
-          },
-          deducible_from_context: { type: "boolean" },
-        },
-        required: [
-          "id",
-          "visual_bounding_box",
-          "detected_content",
-          "pacer_classification",
-          "deducible_from_context",
-        ],
-      },
-    },
-    edges: {
-      type: "array",
-      items: {
-        type: "object",
-        properties: {
-          source_node_id: { type: "string" },
-          target_node_id: { type: "string" },
-          label: { type: "string" },
-          is_cross_link: { type: "boolean" },
-          relation_nature: {
-            type: "string",
-            enum: [
-              "CAUSAL",
-              "CONDITIONAL",
-              "HIERARCHICAL",
-              "OPPOSITION_CONTRAST",
-              "ANALOGICAL_ISOMORPHISM",
-              "EVIDENTIAL_SUPPORT",
-            ],
+          island_name: { type: "string" },
+          associated_entity_ids: { type: "array", items: { type: "string" } },
+          is_isolated: {
+            type: "boolean",
+            description: "True si carece de enlaces cruzados con otras islas.",
           },
         },
-        required: [
-          "source_node_id",
-          "target_node_id",
-          "label",
-          "is_cross_link",
-          "relation_nature",
-        ],
+        required: ["island_name", "associated_entity_ids", "is_isolated"],
       },
     },
-    grinde_audit: {
+    pedagogical_interventions: {
       type: "object",
       properties: {
-        cross_link_density_score: { type: "number" },
-        non_verbal_balance_score: { type: "number" },
-        linear_thinking_risk: { type: "boolean" },
-        feedback_critique: { type: "string" },
-      },
-      required: [
-        "cross_link_density_score",
-        "non_verbal_balance_score",
-        "linear_thinking_risk",
-        "feedback_critique",
-      ],
-    },
-    learning_engine_outputs: {
-      type: "object",
-      properties: {
-        anki_flashcards: {
+        procedural_zones: {
           type: "array",
           items: {
             type: "object",
             properties: {
-              source_node_id: { type: "string" },
-              card_type: { type: "string", enum: ["BASIC", "CLOZE"] },
+              zone_name: { type: "string" },
+              entity_ids: { type: "array", items: { type: "string" } },
+              deliberate_practice_prompt: { type: "string" },
+            },
+            required: ["zone_name", "entity_ids", "deliberate_practice_prompt"],
+          },
+        },
+        relational_anchoring_suggestions: {
+          type: "array",
+          description:
+            "Datos de referencia o evidencia que el usuario debería conectar mejor en el mapa en lugar de memorizarlos.",
+          items: {
+            type: "object",
+            properties: {
+              target_content: { type: "string" },
+              suggested_connection: { type: "string" },
+            },
+            required: ["target_content", "suggested_connection"],
+          },
+        },
+        anki_exceptions: {
+          type: "array",
+          description:
+            "Únicamente datos no deducibles que no pueden integrarse al mapa (máximo 2).",
+          items: {
+            type: "object",
+            properties: {
               front: { type: "string" },
               back: { type: "string" },
+              why_not_deducible: { type: "string" },
             },
-            required: ["source_node_id", "card_type", "front", "back"],
-          },
-        },
-        high_road_transfer_prompts: {
-          type: "array",
-          items: {
-            type: "object",
-            properties: {
-              core_concept_ids: { type: "array", items: { type: "string" } },
-              unstructured_scenario: { type: "string" },
-              guiding_question: { type: "string" },
-            },
-            required: ["core_concept_ids", "unstructured_scenario", "guiding_question"],
-          },
-        },
-        derring_effect_challenges: {
-          type: "array",
-          items: {
-            type: "object",
-            properties: {
-              flawed_premise: { type: "string" },
-              corrective_task: { type: "string" },
-              canonical_solution: { type: "string" },
-            },
-            required: ["flawed_premise", "corrective_task", "canonical_solution"],
-          },
-        },
-        contrasting_cases_icc: {
-          type: "array",
-          items: {
-            type: "object",
-            properties: {
-              case_a: { type: "string" },
-              case_b: { type: "string" },
-              invariant_discovery_prompt: { type: "string" },
-            },
-            required: ["case_a", "case_b", "invariant_discovery_prompt"],
+            required: ["front", "back", "why_not_deducible"],
           },
         },
       },
-      required: [
-        "anki_flashcards",
-        "high_road_transfer_prompts",
-        "derring_effect_challenges",
-        "contrasting_cases_icc",
-      ],
+      required: ["procedural_zones", "relational_anchoring_suggestions", "anki_exceptions"],
+    },
+    high_order_retrieval: {
+      type: "object",
+      properties: {
+        cross_island_causal_question: { type: "string" },
+        high_road_transfer: {
+          type: "object",
+          properties: {
+            unstructured_scenario: { type: "string" },
+            guiding_question: { type: "string" },
+          },
+          required: ["unstructured_scenario", "guiding_question"],
+        },
+        derring_effect: {
+          type: "object",
+          properties: {
+            flawed_premise: { type: "string" },
+            challenge_prompt: { type: "string" },
+            canonical_resolution: { type: "string" },
+          },
+          required: ["flawed_premise", "challenge_prompt", "canonical_resolution"],
+        },
+      },
+      required: ["cross_island_causal_question", "high_road_transfer", "derring_effect"],
     },
   },
   required: [
-    "map_metadata",
-    "nodes",
-    "edges",
-    "grinde_audit",
-    "learning_engine_outputs",
+    "map_overview",
+    "macro_islands",
+    "pedagogical_interventions",
+    "high_order_retrieval",
   ],
 } as const;

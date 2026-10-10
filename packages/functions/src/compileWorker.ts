@@ -137,7 +137,7 @@ export const handler: Handler = async (event) => {
         systemInstruction: SYSTEM_COMPILER_PROMPT,
         responseMimeType: "application/json",
         responseSchema: COGNITIVE_COMPILER_JSON_SCHEMA,
-        temperature: 0.1,
+        temperature: 0.2,
         thinkingConfig: {
           thinkingBudget: 0,
         },
@@ -150,104 +150,64 @@ export const handler: Handler = async (event) => {
 
     const output: CognitiveCompilerOutput = JSON.parse(rawText);
 
-    // Reconciliación con el Visual AST: asegurar coordenadas de mundo reales del lienzo
-    if (visual_ast_layer?.entities && visual_ast_layer.entities.length > 0 && output.nodes) {
-      console.log(`[Worker:compile] 🔗 Reconciliando ${output.nodes.length} nodos con ${visual_ast_layer.entities.length} entidades del Visual AST...`);
-      for (const node of output.nodes) {
-        const matchingEntity =
-          visual_ast_layer.entities.find((e) => e.id === node.id) ||
-          visual_ast_layer.entities.find((e) => {
-            const entText = (e.transcribed_text || "").toLowerCase().trim();
-            const nodeContent = (node.detected_content || "").toLowerCase().trim();
-            return entText && nodeContent && (entText.includes(nodeContent) || nodeContent.includes(entText));
-          });
-
-        if (matchingEntity && matchingEntity.bbox) {
-          node.visual_bounding_box = {
-            xmin: matchingEntity.bbox.xmin,
-            ymin: matchingEntity.bbox.ymin,
-            xmax: matchingEntity.bbox.xmax,
-            ymax: matchingEntity.bbox.ymax,
-          };
-          console.log(`[Worker:compile] 🎯 Nodo "${node.detected_content}" vinculado con ${matchingEntity.id} (bbox: [${matchingEntity.bbox.xmin}, ${matchingEntity.bbox.ymin}, ${matchingEntity.bbox.xmax}, ${matchingEntity.bbox.ymax}])`);
-        }
-      }
-    }
-
     const compilationId = `comp_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
 
-    // Persist compilation record
+    // Métricas macro-cognitivas derivadas
+    const feedbackCritique =
+      output.map_overview?.maturity_diagnosis ||
+      output.map_overview?.bridge_to_next_level ||
+      "Evaluación macro-cognitiva completada.";
+    const linearThinkingRisk = output.map_overview?.maturity_level === 1;
+    const totalIslands = output.macro_islands?.length || 1;
+    const connectedIslands = output.macro_islands?.filter((i) => !i.is_isolated)?.length || 0;
+    const crossLinkDensityScore = totalIslands > 0 ? connectedIslands / totalIslands : 0;
+
+    // Persist compilation record in DynamoDB
     await CompilationRepository.create({
       id: compilationId,
       canvasId: canvas_id,
-      feedbackCritique: output.grinde_audit.feedback_critique || "",
-      linearThinkingRisk: output.grinde_audit.linear_thinking_risk || false,
-      crossLinkDensityScore: output.grinde_audit.cross_link_density_score || 0,
+      feedbackCritique,
+      linearThinkingRisk,
+      crossLinkDensityScore,
       rawOutputJson: JSON.stringify(output),
     });
 
-    // Batch persist nodes
-    if (output.nodes && output.nodes.length > 0) {
-      const nodeInputs = output.nodes.map((node) => ({
-        id: node.id || `node_${Math.random().toString(36).substring(2, 7)}`,
-        canvasId: canvas_id,
-        compilationId: compilationId,
-        pacerClassification: node.pacer_classification,
-        detectedContent: node.detected_content || "",
-        passiveContext: node.passive_context || undefined,
-        boundingBoxJson: JSON.stringify(node.visual_bounding_box),
-        deducibleFromContext: Boolean(node.deducible_from_context),
-      }));
-      await CognitiveNodeRepository.batchCreate(nodeInputs);
-    }
-
-    // Batch persist edges
-    if (output.edges && output.edges.length > 0) {
-      const edgeInputs = output.edges.map((edge, idx) => ({
-        id: `edge_${compilationId}_${idx}`,
-        canvasId: canvas_id,
-        compilationId: compilationId,
-        sourceNodeId: edge.source_node_id,
-        targetNodeId: edge.target_node_id,
-        label: edge.label || "",
-        isCrossLink: Boolean(edge.is_cross_link),
-        relationNature: edge.relation_nature || "associative",
-      }));
-      await CognitiveEdgeRepository.batchCreate(edgeInputs);
-    }
-
-    // Extract and persist flashcards
-    const flashcards = output.learning_engine_outputs?.anki_flashcards || output.anki_flashcards || [];
-    if (flashcards.length > 0) {
-      const flashcardInputs = flashcards.map((card: any, idx: number) => ({
+    // Extract and persist flashcard exceptions (Anki)
+    const ankiExceptions = output.pedagogical_interventions?.anki_exceptions || [];
+    if (ankiExceptions.length > 0) {
+      const flashcardInputs = ankiExceptions.map((card, idx) => ({
         id: `card_${compilationId}_${idx}`,
         canvasId: canvas_id,
         compilationId: compilationId,
-        targetNodeId: card.target_node_id || card.source_node_id || `node_${idx}`,
-        cardType: card.card_type,
+        targetNodeId: `exception_${idx}`,
+        cardType: "BASIC" as const,
         front: card.front,
         back: card.back,
-        clozeText: card.cloze_text || card.front,
+        clozeText: card.why_not_deducible || card.front,
         deckName: "CognitiveCanvas",
         syncedToAnki: false,
       }));
-      await FlashcardRepository.batchCreate(flashcardInputs);
+      await FlashcardRepository.batchCreate(flashcardInputs).catch((err) =>
+        console.warn("[Worker:compile] Aviso guardando flashcards:", err)
+      );
     }
 
-    // Populate fallback flat fields
-    if (output.learning_engine_outputs && !output.anki_flashcards) {
-      output.anki_flashcards = output.learning_engine_outputs.anki_flashcards;
-      output.high_road_transfer_prompts = output.learning_engine_outputs.high_road_transfer_prompts as any;
-      output.derring_effect_challenges = output.learning_engine_outputs.derring_effect_challenges as any;
-      output.contrasting_cases_icc = output.learning_engine_outputs.contrasting_cases_icc as any;
+    // Populate fallback legacy fields for backwards compatibility
+    if (!output.anki_flashcards && ankiExceptions.length > 0) {
+      output.anki_flashcards = ankiExceptions.map((c) => ({
+        source_node_id: "macro_exception",
+        card_type: "BASIC",
+        front: c.front,
+        back: c.back,
+      }));
     }
 
     // Update canvas status to COMPILED
     await CanvasRepository.update(canvas_id, {
       status: "COMPILED",
       lastCompilationId: compilationId,
-      crossLinkDensity: output.grinde_audit.cross_link_density_score,
-      linearThinkingRisk: output.grinde_audit.linear_thinking_risk,
+      crossLinkDensity: crossLinkDensityScore,
+      linearThinkingRisk,
     }).catch(() => null);
 
     console.log(`[Worker:compile] 🎉 Compilación ${compilationId} completada y persistida exitosamente para canvas: ${canvas_id}`);

@@ -2,6 +2,7 @@ import { useState, useCallback, useRef } from "react";
 import { CognitiveCompilerOutput, VisualAST, PacerClassification } from "@cognitive-canvas/core/types";
 import { PlacedAttribute } from "../../types/canvas";
 import { compileCognitiveMap } from "../../services/CompilationService";
+import { cognitiveLayerStore } from "../../stores/useCognitiveLayerStore";
 
 export interface UseCognitiveCompilationProps {
   getVisualAST?: () => VisualAST | null;
@@ -47,6 +48,7 @@ export const useCognitiveCompilation = (props?: UseCognitiveCompilationProps) =>
 
       setCompilation(output);
       setShowPacerOverlay(true);
+      cognitiveLayerStore.setCompiledData(output as any);
       props?.onCompilationComplete?.(output);
       setIsDrawerOpen(true);
     } catch (err) {

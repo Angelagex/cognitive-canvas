@@ -1,101 +1,83 @@
 import { describe, it, expect } from "vitest";
 import {
   COGNITIVE_COMPILER_JSON_SCHEMA,
-  CognitiveCompilerOutput,
+  CompiledMacroCognitiveMap,
 } from "../src/types/cognitive.js";
 
-describe("Phase 1 - Shared Types & JSON Schema Validation", () => {
-  it("should have a valid Gemini API JSON Schema structure", () => {
+describe("Phase 1 - Macro-Cognitive Schema & JSON Schema Validation", () => {
+  it("should have a valid MacroCognitiveEvaluation JSON Schema structure", () => {
     expect(COGNITIVE_COMPILER_JSON_SCHEMA.type).toBe("object");
-    expect(COGNITIVE_COMPILER_JSON_SCHEMA.type).toBe("object");
-    expect(COGNITIVE_COMPILER_JSON_SCHEMA.required).toContain("map_metadata");
-    expect(COGNITIVE_COMPILER_JSON_SCHEMA.required).toContain("nodes");
-    expect(COGNITIVE_COMPILER_JSON_SCHEMA.required).toContain("edges");
-    expect(COGNITIVE_COMPILER_JSON_SCHEMA.required).toContain("grinde_audit");
-    expect(COGNITIVE_COMPILER_JSON_SCHEMA.required).toContain("learning_engine_outputs");
-    expect(COGNITIVE_COMPILER_JSON_SCHEMA.properties.learning_engine_outputs.required).toContain("anki_flashcards");
+    expect(COGNITIVE_COMPILER_JSON_SCHEMA.title).toBe("MacroCognitiveEvaluation");
+    expect(COGNITIVE_COMPILER_JSON_SCHEMA.required).toContain("map_overview");
+    expect(COGNITIVE_COMPILER_JSON_SCHEMA.required).toContain("macro_islands");
+    expect(COGNITIVE_COMPILER_JSON_SCHEMA.required).toContain("pedagogical_interventions");
+    expect(COGNITIVE_COMPILER_JSON_SCHEMA.required).toContain("high_order_retrieval");
+    expect(COGNITIVE_COMPILER_JSON_SCHEMA.properties.pedagogical_interventions.required).toContain("anki_exceptions");
+    expect(COGNITIVE_COMPILER_JSON_SCHEMA.properties.pedagogical_interventions.required).toContain("procedural_zones");
+    expect(COGNITIVE_COMPILER_JSON_SCHEMA.properties.pedagogical_interventions.required).toContain("relational_anchoring_suggestions");
+    expect(COGNITIVE_COMPILER_JSON_SCHEMA.properties.high_order_retrieval.required).toContain("cross_island_causal_question");
   });
 
-  it("should validate a complete sample compiler output payload matching Master Spec", () => {
-    const mockOutput: CognitiveCompilerOutput = {
-      map_metadata: {
-        title: "Arquitectura de Memoria de Trabajo",
-        domain_theme: "Neurociencia Cognitiva",
-        total_nodes: 2,
-        total_edges: 1,
+  it("should validate a complete sample macro compiler output payload matching JSON SQUEMA.md", () => {
+    const mockOutput: CompiledMacroCognitiveMap = {
+      map_overview: {
+        core_theme: "Óptica Fotográfica y Profundidad de Campo",
+        maturity_level: 2,
+        maturity_diagnosis: "Existe buena conexión local en la rama de apertura, pero el sensor y la distancia focal están aislados.",
+        bridge_to_next_level: "Conectar cómo el tamaño del sensor altera el círculo de confusión relativo a la apertura.",
       },
-      nodes: [
+      macro_islands: [
         {
-          id: "node_1",
-          visual_bounding_box: { ymin: 100, xmin: 100, ymax: 300, xmax: 300 },
-          detected_content: "Memoria de trabajo",
-          passive_context: "Cuello de botella de procesamiento de información",
-          pacer_classification: "CONCEPTUAL",
-          grinde_traits: ["GROUPED", "REFLECTIVE"],
-          deducible_from_context: true,
+          island_name: "Triángulo de Exposición",
+          associated_entity_ids: ["entity_1", "entity_2"],
+          is_isolated: false,
         },
         {
-          id: "node_2",
-          visual_bounding_box: { ymin: 400, xmin: 100, ymax: 500, xmax: 300 },
-          detected_content: "Capacidad mágica 7 ± 2 elementos (Miller 1956)",
-          passive_context: null,
-          pacer_classification: "EVIDENCE",
-          grinde_traits: ["EMPHASIZED"],
-          deducible_from_context: false,
+          island_name: "Geometría del Sensor",
+          associated_entity_ids: ["entity_3"],
+          is_isolated: true,
         },
       ],
-      edges: [
-        {
-          source_node_id: "node_1",
-          target_node_id: "node_2",
-          label: "demostrado por",
-          is_cross_link: true,
-          relation_nature: "CAUSAL",
-        },
-      ],
-      grinde_audit: {
-        cross_link_density_score: 1.0,
-        non_verbal_balance_score: 0.5,
-        linear_thinking_risk: false,
-        feedback_critique: "Excelente integración relacional entre concepto y evidencia empírica.",
+      pedagogical_interventions: {
+        procedural_zones: [
+          {
+            zone_name: "Calibración Manual de Apertura",
+            entity_ids: ["entity_1"],
+            deliberate_practice_prompt: "Practicar ajuste manual en situaciones de contraste extremo.",
+          },
+        ],
+        relational_anchoring_suggestions: [
+          {
+            target_content: "f/2.8 vs f/16",
+            suggested_connection: "Dibujar una flecha causal que vincule difracción con nitidez periférica.",
+          },
+        ],
+        anki_exceptions: [
+          {
+            front: "Valor estándar de apertura para máxima nitidez (Sweet Spot típico)",
+            back: "Entre f/5.6 y f/8 en objetivos full frame estándar.",
+            why_not_deducible: "Depende del diseño óptico físico específico del fabricante.",
+          },
+        ],
       },
-      learning_engine_outputs: {
-        anki_flashcards: [
-          {
-            source_node_id: "node_2",
-            card_type: "CLOZE",
-            front: "Capacidad de memoria de trabajo (Miller 1956)",
-            back: "La capacidad es de {{c1::7 ± 2}} elementos.",
-          },
-        ],
-        high_road_transfer_prompts: [
-          {
-            core_concept_ids: ["node_1"],
-            unstructured_scenario: "Un bus de datos en hardware con ancho de banda saturado",
-            guiding_question: "¿Cómo se mapea el cuello de botella cognitivo a este bus?",
-          },
-        ],
-        derring_effect_challenges: [
-          {
-            flawed_premise: "Aumentar el número de elementos en memoria no afecta el rendimiento.",
-            corrective_task: "Identifica la falla y formula la relación canónica.",
-            canonical_solution: "El rendimiento decae drásticamente al superar el límite de capacidad de canal.",
-          },
-        ],
-        contrasting_cases_icc: [
-          {
-            case_a: "Chunking en ajedrez con piezas en posiciones reales.",
-            case_b: "Chunking en ajedrez con piezas en posiciones aleatorias.",
-            invariant_discovery_prompt: "Induce el principio invariante sobre la dependencia del dominio en la memoria de trabajo.",
-          },
-        ],
+      high_order_retrieval: {
+        cross_island_causal_question: "¿Por qué un sensor Micro Cuatro Tercios a f/2.8 produce mayor profundidad de campo que un Full Frame a la misma apertura?",
+        high_road_transfer: {
+          unstructured_scenario: "Un sistema de suministro de agua donde una válvula regula el flujo y la presión.",
+          guiding_question: "¿Cómo se relaciona la apertura del diafragma con el caudal de la válvula?",
+        },
+        derring_effect: {
+          flawed_premise: "Cerrar el diafragma a f/22 siempre produce la imagen más nítida posible porque aumenta la profundidad de campo.",
+          challenge_prompt: "¿Qué principio físico contradice esta afirmación?",
+          canonical_resolution: "La difracción óptica degrada la resolución angular efectiva en aperturas extremadamente pequeñas.",
+        },
       },
     };
 
-    expect(mockOutput.nodes).toHaveLength(2);
-    expect(mockOutput.nodes[0].pacer_classification).toBe("CONCEPTUAL");
-    expect(mockOutput.learning_engine_outputs.anki_flashcards).toHaveLength(1);
-    expect(mockOutput.learning_engine_outputs.anki_flashcards[0].source_node_id).toBe("node_2");
-    expect(mockOutput.grinde_audit.linear_thinking_risk).toBe(false);
+    expect(mockOutput.map_overview.maturity_level).toBe(2);
+    expect(mockOutput.macro_islands).toHaveLength(2);
+    expect(mockOutput.macro_islands[1].is_isolated).toBe(true);
+    expect(mockOutput.pedagogical_interventions.anki_exceptions).toHaveLength(1);
+    expect(mockOutput.high_order_retrieval.high_road_transfer.guiding_question).toBeTruthy();
   });
 });

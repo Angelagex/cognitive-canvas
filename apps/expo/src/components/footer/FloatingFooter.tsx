@@ -1,5 +1,6 @@
 import React from "react";
 import { StyleSheet, View, Text, TouchableOpacity } from "react-native";
+import { useCognitiveLayerStore } from "../../stores/useCognitiveLayerStore";
 
 interface FloatingFooterProps {
   stylusOnly: boolean;
@@ -18,6 +19,9 @@ export const FloatingFooter: React.FC<FloatingFooterProps> = ({
   onZoomOut,
   onResetZoom,
 }) => {
+  const { hasCompiledData, isOverlayVisible, toggleOverlay, isDirty, compiledData } =
+    useCognitiveLayerStore();
+
   return (
     <View style={styles.footerContainer} pointerEvents="box-none">
       {/* Left: Solo Stylus Toggle */}
@@ -31,6 +35,37 @@ export const FloatingFooter: React.FC<FloatingFooterProps> = ({
           {stylusOnly ? "Solo S-Pen (Rechazo Palma)" : "Stylus + Dedo"}
         </Text>
       </TouchableOpacity>
+
+      {/* Center: Toggle Capa Cognitiva (Ghost Overlay HUD) */}
+      {hasCompiledData && (
+        <TouchableOpacity
+          style={[
+            styles.pillButton,
+            isOverlayVisible ? styles.overlayActive : styles.overlayInactive,
+            isDirty && styles.overlayDirtyBorder,
+          ]}
+          onPress={toggleOverlay}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.pillIcon}>{isOverlayVisible ? "👁️" : "🙈"}</Text>
+          <Text
+            style={[
+              styles.pillText,
+              isOverlayVisible ? styles.textOverlayActive : styles.textInactive,
+            ]}
+          >
+            {isOverlayVisible ? "Capa Cognitiva" : "Capa Oculta"}
+          </Text>
+          {compiledData?.map_overview?.maturity_level && (
+            <View style={styles.maturityBadge}>
+              <Text style={styles.maturityText}>
+                N{compiledData.map_overview.maturity_level}
+              </Text>
+            </View>
+          )}
+          {isDirty && <View style={styles.dirtyDot} />}
+        </TouchableOpacity>
+      )}
 
       {/* Right: Zoom controls & Reset to 100% */}
       <View style={styles.zoomControlGroup}>
@@ -82,6 +117,39 @@ const styles = StyleSheet.create({
   stylusInactive: {
     backgroundColor: "#1E293B",
     borderColor: "#475569",
+  },
+  overlayActive: {
+    backgroundColor: "#1E1B4B",
+    borderColor: "#6366F1",
+  },
+  overlayInactive: {
+    backgroundColor: "#1E293B",
+    borderColor: "#475569",
+  },
+  overlayDirtyBorder: {
+    borderColor: "#F59E0B",
+  },
+  textOverlayActive: {
+    color: "#A5B4FC",
+  },
+  maturityBadge: {
+    backgroundColor: "#4338CA",
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 8,
+    marginLeft: 6,
+  },
+  maturityText: {
+    color: "#EEF2FF",
+    fontSize: 10,
+    fontWeight: "900",
+  },
+  dirtyDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: "#F59E0B",
+    marginLeft: 6,
   },
   pillIcon: {
     fontSize: 14,

@@ -1,9 +1,14 @@
 import React, { useState } from "react";
 import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, Alert } from "react-native";
 import * as FileSystem from "expo-file-system";
-import { CognitiveCompilerOutput, PacerClassification } from "@cognitive-canvas/core/types";
+import {
+  CognitiveCompilerOutput,
+  PacerClassification,
+  AnkiFlashcard,
+} from "@cognitive-canvas/core/types";
 import { ankiClient } from "../services/AnkiConnectClient";
 import { PACER_COLORS } from "./canvas/PacerOverlayLayer";
+import { useCognitiveLayerStore } from "../stores/useCognitiveLayerStore";
 
 interface RetrievalPanelProps {
   compilation: CognitiveCompilerOutput | null;
@@ -13,6 +18,29 @@ interface RetrievalPanelProps {
   showPacerOverlay?: boolean;
   onTogglePacerOverlay?: () => void;
 }
+
+const MATURITY_LABELS: Record<number, { title: string; color: string; desc: string }> = {
+  1: {
+    title: "Nivel 1: Jerárquico Lineal (Buzan)",
+    color: "#EF4444",
+    desc: "Ramas radiales rígidas sin enlaces cruzados. Pensamiento compartimentado.",
+  },
+  2: {
+    title: "Nivel 2: Conectividad Local",
+    color: "#F59E0B",
+    desc: "Conexiones entre ramas vecinas, pero persisten silos conceptuales aislados.",
+  },
+  3: {
+    title: "Nivel 3: Red Integrada (Ausubel)",
+    color: "#10B981",
+    desc: "Múltiples enlaces cruzados entre ramas lejanas. Reconciliación integrativa.",
+  },
+  4: {
+    title: "Nivel 4: Esquema Dinámico Complejo",
+    color: "#8B5CF6",
+    desc: "Alta síntesis no verbal, bucles causales y maestría intuitiva experta.",
+  },
+};
 
 export const RetrievalPanel: React.FC<RetrievalPanelProps> = ({
   compilation,
@@ -24,27 +52,44 @@ export const RetrievalPanel: React.FC<RetrievalPanelProps> = ({
   const [hostIp, setHostIp] = useState<string>("192.168.1.100");
   const [syncStatus, setSyncStatus] = useState<string>("Sin sincronizar");
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
-  const [activeTab, setActiveTab] = useState<"audit" | "pacer" | "anki" | "transfer" | "cases">("audit");
-  const [internalFilter, setInternalFilter] = useState<PacerClassification | "ALL">(pacerFilter);
+  const [activeTab, setActiveTab] = useState<"overview" | "retrieval" | "interventions" | "anki" | "pacer">(
+    "overview"
+  );
 
-  const currentFilter = onPacerFilterChange ? pacerFilter : internalFilter;
-  const setFilter = (f: PacerClassification | "ALL") => {
-    if (onPacerFilterChange) {
-      onPacerFilterChange(f);
-    } else {
-      setInternalFilter(f);
-    }
-  };
+  const { focusInspectionTarget } = useCognitiveLayerStore();
 
-  const cards = compilation?.anki_flashcards || compilation?.learning_engine_outputs?.anki_flashcards || [];
+  if (!compilation) {
+    return (
+      <View style={styles.emptyContainer}>
+        <Text style={styles.emptyTitle}>Evaluación Macro-Cognitiva</Text>
+        <Text style={styles.emptyText}>
+          Dibuja tu mapa mental en el lienzo y presiona "⚡ Ejecutar IA" para auditar su arquitectura relacional y nivel de madurez.
+        </Text>
+      </View>
+    );
+  }
+
+  const mapOverview = compilation.map_overview;
+  const macroIslands = compilation.macro_islands || [];
+  const interventions = compilation.pedagogical_interventions;
+  const retrieval = compilation.high_order_retrieval;
+  const ankiExceptions = interventions?.anki_exceptions || [];
+
+  // Tarjetas Anki (compatibilidad con ankiClient)
+  const cards: AnkiFlashcard[] = ankiExceptions.map((ex, i) => ({
+    source_node_id: `exception_${i}`,
+    card_type: "BASIC",
+    front: ex.front,
+    back: `${ex.back}\n\n(No deducible: ${ex.why_not_deducible})`,
+  }));
 
   const handleExportTsv = async () => {
-    if (!compilation || cards.length === 0) {
-      Alert.alert("Sin tarjetas", "No hay tarjetas de memoria para exportar.");
+    if (cards.length === 0) {
+      Alert.alert("Sin tarjetas", "No hay excepciones indispensables de Anki para exportar.");
       return;
     }
     try {
-      const title = compilation.map_metadata?.title || "Mapa Mental";
+      const title = mapOverview?.core_theme || compilation.map_metadata?.title || "Mapa Mental";
       const tsvContent = ankiClient.exportToTsv(cards, title);
       const fileName = `anki_${Date.now()}.txt`;
       const filePath = `${FileSystem.documentDirectory}${fileName}`;
@@ -61,8 +106,8 @@ export const RetrievalPanel: React.FC<RetrievalPanelProps> = ({
   };
 
   const handleSyncAnki = async () => {
-    if (!compilation || cards.length === 0) {
-      Alert.alert("Sin tarjetas", "No hay tarjetas de memoria de alta fidelidad para sincronizar.");
+    if (cards.length === 0) {
+      Alert.alert("Sin tarjetas", "No hay excepciones de memoria para sincronizar.");
       return;
     }
 
@@ -94,314 +139,353 @@ export const RetrievalPanel: React.FC<RetrievalPanelProps> = ({
     }
   };
 
-  if (!compilation) {
-    return (
-      <View style={styles.emptyContainer}>
-        <Text style={styles.emptyTitle}>Auditoría Cognitiva & Retención</Text>
-        <Text style={styles.emptyText}>
-          Dibuja tu mapa mental en el lienzo nativo Jetpack Ink y presiona "Compilar Canvas" para generar la estructura semántica.
-        </Text>
-      </View>
-    );
-  }
-
-  const { grinde_audit, nodes = [] } = compilation;
-  const anki_flashcards = compilation.anki_flashcards || compilation.learning_engine_outputs?.anki_flashcards || [];
-  const high_road_transfer_prompts = compilation.high_road_transfer_prompts || compilation.learning_engine_outputs?.high_road_transfer_prompts || [];
-  const derring_effect_challenges = compilation.derring_effect_challenges || compilation.learning_engine_outputs?.derring_effect_challenges || [];
-  const contrasting_cases_icc = compilation.contrasting_cases_icc || compilation.learning_engine_outputs?.contrasting_cases_icc || [];
-
-  const filteredNodes = currentFilter === "ALL"
-    ? nodes
-    : nodes.filter((n) => n.pacer_classification === currentFilter);
+  const maturityInfo =
+    MATURITY_LABELS[mapOverview?.maturity_level || 2] || MATURITY_LABELS[2];
 
   return (
     <View style={styles.container}>
-      {/* Tab Selector */}
+      {/* Selector de Pestañas Superior */}
       <View style={styles.tabBar}>
         <TouchableOpacity
-          style={[styles.tab, activeTab === "audit" && styles.activeTab]}
-          onPress={() => setActiveTab("audit")}
+          style={[styles.tab, activeTab === "overview" && styles.activeTab]}
+          onPress={() => setActiveTab("overview")}
         >
-          <Text style={[styles.tabText, activeTab === "audit" && styles.activeTabText]}>GRINDE</Text>
+          <Text style={[styles.tabText, activeTab === "overview" && styles.activeTabText]}>
+            Madurez & Islas
+          </Text>
         </TouchableOpacity>
+
         <TouchableOpacity
-          style={[styles.tab, activeTab === "pacer" && styles.activeTab]}
-          onPress={() => setActiveTab("pacer")}
+          style={[styles.tab, activeTab === "retrieval" && styles.activeTab]}
+          onPress={() => setActiveTab("retrieval")}
         >
-          <Text style={[styles.tabText, activeTab === "pacer" && styles.activeTabText]}>PACER ({nodes.length})</Text>
+          <Text style={[styles.tabText, activeTab === "retrieval" && styles.activeTabText]}>
+            Retos Mentales
+          </Text>
         </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.tab, activeTab === "interventions" && styles.activeTab]}
+          onPress={() => setActiveTab("interventions")}
+        >
+          <Text style={[styles.tabText, activeTab === "interventions" && styles.activeTabText]}>
+            Intervenciones
+          </Text>
+        </TouchableOpacity>
+
         <TouchableOpacity
           style={[styles.tab, activeTab === "anki" && styles.activeTab]}
           onPress={() => setActiveTab("anki")}
         >
-          <Text style={[styles.tabText, activeTab === "anki" && styles.activeTabText]}>Anki ({anki_flashcards.length})</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === "transfer" && styles.activeTab]}
-          onPress={() => setActiveTab("transfer")}
-        >
-          <Text style={[styles.tabText, activeTab === "transfer" && styles.activeTabText]}>Transferencia</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === "cases" && styles.activeTab]}
-          onPress={() => setActiveTab("cases")}
-        >
-          <Text style={[styles.tabText, activeTab === "cases" && styles.activeTabText]}>Casos (ICC)</Text>
+          <Text style={[styles.tabText, activeTab === "anki" && styles.activeTabText]}>
+            Anki ({ankiExceptions.length})
+          </Text>
         </TouchableOpacity>
       </View>
 
       <ScrollView style={styles.contentScroll} contentContainerStyle={styles.scrollInner}>
-        {/* TAB 1: GRINDE AUDIT */}
-        {activeTab === "audit" && (
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Auditoría Pedagogía GRINDE</Text>
-            <View style={styles.scoreRow}>
-              <View style={styles.scoreMetric}>
-                <Text style={styles.metricValue}>{(grinde_audit.cross_link_density_score * 100).toFixed(0)}%</Text>
-                <Text style={styles.metricLabel}>Densidad Cross-Links</Text>
-              </View>
-              <View style={styles.scoreMetric}>
-                <Text style={[styles.metricValue, { color: grinde_audit.linear_thinking_risk ? "#F43F5E" : "#10B981" }]}>
-                  {grinde_audit.linear_thinking_risk ? "RIESGO ALTO" : "ÓPTIMO"}
-                </Text>
-                <Text style={styles.metricLabel}>Riesgo Lineal</Text>
-              </View>
-            </View>
-            <Text style={styles.critiqueText}>{grinde_audit.feedback_critique}</Text>
-          </View>
-        )}
-
-        {/* TAB 2: PACER TAXONOMY & INTERACTIVE FILTERS */}
-        {activeTab === "pacer" && (
-          <View style={styles.card}>
-            <View style={styles.pacerHeaderRow}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.cardTitle}>Taxonomía PACER (Justin Sung)</Text>
-                <Text style={styles.sectionSubtitle}>
-                  Clasificación epistemológica de conceptos según su rol causal y deducibilidad.
-                </Text>
-              </View>
-              {onTogglePacerOverlay && (
-                <TouchableOpacity
-                  style={[
-                    styles.overlayToggleButton,
-                    showPacerOverlay ? styles.overlayToggleActive : styles.overlayToggleInactive,
-                  ]}
-                  onPress={onTogglePacerOverlay}
+        {/* PESTAÑA 1: MADUREZ RELACIONAL & MACRO-ISLAS */}
+        {activeTab === "overview" && (
+          <View style={styles.tabSection}>
+            {/* Tarjeta de Nivel de Madurez */}
+            <View style={styles.card}>
+              <View style={styles.cardHeaderRow}>
+                <Text style={styles.cardSectionTag}>DIAGNÓSTICO ICANSTUDY</Text>
+                <View
+                  style={[styles.maturityBadge, { backgroundColor: maturityInfo.color }]}
                 >
-                  <Text style={styles.overlayToggleText}>
-                    {showPacerOverlay ? "👁️ Lienzo ON" : "👁️ Lienzo OFF"}
+                  <Text style={styles.maturityBadgeText}>
+                    Nivel {mapOverview?.maturity_level || 1}
                   </Text>
-                </TouchableOpacity>
+                </View>
+              </View>
+
+              <Text style={[styles.maturityTitle, { color: maturityInfo.color }]}>
+                {maturityInfo.title}
+              </Text>
+              <Text style={styles.maturitySubtitle}>{maturityInfo.desc}</Text>
+
+              {/* Diagnóstico Pedagógico */}
+              <View style={styles.diagnosisBox}>
+                <Text style={styles.boxTitle}>Evaluación del Esquema:</Text>
+                <Text style={styles.diagnosisText}>
+                  {mapOverview?.maturity_diagnosis ||
+                    "El mapa muestra conexiones básicas, pero requiere mayor integración entre islas conceptuales."}
+                </Text>
+              </View>
+
+              {/* Puente al Siguiente Nivel */}
+              {mapOverview?.bridge_to_next_level && (
+                <View style={styles.bridgeBox}>
+                  <View style={styles.bridgeHeader}>
+                    <Text style={styles.bridgeIcon}>🌉</Text>
+                    <Text style={styles.bridgeTitle}>Puente al Siguiente Nivel:</Text>
+                  </View>
+                  <Text style={styles.bridgeText}>
+                    {mapOverview.bridge_to_next_level}
+                  </Text>
+                </View>
               )}
             </View>
 
-            {/* Filter Chips */}
-            <View style={styles.pacerChipsRow}>
-              <TouchableOpacity
-                style={[
-                  styles.pacerChip,
-                  currentFilter === "ALL" && styles.pacerChipActive,
-                ]}
-                onPress={() => setFilter("ALL")}
-              >
-                <Text
+            {/* Lista de Macro-Islas Identificadas */}
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>
+                Macro-Islas Semánticas ({macroIslands.length})
+              </Text>
+              <Text style={styles.sectionSubtitle}>
+                Cúmulos conceptuales proyectados en el Ghost Overlay. Pulsa una isla para enfocarla en el HUD.
+              </Text>
+
+              {macroIslands.map((island, idx) => (
+                <TouchableOpacity
+                  key={`island_list_${idx}`}
                   style={[
-                    styles.pacerChipText,
-                    currentFilter === "ALL" && styles.pacerChipTextActive,
+                    styles.islandItem,
+                    island.is_isolated ? styles.islandIsolatedBorder : styles.islandConnectedBorder,
                   ]}
+                  onPress={() => focusInspectionTarget(island.island_name)}
+                  activeOpacity={0.75}
                 >
-                  Todos ({nodes.length})
-                </Text>
-              </TouchableOpacity>
-
-              {(["CONCEPTUAL", "PROCEDURAL", "ANALOGOUS", "EVIDENCE", "REFERENCE"] as PacerClassification[]).map(
-                (type) => {
-                  const count = nodes.filter((n) => n.pacer_classification === type).length;
-                  const info = PACER_COLORS[type];
-                  const isSelected = currentFilter === type;
-
-                  return (
-                    <TouchableOpacity
-                      key={type}
+                  <View style={styles.islandInfoRow}>
+                    <Text style={styles.islandIcon}>
+                      {island.is_isolated ? "⚠️" : "🏝️"}
+                    </Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.islandName}>{island.island_name}</Text>
+                      <Text style={styles.islandEntCount}>
+                        {island.associated_entity_ids?.length || 0} entidades en el lienzo
+                      </Text>
+                    </View>
+                    <View
                       style={[
-                        styles.pacerChip,
-                        { borderColor: info.borderColor },
-                        isSelected && { backgroundColor: info.borderColor },
+                        styles.statusBadge,
+                        {
+                          backgroundColor: island.is_isolated
+                            ? "rgba(245, 158, 11, 0.2)"
+                            : "rgba(16, 185, 129, 0.2)",
+                        },
                       ]}
-                      onPress={() => setFilter(type)}
                     >
                       <Text
                         style={[
-                          styles.pacerChipText,
-                          { color: isSelected ? "#FFFFFF" : info.color },
+                          styles.statusBadgeText,
+                          { color: island.is_isolated ? "#F59E0B" : "#10B981" },
                         ]}
                       >
-                        {info.letter} · {info.label} ({count})
+                        {island.is_isolated ? "Aislada" : "Integrada"}
                       </Text>
-                    </TouchableOpacity>
-                  );
-                }
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        )}
+
+        {/* PESTAÑA 2: RETOS DE ALTO ORDEN (RETRIEVAL GUIADO) */}
+        {activeTab === "retrieval" && (
+          <View style={styles.tabSection}>
+            {/* 1. Pregunta de Puente Causal */}
+            <View style={styles.card}>
+              <View style={styles.challengeHeader}>
+                <Text style={styles.challengeIcon}>❓</Text>
+                <Text style={styles.cardTitle}>Pregunta de Puente Causal</Text>
+              </View>
+              <Text style={styles.sectionSubtitle}>
+                Desafío de frontera para forzar la sinaptogénesis entre islas desconectadas.
+              </Text>
+              <View style={styles.socraticBox}>
+                <Text style={styles.socraticQuestion}>
+                  "{retrieval?.cross_island_causal_question ||
+                    "¿Cómo afectaría una variación en la variable de la isla 1 a la estabilidad de la isla 2?"}"
+                </Text>
+              </View>
+            </View>
+
+            {/* 2. Transferencia Lejana (High-Road Transfer) */}
+            <View style={styles.card}>
+              <View style={styles.challengeHeader}>
+                <Text style={styles.challengeIcon}>🚀</Text>
+                <Text style={styles.cardTitle}>Transferencia Lejana (High-Road)</Text>
+              </View>
+              <Text style={styles.sectionSubtitle}>
+                Aplicación de la regla invariante a un dominio ajeno no estructurado.
+              </Text>
+              <View style={styles.transferScenarioBox}>
+                <Text style={styles.boxTitle}>Escenario No Estructurado:</Text>
+                <Text style={styles.transferScenarioText}>
+                  {retrieval?.high_road_transfer?.unstructured_scenario ||
+                    "Imagina un sistema económico donde la liquidez actúa como el flujo de energía."}
+                </Text>
+                <Text style={[styles.boxTitle, { marginTop: 10 }]}>Pregunta Guía:</Text>
+                <Text style={styles.transferGuidingQuestion}>
+                  {retrieval?.high_road_transfer?.guiding_question ||
+                    "¿Qué principio invariante de tu mapa predice el desenlace de esta situación?"}
+                </Text>
+              </View>
+            </View>
+
+            {/* 3. Detección de Falla Intencionada (Derring Effect) */}
+            <View style={styles.card}>
+              <View style={styles.challengeHeader}>
+                <Text style={styles.challengeIcon}>🎯</Text>
+                <Text style={styles.cardTitle}>Detección de Falla (Derring Effect)</Text>
+              </View>
+              <Text style={styles.sectionSubtitle}>
+                Identifica el error conceptual sutil y restaura la regla canónica real.
+              </Text>
+              <View style={styles.derringBox}>
+                <Text style={styles.derringPremiseLabel}>Premisa con Trampa:</Text>
+                <Text style={styles.derringPremiseText}>
+                  "{retrieval?.derring_effect?.flawed_premise ||
+                    "Incrementar la variable X produce automáticamente el doble de Y sin coste alguno."}"
+                </Text>
+
+                <Text style={[styles.derringPremiseLabel, { marginTop: 10 }]}>Tu Reto:</Text>
+                <Text style={styles.derringChallengeText}>
+                  {retrieval?.derring_effect?.challenge_prompt ||
+                    retrieval?.derring_effect?.corrective_task ||
+                    "Explica por qué esta afirmación viola el principio causal del mapa."}
+                </Text>
+
+                <View style={styles.resolutionCollapsible}>
+                  <Text style={styles.resolutionTitle}>Resolución Canónica:</Text>
+                  <Text style={styles.resolutionText}>
+                    {retrieval?.derring_effect?.canonical_resolution ||
+                      retrieval?.derring_effect?.canonical_solution ||
+                      "Existe un mecanismo de regulación que limita el crecimiento lineal."}
+                  </Text>
+                </View>
+              </View>
+            </View>
+          </View>
+        )}
+
+        {/* PESTAÑA 3: INTERVENCIONES PEDAGÓGICAS */}
+        {activeTab === "interventions" && (
+          <View style={styles.tabSection}>
+            {/* Zonas Procedimentales */}
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>
+                Zonas Procedimentales ({interventions?.procedural_zones?.length || 0})
+              </Text>
+              <Text style={styles.sectionSubtitle}>
+                Flujos de acción o algoritmos identificados. Prescripción: Práctica Deliberada, NO estudio pasivo.
+              </Text>
+
+              {(!interventions?.procedural_zones || interventions.procedural_zones.length === 0) ? (
+                <Text style={styles.emptyNotice}>
+                  No se detectaron zonas procedimentales en esta versión del mapa.
+                </Text>
+              ) : (
+                interventions.procedural_zones.map((zone, zIdx) => (
+                  <View key={`proc_zone_${zIdx}`} style={styles.zoneCard}>
+                    <Text style={styles.zoneName}>⚡ {zone.zone_name}</Text>
+                    <Text style={styles.zonePrompt}>
+                      {zone.deliberate_practice_prompt}
+                    </Text>
+                  </View>
+                ))
               )}
             </View>
 
-            {/* Filtered Nodes List */}
-            {filteredNodes.length === 0 ? (
-              <Text style={styles.emptyFilterText}>No hay nodos en esta categoría.</Text>
-            ) : (
-              filteredNodes.map((node) => {
-                const info = PACER_COLORS[node.pacer_classification];
-                return (
-                  <View key={node.id} style={styles.pacerNodeItem}>
-                    <View style={styles.pacerNodeTopRow}>
-                      <View style={[styles.pacerNodeBadge, { backgroundColor: info.borderColor }]}>
-                        <Text style={styles.pacerNodeBadgeLetter}>{info.letter}</Text>
-                      </View>
-                      <Text style={styles.pacerNodeTitle}>{node.detected_content}</Text>
-                      <View
-                        style={[
-                          styles.deducibleBadge,
-                          {
-                            backgroundColor: node.deducible_from_context
-                              ? "rgba(16, 185, 129, 0.2)"
-                              : "rgba(245, 158, 11, 0.2)",
-                          },
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.deducibleBadgeText,
-                            {
-                              color: node.deducible_from_context ? "#10B981" : "#F59E0B",
-                            },
-                          ]}
-                        >
-                          {node.deducible_from_context ? "Deducible en red" : "Memorizar en Anki"}
-                        </Text>
-                      </View>
-                    </View>
+            {/* Anclajes Relacionales Sugeridos */}
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>
+                Anclajes Relacionales Sugeridos ({interventions?.relational_anchoring_suggestions?.length || 0})
+              </Text>
+              <Text style={styles.sectionSubtitle}>
+                Datos que debes conectar en tu mapa mental en lugar de memorizarlos en tarjetas de Anki.
+              </Text>
 
-                    {node.passive_context && (
-                      <Text style={styles.pacerNodeContext}>
-                        📝 Contexto: {node.passive_context}
-                      </Text>
-                    )}
+              {(!interventions?.relational_anchoring_suggestions ||
+                interventions.relational_anchoring_suggestions.length === 0) ? (
+                <Text style={styles.emptyNotice}>
+                  Todos los datos están bien anclados o integrados.
+                </Text>
+              ) : (
+                interventions.relational_anchoring_suggestions.map((anc, aIdx) => (
+                  <View key={`anchoring_${aIdx}`} style={styles.anchoringCard}>
+                    <Text style={styles.anchoringTarget}>📌 Dato: "{anc.target_content}"</Text>
+                    <Text style={styles.anchoringSuggestion}>
+                      Sugerencia: {anc.suggested_connection}
+                    </Text>
                   </View>
-                );
-              })
-            )}
+                ))
+              )}
+            </View>
           </View>
         )}
 
-        {/* TAB 2: ANKI SYNC */}
+        {/* PESTAÑA 4: ANKI EXCEPTIONS (MÁXIMO 2) */}
         {activeTab === "anki" && (
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Sincronización AnkiConnect (Wi-Fi)</Text>
-            <Text style={styles.sectionSubtitle}>
-              Se filtraron únicamente los datos de evidencia/referencia no deducibles para evitar sobrecarga.
-            </Text>
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>IP Host Anki Desktop:</Text>
-              <TextInput
-                style={styles.textInput}
-                value={hostIp}
-                onChangeText={setHostIp}
-                placeholder="192.168.1.100"
-                placeholderTextColor="#64748B"
-              />
-            </View>
-
-            <View style={{ flexDirection: "row", gap: 8 }}>
-              <TouchableOpacity
-                style={[styles.syncButton, { flex: 1 }, isSyncing && styles.syncButtonDisabled]}
-                onPress={handleSyncAnki}
-                disabled={isSyncing}
-              >
-                <Text style={styles.syncButtonText}>
-                  {isSyncing ? "Sincronizando..." : `Wi-Fi AnkiConnect (${anki_flashcards.length})`}
+          <View style={styles.tabSection}>
+            <View style={styles.card}>
+              <View style={styles.cardHeaderRow}>
+                <Text style={styles.cardTitle}>
+                  Excepciones de Anki ({ankiExceptions.length} de máx 2)
                 </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.syncButton, { flex: 1, backgroundColor: "#0284C7" }]}
-                onPress={handleExportTsv}
-              >
-                <Text style={styles.syncButtonText}>
-                  💾 Exportar AnkiDroid (.txt)
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            <Text style={styles.statusText}>{syncStatus}</Text>
-
-            {anki_flashcards.map((card, idx) => (
-              <View key={idx} style={styles.flashcardItem}>
-                <Text style={styles.flashcardBadge}>{card.card_type}</Text>
-                {card.card_type === "CLOZE" ? (
-                  <Text style={styles.flashcardContent}>{card.cloze_text}</Text>
-                ) : (
-                  <View>
-                    <Text style={styles.flashcardFront}>F: {card.front}</Text>
-                    <Text style={styles.flashcardBack}>R: {card.back}</Text>
-                  </View>
-                )}
-              </View>
-            ))}
-          </View>
-        )}
-
-        {/* TAB 3: HIGH-ROAD TRANSFER & DERRING EFFECT */}
-        {activeTab === "transfer" && (
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Prompts de Transferencia (High-Road)</Text>
-            {high_road_transfer_prompts.map((prompt: any, idx) => (
-              <View key={idx} style={styles.promptItem}>
-                <Text style={styles.promptNumber}>#{idx + 1}</Text>
-                <Text style={styles.promptText}>
-                  {typeof prompt === "string"
-                    ? prompt
-                    : `${prompt.unstructured_scenario || ""}${prompt.guiding_question ? `\n\n❓ ${prompt.guiding_question}` : ""}`}
-                </Text>
-              </View>
-            ))}
-
-            <Text style={[styles.cardTitle, { marginTop: 16 }]}>Desafíos Derring Effect</Text>
-            {derring_effect_challenges.map((challenge: any, idx) => (
-              <View key={idx} style={styles.challengeItem}>
-                <Text style={styles.challengeText}>
-                  {typeof challenge === "string"
-                    ? `⚠️ ${challenge}`
-                    : `⚠️ ${challenge.flawed_premise || ""}${challenge.corrective_task ? `\n\n🛠️ Tarea: ${challenge.corrective_task}` : ""}${challenge.canonical_solution ? `\n\n✅ Solución canónica: ${challenge.canonical_solution}` : ""}`}
-                </Text>
-              </View>
-            ))}
-          </View>
-        )}
-
-        {/* TAB 4: CONTRASTING CASES (ICC) */}
-        {activeTab === "cases" && (
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Casos Contrastantes (ICC Matrix)</Text>
-            {contrasting_cases_icc.map((item: any, idx) => (
-              <View key={idx} style={styles.caseItem}>
-                <View style={styles.caseBoxRow}>
-                  <View style={styles.caseBox}>
-                    <Text style={styles.caseBoxTitle}>Caso A</Text>
-                    <Text style={styles.caseBoxText}>{item.case_a}</Text>
-                  </View>
-                  <View style={styles.caseBox}>
-                    <Text style={styles.caseBoxTitle}>Caso B</Text>
-                    <Text style={styles.caseBoxText}>{item.case_b}</Text>
-                  </View>
+                <View style={styles.sungRuleBadge}>
+                  <Text style={styles.sungRuleText}>Anti-Sobrecarga Justin Sung</Text>
                 </View>
-                <Text style={styles.invariantTitle}>Regla Invariante:</Text>
-                <Text style={styles.invariantText}>
-                  {item.invariant_discovery_prompt || item.underlying_invariant_prompt}
-                </Text>
               </View>
-            ))}
+              <Text style={styles.sectionSubtitle}>
+                Únicamente datos no deducibles que no pueden integrarse al mapa mental.
+              </Text>
+
+              {ankiExceptions.length === 0 ? (
+                <View style={styles.emptyAnkiNotice}>
+                  <Text style={styles.emptyAnkiIcon}>🎉</Text>
+                  <Text style={styles.emptyAnkiTitle}>Cero Conocimiento Inerte</Text>
+                  <Text style={styles.emptyAnkiText}>
+                    Todo el contenido del mapa puede deducirse pensando a partir del modelo causal. No se requieren tarjetas de memoria.
+                  </Text>
+                </View>
+              ) : (
+                ankiExceptions.map((ex, eIdx) => (
+                  <View key={`exception_${eIdx}`} style={styles.ankiCardBox}>
+                    <Text style={styles.ankiFrontLabel}>Pregunta / Front:</Text>
+                    <Text style={styles.ankiFrontText}>{ex.front}</Text>
+                    <Text style={[styles.ankiFrontLabel, { marginTop: 8 }]}>Respuesta / Back:</Text>
+                    <Text style={styles.ankiBackText}>{ex.back}</Text>
+                    <View style={styles.whyNotDeducibleBox}>
+                      <Text style={styles.whyNotDeducibleText}>
+                        🔒 Razón: {ex.why_not_deducible}
+                      </Text>
+                    </View>
+                  </View>
+                ))
+              )}
+
+              {/* Botones de Sincronización */}
+              {cards.length > 0 && (
+                <View style={styles.syncContainer}>
+                  <TextInput
+                    style={styles.ipInput}
+                    value={hostIp}
+                    onChangeText={setHostIp}
+                    placeholder="IP AnkiConnect (ej. 192.168.1.100)"
+                    placeholderTextColor="#64748B"
+                  />
+                  <View style={styles.syncButtonsRow}>
+                    <TouchableOpacity
+                      style={[styles.syncBtn, isSyncing && styles.btnDisabled]}
+                      onPress={handleSyncAnki}
+                      disabled={isSyncing}
+                    >
+                      <Text style={styles.syncBtnText}>
+                        {isSyncing ? "Sincronizando..." : "🔄 Inyectar a Anki Desktop"}
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.tsvBtn} onPress={handleExportTsv}>
+                      <Text style={styles.tsvBtnText}>📥 Exportar TSV AnkiDroid</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <Text style={styles.syncStatusText}>{syncStatus}</Text>
+                </View>
+              )}
+            </View>
           </View>
         )}
       </ScrollView>
@@ -412,14 +496,15 @@ export const RetrievalPanel: React.FC<RetrievalPanelProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#0F172A",
+    backgroundColor: "#0B1120",
   },
   emptyContainer: {
-    padding: 16,
+    padding: 30,
+    alignItems: "center",
     justifyContent: "center",
   },
   emptyTitle: {
-    color: "#F8FAFC",
+    color: "#E2E8F0",
     fontSize: 16,
     fontWeight: "700",
     marginBottom: 8,
@@ -427,315 +512,421 @@ const styles = StyleSheet.create({
   emptyText: {
     color: "#94A3B8",
     fontSize: 13,
+    textAlign: "center",
     lineHeight: 18,
   },
   tabBar: {
     flexDirection: "row",
-    backgroundColor: "#1E293B",
-    borderRadius: 8,
-    margin: 8,
-    padding: 2,
+    backgroundColor: "#0F172A",
+    borderBottomWidth: 1,
+    borderBottomColor: "#1E293B",
   },
   tab: {
     flex: 1,
-    paddingVertical: 8,
+    paddingVertical: 12,
     alignItems: "center",
-    borderRadius: 6,
+    borderBottomWidth: 2,
+    borderBottomColor: "transparent",
   },
   activeTab: {
-    backgroundColor: "#0EA5E9",
+    borderBottomColor: "#6366F1",
   },
   tabText: {
     color: "#94A3B8",
-    fontSize: 11,
-    fontWeight: "600",
+    fontSize: 12,
+    fontWeight: "700",
   },
   activeTabText: {
-    color: "#FFFFFF",
-    fontWeight: "700",
+    color: "#818CF8",
   },
   contentScroll: {
     flex: 1,
   },
   scrollInner: {
-    padding: 8,
+    padding: 16,
+    gap: 16,
+  },
+  tabSection: {
+    gap: 16,
   },
   card: {
-    backgroundColor: "#1E293B",
-    borderRadius: 8,
-    padding: 12,
+    backgroundColor: "#131C31",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#1E293B",
+    padding: 16,
+  },
+  cardHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  cardSectionTag: {
+    color: "#94A3B8",
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 0.8,
   },
   cardTitle: {
     color: "#F8FAFC",
     fontSize: 15,
-    fontWeight: "700",
-    marginBottom: 8,
+    fontWeight: "800",
+    marginBottom: 4,
   },
   sectionSubtitle: {
     color: "#94A3B8",
     fontSize: 12,
-    marginBottom: 12,
+    lineHeight: 16,
+    marginBottom: 14,
   },
-  scoreRow: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    marginVertical: 12,
-    backgroundColor: "#0F172A",
-    padding: 12,
+  maturityBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
     borderRadius: 8,
   },
-  scoreMetric: {
-    alignItems: "center",
-  },
-  metricValue: {
-    color: "#38BDF8",
-    fontSize: 20,
-    fontWeight: "800",
-  },
-  metricLabel: {
-    color: "#94A3B8",
-    fontSize: 11,
-    marginTop: 2,
-  },
-  critiqueText: {
-    color: "#CBD5E1",
-    fontSize: 13,
-    lineHeight: 18,
-  },
-  inputGroup: {
-    marginBottom: 12,
-  },
-  inputLabel: {
-    color: "#94A3B8",
-    fontSize: 12,
-    marginBottom: 4,
-  },
-  textInput: {
-    backgroundColor: "#0F172A",
-    borderColor: "#334155",
-    borderWidth: 1,
-    borderRadius: 6,
-    color: "#F8FAFC",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    fontSize: 13,
-  },
-  syncButton: {
-    backgroundColor: "#10B981",
-    paddingVertical: 10,
-    borderRadius: 6,
-    alignItems: "center",
-  },
-  syncButtonDisabled: {
-    opacity: 0.5,
-  },
-  syncButtonText: {
-    color: "#FFFFFF",
-    fontWeight: "700",
-    fontSize: 13,
-  },
-  statusText: {
-    color: "#38BDF8",
-    fontSize: 12,
-    marginTop: 8,
-    textAlign: "center",
-  },
-  flashcardItem: {
-    backgroundColor: "#0F172A",
-    padding: 8,
-    borderRadius: 6,
-    marginTop: 8,
-  },
-  flashcardBadge: {
-    color: "#F59E0B",
-    fontSize: 10,
-    fontWeight: "700",
-    marginBottom: 4,
-  },
-  flashcardContent: {
-    color: "#F8FAFC",
-    fontSize: 12,
-  },
-  flashcardFront: {
-    color: "#F8FAFC",
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  flashcardBack: {
-    color: "#10B981",
-    fontSize: 12,
-    marginTop: 2,
-  },
-  promptItem: {
-    flexDirection: "row",
-    backgroundColor: "#0F172A",
-    padding: 10,
-    borderRadius: 6,
-    marginBottom: 8,
-  },
-  promptNumber: {
-    color: "#38BDF8",
-    fontWeight: "700",
-    marginRight: 8,
-  },
-  promptText: {
-    color: "#F8FAFC",
-    fontSize: 12,
-    flex: 1,
-    lineHeight: 16,
-  },
-  challengeItem: {
-    backgroundColor: "#0F172A",
-    padding: 10,
-    borderRadius: 6,
-    marginBottom: 8,
-    borderLeftWidth: 3,
-    borderLeftColor: "#F59E0B",
-  },
-  challengeText: {
-    color: "#F8FAFC",
-    fontSize: 12,
-    lineHeight: 16,
-  },
-  caseItem: {
-    backgroundColor: "#0F172A",
-    padding: 10,
-    borderRadius: 6,
-    marginBottom: 12,
-  },
-  caseBoxRow: {
-    flexDirection: "row",
-    gap: 8,
-    marginBottom: 8,
-  },
-  caseBox: {
-    flex: 1,
-    backgroundColor: "#1E293B",
-    padding: 8,
-    borderRadius: 6,
-  },
-  caseBoxTitle: {
-    color: "#38BDF8",
-    fontSize: 11,
-    fontWeight: "700",
-    marginBottom: 4,
-  },
-  caseBoxText: {
-    color: "#CBD5E1",
-    fontSize: 11,
-  },
-  invariantTitle: {
-    color: "#10B981",
-    fontSize: 11,
-    fontWeight: "700",
-  },
-  invariantText: {
-    color: "#F8FAFC",
-    fontSize: 12,
-    marginTop: 2,
-  },
-  pacerHeaderRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
-    marginBottom: 8,
-  },
-  overlayToggleButton: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 6,
-    borderWidth: 1,
-  },
-  overlayToggleActive: {
-    backgroundColor: "rgba(14, 165, 233, 0.2)",
-    borderColor: "#0EA5E9",
-  },
-  overlayToggleInactive: {
-    backgroundColor: "rgba(100, 116, 139, 0.2)",
-    borderColor: "#475569",
-  },
-  overlayToggleText: {
-    color: "#F8FAFC",
-    fontSize: 11,
-    fontWeight: "700",
-  },
-  pacerChipsRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 6,
-    marginBottom: 12,
-  },
-  pacerChip: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: "#334155",
-    backgroundColor: "#0F172A",
-  },
-  pacerChipActive: {
-    backgroundColor: "#0EA5E9",
-    borderColor: "#38BDF8",
-  },
-  pacerChipText: {
-    color: "#94A3B8",
-    fontSize: 11,
-    fontWeight: "700",
-  },
-  pacerChipTextActive: {
-    color: "#FFFFFF",
-  },
-  emptyFilterText: {
-    color: "#64748B",
-    fontSize: 12,
-    textAlign: "center",
-    paddingVertical: 16,
-  },
-  pacerNodeItem: {
-    backgroundColor: "#0F172A",
-    borderRadius: 6,
-    padding: 8,
-    marginBottom: 6,
-    borderLeftWidth: 3,
-    borderLeftColor: "#334155",
-  },
-  pacerNodeTopRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  pacerNodeBadge: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 8,
-  },
-  pacerNodeBadgeLetter: {
+  maturityBadgeText: {
     color: "#FFFFFF",
     fontSize: 11,
     fontWeight: "900",
   },
-  pacerNodeTitle: {
-    color: "#F8FAFC",
+  maturityTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    marginBottom: 4,
+  },
+  maturitySubtitle: {
+    color: "#CBD5E1",
     fontSize: 12,
-    fontWeight: "600",
-    flex: 1,
+    lineHeight: 16,
+    marginBottom: 14,
   },
-  deducibleBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-    marginLeft: 6,
+  diagnosisBox: {
+    backgroundColor: "#0F172A",
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 12,
+    borderLeftWidth: 3,
+    borderLeftColor: "#6366F1",
   },
-  deducibleBadgeText: {
-    fontSize: 9,
-    fontWeight: "700",
+  boxTitle: {
+    color: "#A5B4FC",
+    fontSize: 11,
+    fontWeight: "800",
+    marginBottom: 4,
   },
-  pacerNodeContext: {
+  diagnosisText: {
+    color: "#F1F5F9",
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  bridgeBox: {
+    backgroundColor: "#1E1B4B",
+    borderRadius: 10,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "rgba(99, 102, 241, 0.4)",
+  },
+  bridgeHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 4,
+  },
+  bridgeIcon: {
+    fontSize: 14,
+  },
+  bridgeTitle: {
+    color: "#C7D2FE",
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  bridgeText: {
+    color: "#EEF2FF",
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  islandItem: {
+    backgroundColor: "#0F172A",
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 8,
+    borderWidth: 1.5,
+  },
+  islandConnectedBorder: {
+    borderColor: "rgba(99, 102, 241, 0.3)",
+  },
+  islandIsolatedBorder: {
+    borderColor: "rgba(245, 158, 11, 0.45)",
+  },
+  islandInfoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  islandIcon: {
+    fontSize: 18,
+  },
+  islandName: {
+    color: "#F8FAFC",
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  islandEntCount: {
     color: "#94A3B8",
     fontSize: 11,
-    marginTop: 4,
-    marginLeft: 28,
+    marginTop: 2,
+  },
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  statusBadgeText: {
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  challengeHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 2,
+  },
+  challengeIcon: {
+    fontSize: 16,
+  },
+  socraticBox: {
+    backgroundColor: "#0F172A",
+    borderRadius: 10,
+    padding: 14,
+    borderLeftWidth: 3,
+    borderLeftColor: "#F59E0B",
+  },
+  socraticQuestion: {
+    color: "#FEF3C7",
+    fontSize: 13,
+    lineHeight: 19,
+    fontStyle: "italic",
+  },
+  transferScenarioBox: {
+    backgroundColor: "#0F172A",
+    borderRadius: 10,
+    padding: 12,
+  },
+  transferScenarioText: {
+    color: "#E2E8F0",
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  transferGuidingQuestion: {
+    color: "#67E8F9",
+    fontSize: 12,
+    lineHeight: 17,
+    fontStyle: "italic",
+  },
+  derringBox: {
+    backgroundColor: "#0F172A",
+    borderRadius: 10,
+    padding: 12,
+  },
+  derringPremiseLabel: {
+    color: "#F43F5E",
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  derringPremiseText: {
+    color: "#FECDD3",
+    fontSize: 12,
+    lineHeight: 17,
+    fontStyle: "italic",
+    marginTop: 2,
+  },
+  derringChallengeText: {
+    color: "#F8FAFC",
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 2,
+  },
+  resolutionCollapsible: {
+    backgroundColor: "#1E293B",
+    borderRadius: 8,
+    padding: 10,
+    marginTop: 10,
+  },
+  resolutionTitle: {
+    color: "#10B981",
+    fontSize: 11,
+    fontWeight: "800",
+    marginBottom: 2,
+  },
+  resolutionText: {
+    color: "#D1FAE5",
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  zoneCard: {
+    backgroundColor: "#064E3B",
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: "#10B981",
+  },
+  zoneName: {
+    color: "#A7F3D0",
+    fontSize: 13,
+    fontWeight: "800",
+    marginBottom: 4,
+  },
+  zonePrompt: {
+    color: "#ECFDF5",
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  anchoringCard: {
+    backgroundColor: "#0F172A",
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: "#38BDF8",
+  },
+  anchoringTarget: {
+    color: "#BAE6FD",
+    fontSize: 12,
+    fontWeight: "700",
+    marginBottom: 2,
+  },
+  anchoringSuggestion: {
+    color: "#E2E8F0",
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  emptyNotice: {
+    color: "#64748B",
+    fontSize: 12,
+    fontStyle: "italic",
+  },
+  sungRuleBadge: {
+    backgroundColor: "rgba(99, 102, 241, 0.2)",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  sungRuleText: {
+    color: "#A5B4FC",
+    fontSize: 10,
+    fontWeight: "800",
+  },
+  emptyAnkiNotice: {
+    alignItems: "center",
+    padding: 20,
+    backgroundColor: "#0F172A",
+    borderRadius: 10,
+  },
+  emptyAnkiIcon: {
+    fontSize: 24,
+    marginBottom: 6,
+  },
+  emptyAnkiTitle: {
+    color: "#10B981",
+    fontSize: 13,
+    fontWeight: "800",
+    marginBottom: 4,
+  },
+  emptyAnkiText: {
+    color: "#94A3B8",
+    fontSize: 12,
+    textAlign: "center",
+    lineHeight: 16,
+  },
+  ankiCardBox: {
+    backgroundColor: "#0F172A",
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: "#1E293B",
+  },
+  ankiFrontLabel: {
+    color: "#64748B",
+    fontSize: 10,
+    fontWeight: "800",
+  },
+  ankiFrontText: {
+    color: "#F8FAFC",
+    fontSize: 12,
+    fontWeight: "700",
+    marginTop: 2,
+  },
+  ankiBackText: {
+    color: "#E2E8F0",
+    fontSize: 12,
+    lineHeight: 16,
+    marginTop: 2,
+  },
+  whyNotDeducibleBox: {
+    backgroundColor: "rgba(245, 158, 11, 0.1)",
+    borderRadius: 6,
+    padding: 6,
+    marginTop: 8,
+  },
+  whyNotDeducibleText: {
+    color: "#FCD34D",
+    fontSize: 11,
+  },
+  syncContainer: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "#1E293B",
+  },
+  ipInput: {
+    backgroundColor: "#0F172A",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#334155",
+    color: "#F8FAFC",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 12,
+    marginBottom: 8,
+  },
+  syncButtonsRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  syncBtn: {
+    flex: 1,
+    backgroundColor: "#2563EB",
+    borderRadius: 8,
+    paddingVertical: 10,
+    alignItems: "center",
+  },
+  btnDisabled: {
+    opacity: 0.6,
+  },
+  syncBtnText: {
+    color: "#FFFFFF",
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  tsvBtn: {
+    flex: 1,
+    backgroundColor: "#334155",
+    borderRadius: 8,
+    paddingVertical: 10,
+    alignItems: "center",
+  },
+  tsvBtnText: {
+    color: "#E2E8F0",
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  syncStatusText: {
+    color: "#94A3B8",
+    fontSize: 10,
+    textAlign: "center",
+    marginTop: 6,
   },
 });
