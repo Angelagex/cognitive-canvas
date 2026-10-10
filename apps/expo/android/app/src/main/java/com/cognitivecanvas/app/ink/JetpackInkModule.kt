@@ -52,17 +52,34 @@ class JetpackInkModule(private val reactContext: ReactApplicationContext) :
                 for (i in 0 until strokesArray.size()) {
                     val strokeMap = strokesArray.getMap(i) ?: continue
                     val id = if (strokeMap.hasKey("id")) strokeMap.getString("id") ?: "stroke_$i" else "stroke_$i"
-                    val pointsArray = if (strokeMap.hasKey("points")) strokeMap.getArray("points") else null
-                    if (pointsArray == null) continue
-
                     val pointList = mutableListOf<InkPointData>()
-                    for (j in 0 until pointsArray.size()) {
-                        val pMap = pointsArray.getMap(j) ?: continue
-                        val x = pMap.getDouble("x").toFloat()
-                        val y = pMap.getDouble("y").toFloat()
-                        val t = if (pMap.hasKey("t")) pMap.getDouble("t").toLong() else (j * 10).toLong()
-                        pointList.add(InkPointData(x, y, t))
+
+                    if (strokeMap.hasKey("flatPoints")) {
+                        val flatPointsArray = strokeMap.getArray("flatPoints")
+                        if (flatPointsArray != null) {
+                            var j = 0
+                            val totalFloats = flatPointsArray.size()
+                            while (j + 3 < totalFloats) {
+                                val x = flatPointsArray.getDouble(j).toFloat()
+                                val y = flatPointsArray.getDouble(j + 1).toFloat()
+                                val t = flatPointsArray.getDouble(j + 3).toLong()
+                                pointList.add(InkPointData(x, y, t))
+                                j += 4
+                            }
+                        }
+                    } else if (strokeMap.hasKey("points")) {
+                        val pointsArray = strokeMap.getArray("points")
+                        if (pointsArray != null) {
+                            for (j in 0 until pointsArray.size()) {
+                                val pMap = pointsArray.getMap(j) ?: continue
+                                val x = pMap.getDouble("x").toFloat()
+                                val y = pMap.getDouble("y").toFloat()
+                                val t = if (pMap.hasKey("t")) pMap.getDouble("t").toLong() else (j * 10).toLong()
+                                pointList.add(InkPointData(x, y, t))
+                            }
+                        }
                     }
+
                     if (pointList.isNotEmpty()) {
                         strokeList.add(InkStrokeData(id, pointList))
                     }
@@ -81,6 +98,23 @@ class JetpackInkModule(private val reactContext: ReactApplicationContext) :
                 promise.resolve(resultMap)
             } catch (e: Exception) {
                 promise.reject("ERR_RECOGNIZE_FAILED", e.message, e)
+            }
+        }
+    }
+
+    @ReactMethod
+    fun getCanvasStrokes(promise: Promise) {
+        val inkView = JetpackInkView.activeInstance?.get()
+        if (inkView == null) {
+            promise.resolve(Arguments.createArray())
+            return
+        }
+        CoroutineScope(Dispatchers.Default).launch {
+            try {
+                val strokesArray = inkView.serializeStrokes()
+                promise.resolve(strokesArray)
+            } catch (e: Exception) {
+                promise.reject("ERR_GET_STROKES", e.message, e)
             }
         }
     }

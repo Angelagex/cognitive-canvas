@@ -66,7 +66,7 @@ export const useCanvasState = () => {
     setToolbarDockSide: tools.setToolbarDockSide,
   });
 
-  getVisualASTFn = () => ast.visualAST;
+  getVisualASTFn = () => ast.ensureVisualAST();
   getMapTitleFn = () => doc.mapTitle;
   getCurrentMapIdFn = () => doc.currentMapId;
   getPlacedAttributesFn = () => doc.placedAttributes;

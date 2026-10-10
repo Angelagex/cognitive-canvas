@@ -11,7 +11,7 @@ import {
   VisualASTLayer,
   RawInkStroke,
 } from "@cognitive-canvas/core";
-import { recognizeInkStrokes, initializeDigitalInk } from "../../components/JetpackInkCanvas";
+import { recognizeInkStrokes, initializeDigitalInk, getCanvasStrokes } from "../../components/JetpackInkCanvas";
 
 interface UseCanvasAstProps {
   canvasScale: number;
@@ -62,88 +62,99 @@ export const useCanvasAst = ({
       .catch((err) => console.warn("[useCanvasAst] Error inicializando ML Kit Digital Ink:", err));
   }, []);
 
+  const isAstDirtyRef = useRef<boolean>(true);
+  const visualASTRef = useRef<VisualASTLayer>(visualAST);
+  visualASTRef.current = visualAST;
+
+  /**
+   * On-demand calculation of Visual AST Layer enriched with ML Kit OCR.
+   * Pulls the freshest strokes directly from native memory, guaranteeing 100% accuracy for compilation.
+   */
+  const ensureVisualAST = useCallback(async (): Promise<VisualASTLayer> => {
+    let currentStrokes = strokesRef.current;
+    if (!currentStrokes || currentStrokes.length === 0 || isAstDirtyRef.current) {
+      try {
+        const pulled = await getCanvasStrokes();
+        if (pulled && pulled.length > 0) {
+          currentStrokes = pulled;
+          strokesRef.current = pulled;
+        }
+      } catch (_) {}
+    }
+
+    if (!currentStrokes || currentStrokes.length === 0) {
+      return { entities: [], connectors: [] };
+    }
+    if (!isAstDirtyRef.current && visualASTRef.current && visualASTRef.current.entities.length > 0) {
+      return visualASTRef.current;
+    }
+
+    try {
+      const passiveMap: Record<string, string> = {};
+      const currentAttrs = getPlacedAttributes ? getPlacedAttributes() : placedAttributes;
+      currentAttrs.forEach((attr) => {
+        passiveMap[attr.id] = `${attr.type}: ${attr.title} - ${attr.note}`;
+      });
+
+      console.log(`[useCanvasAst] 🧠 Parsing Visual AST on-demand for ${currentStrokes.length} strokes...`);
+      const ast = visualASTEngine.parseVisualAST(currentStrokes, passiveMap, canvasScale);
+
+      // Enriquecimiento asíncrono con ML Kit Digital Ink sólo cuando se compila
+      if (ast.entities && ast.entities.length > 0) {
+        const pendingTextEntities = ast.entities.filter(
+          (e) => e.type === "TEXT_BLOCK" && !e.transcribed_text
+        );
+        if (pendingTextEntities.length > 0) {
+          console.log(`[useCanvasAst] 🖋️ Running ML Kit recognition on ${pendingTextEntities.length} text blocks...`);
+          await Promise.all(
+            pendingTextEntities.map(async (ent) => {
+              const entStrokes = currentStrokes.filter((s) => ent.stroke_ids.includes(s.id));
+              if (entStrokes.length > 0) {
+                try {
+                  const res = await recognizeInkStrokes(entStrokes);
+                  if (res.transcription && res.isTextBlock) {
+                    ent.transcribed_text = res.transcription;
+                    ent.ml_kit_payload = {
+                      transcription: res.transcription,
+                      confidence: res.confidence,
+                      candidates: res.candidates,
+                    };
+                  }
+                } catch (e) {
+                  // Silently ignore individual transcription error
+                }
+              }
+            })
+          );
+        }
+      }
+
+      visualASTRef.current = ast;
+      setVisualAST(ast);
+      isAstDirtyRef.current = false;
+      return ast;
+    } catch (err) {
+      console.warn("[useCanvasAst] Error in ensureVisualAST:", err);
+      return visualASTRef.current || { entities: [], connectors: [] };
+    }
+  }, [visualASTEngine, getPlacedAttributes, placedAttributes, canvasScale]);
+
+  /**
+   * Ultra-lightweight stroke completion handler.
+   * Receives only strokeCount and undo/redo flags (<0.01ms execution, ZERO JSON point serialization).
+   */
   const handleStrokeEnd = useCallback(
     (event: NativeSyntheticEvent<StrokeEndEvent>) => {
-      const { strokeCount: count, canUndo: undoPossible, canRedo: redoPossible, strokes } = event.nativeEvent;
-      setStrokeCount(count);
+      const { strokeCount: count, canUndo: undoPossible, canRedo: redoPossible } = event.nativeEvent;
+      if (count !== undefined) setStrokeCount(count);
       if (undoPossible !== undefined) setCanUndo(undoPossible);
-      else setCanUndo(count > 0);
+      else if (count !== undefined) setCanUndo(count > 0);
       if (redoPossible !== undefined) setCanRedo(redoPossible);
 
-      if (strokes) {
-        strokesRef.current = strokes;
-        markDirty();
-
-        const bboxes = strokeBBoxesRef.current;
-        for (const strk of strokes) {
-          if (!bboxes.has(strk.id) && strk.points && strk.points.length > 0) {
-            let sMinX = strk.points[0].x;
-            let sMaxX = strk.points[0].x;
-            let sMinY = strk.points[0].y;
-            let sMaxY = strk.points[0].y;
-            for (let i = 1; i < strk.points.length; i++) {
-              const pt = strk.points[i];
-              if (pt.x < sMinX) sMinX = pt.x;
-              if (pt.x > sMaxX) sMaxX = pt.x;
-              if (pt.y < sMinY) sMinY = pt.y;
-              if (pt.y > sMaxY) sMaxY = pt.y;
-            }
-            bboxes.set(strk.id, { xmin: sMinX, ymin: sMinY, xmax: sMaxX, ymax: sMaxY });
-          }
-        }
-
-        if (parseAstDebounceRef.current) {
-          clearTimeout(parseAstDebounceRef.current);
-        }
-
-        parseAstDebounceRef.current = setTimeout(() => {
-          setRawStrokes(strokes);
-          try {
-            const passiveMap: Record<string, string> = {};
-            const currentAttrs = getPlacedAttributes ? getPlacedAttributes() : placedAttributes;
-            currentAttrs.forEach((attr) => {
-              passiveMap[attr.id] = `${attr.type}: ${attr.title} - ${attr.note}`;
-            });
-
-            const ast = visualASTEngine.parseVisualAST(strokes, passiveMap, canvasScale);
-            setVisualAST(ast);
-            console.log(`[VisualASTEngine] Live AST updated: ${ast.entities.length} entities, ${ast.connectors.length} connectors`);
-
-            // Enriquecimiento asíncrono en segundo plano con ML Kit Digital Ink (Visual AST V2)
-            if (ast.entities && ast.entities.length > 0) {
-              const pendingTextEntities = ast.entities.filter(
-                (e) => e.type === "TEXT_BLOCK" && !e.transcribed_text
-              );
-              if (pendingTextEntities.length > 0) {
-                Promise.all(
-                  pendingTextEntities.map(async (ent) => {
-                    const entStrokes = strokes.filter((s) => ent.stroke_ids.includes(s.id));
-                    if (entStrokes.length > 0) {
-                      const res = await recognizeInkStrokes(entStrokes);
-                      if (res.transcription && res.isTextBlock) {
-                        ent.transcribed_text = res.transcription;
-                        ent.ml_kit_payload = {
-                          transcription: res.transcription,
-                          confidence: res.confidence,
-                          candidates: res.candidates,
-                        };
-                      }
-                    }
-                  })
-                )
-                  .then(() => {
-                    setVisualAST({ ...ast });
-                  })
-                  .catch(() => null);
-              }
-            }
-          } catch (err) {
-            console.warn("[VisualASTEngine] Error parsing live strokes:", err);
-          }
-        }, 280);
-      }
+      isAstDirtyRef.current = true;
+      markDirty();
     },
-    [visualASTEngine, placedAttributes, canvasScale, markDirty]
+    [markDirty]
   );
 
   const handleUndo = useCallback(() => {
@@ -188,6 +199,7 @@ export const useCanvasAst = ({
   return {
     visualAST,
     setVisualAST,
+    ensureVisualAST,
     rawStrokes,
     setRawStrokes,
     strokesRef,

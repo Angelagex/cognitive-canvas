@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import { AppState } from "react-native";
 import {
   saveDocument,
   loadDocument,
@@ -12,6 +13,7 @@ import {
 } from "../../services/StorageService";
 import { PlacedAttribute, EntityBoundingBox, PassiveAttributeType } from "../../types/canvas";
 import { VisualASTLayer, RawInkStroke } from "@cognitive-canvas/core";
+import { getCanvasStrokes } from "../../components/JetpackInkCanvas";
 
 interface UseCanvasDocumentProps {
   canvasScale: number;
@@ -82,12 +84,90 @@ export const useCanvasDocument = ({
 
   // Dirty State Tracker
   const isDirtyRef = useRef<boolean>(false);
-  const [dirtyVersion, setDirtyVersion] = useState<number>(0);
+  const currentMapIdRef = useRef<string>(currentMapId);
+  currentMapIdRef.current = currentMapId;
+  const mapTitleRef = useRef<string>(mapTitle);
+  mapTitleRef.current = mapTitle;
+  const lastSavedAtRef = useRef<number | null>(lastSavedAt);
+  lastSavedAtRef.current = lastSavedAt;
+  const canvasScaleRef = useRef<number>(canvasScale);
+  canvasScaleRef.current = canvasScale;
+  const canvasTranslateXRef = useRef<number>(canvasTranslateX);
+  canvasTranslateXRef.current = canvasTranslateX;
+  const canvasTranslateYRef = useRef<number>(canvasTranslateY);
+  canvasTranslateYRef.current = canvasTranslateY;
+  const visualASTRef = useRef<VisualASTLayer>(visualAST);
+  visualASTRef.current = visualAST;
+  const compilationRef = useRef<any>(compilation);
+  compilationRef.current = compilation;
+
+  const saveCurrentMapSilently = useCallback(async () => {
+    if (!isDirtyRef.current) return;
+    try {
+      setIsSaving(true);
+      // Pull-based: get the exact latest strokes directly from native memory
+      const latestStrokes = await getCanvasStrokes();
+      if (latestStrokes && latestStrokes.length > 0) {
+        strokesRef.current = latestStrokes;
+      }
+      const now = Date.now();
+      const doc: ExtendedCognitiveMapDocument = {
+        map_id: currentMapIdRef.current,
+        version: "1.0.0",
+        metadata: {
+          title: mapTitleRef.current,
+          created_at: lastSavedAtRef.current || now,
+          updated_at: now,
+          canvas_scale: canvasScaleRef.current,
+          canvas_translate_x: canvasTranslateXRef.current,
+          canvas_translate_y: canvasTranslateYRef.current,
+          placed_attributes: placedAttributesRef.current,
+        },
+        raw_ink_layer: {
+          strokes: strokesRef.current,
+        },
+        visual_ast_layer: visualASTRef.current,
+        compiled_cognitive_layer: compilationRef.current,
+      };
+
+      await saveDocument(doc);
+      isDirtyRef.current = false;
+      setLastSavedAt(now);
+      const list = await listDocuments();
+      setSavedMaps(list);
+    } catch (err) {
+      console.error("[useCanvasDocument] Silent save error:", err);
+    } finally {
+      setIsSaving(false);
+    }
+  }, [strokesRef]);
 
   const markDirty = useCallback(() => {
     isDirtyRef.current = true;
-    setDirtyVersion((v) => v + 1);
-  }, []);
+    if (!isInitialLoadDoneRef.current) return;
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current);
+    }
+    // 5000ms idle debounce: while actively handwriting, this resets on every stroke.
+    // Zero lag and zero "Guardando..." interruptions while writing!
+    autoSaveTimerRef.current = setTimeout(() => {
+      saveCurrentMapSilently();
+    }, 5000);
+  }, [saveCurrentMapSilently]);
+
+  // Persist silently when user switches apps or puts tablet to sleep
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (nextState) => {
+      if (nextState === "background" || nextState === "inactive") {
+        if (isDirtyRef.current) {
+          saveCurrentMapSilently();
+        }
+      }
+    });
+    return () => {
+      subscription.remove();
+    };
+  }, [saveCurrentMapSilently]);
 
   const handleTitleChange = useCallback(
     (newTitle: string) => {
@@ -179,65 +259,13 @@ export const useCanvasDocument = ({
     };
   }, []);
 
-  // 1.5-second debounced auto-save
-  useEffect(() => {
-    if (!isInitialLoadDoneRef.current) return;
-    if (!isDirtyRef.current) return;
-
-    if (autoSaveTimerRef.current) {
-      clearTimeout(autoSaveTimerRef.current);
-    }
-
-    autoSaveTimerRef.current = setTimeout(async () => {
-      if (!isDirtyRef.current) return;
-      try {
-        setIsSaving(true);
-        const now = Date.now();
-        const doc: ExtendedCognitiveMapDocument = {
-          map_id: currentMapId,
-          version: "1.0.0",
-          metadata: {
-            title: mapTitle,
-            created_at: lastSavedAt || now,
-            updated_at: now,
-            canvas_scale: canvasScale,
-            canvas_translate_x: canvasTranslateX,
-            canvas_translate_y: canvasTranslateY,
-            placed_attributes: placedAttributes,
-          },
-          raw_ink_layer: {
-            strokes: strokesRef.current,
-          },
-          visual_ast_layer: visualAST,
-          compiled_cognitive_layer: compilation,
-        };
-
-        await saveDocument(doc);
-        isDirtyRef.current = false;
-        setLastSavedAt(now);
-        const list = await listDocuments();
-        setSavedMaps(list);
-      } catch (err) {
-        console.error("[useCanvasDocument] Auto-save error:", err);
-      } finally {
-        setIsSaving(false);
-      }
-    }, 1500);
-  }, [
-    dirtyVersion,
-    currentMapId,
-    mapTitle,
-    placedAttributes,
-    visualAST,
-    compilation,
-    canvasScale,
-    canvasTranslateX,
-    canvasTranslateY,
-  ]);
-
   const handleSaveMap = useCallback(async () => {
     try {
       setIsSaving(true);
+      const latestStrokes = await getCanvasStrokes();
+      if (latestStrokes && latestStrokes.length > 0) {
+        strokesRef.current = latestStrokes;
+      }
       const now = Date.now();
       const doc: ExtendedCognitiveMapDocument = {
         map_id: currentMapId,
@@ -259,6 +287,7 @@ export const useCanvasDocument = ({
       };
 
       await saveDocument(doc);
+      isDirtyRef.current = false;
       setLastSavedAt(now);
       const list = await listDocuments();
       setSavedMaps(list);

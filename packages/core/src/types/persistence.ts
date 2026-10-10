@@ -25,6 +25,8 @@ export interface RawInkStroke {
   color: string;
   width: number;
   timestamp?: number;
+  pointCount?: number;
+  flatPoints?: number[];
 }
 
 /**

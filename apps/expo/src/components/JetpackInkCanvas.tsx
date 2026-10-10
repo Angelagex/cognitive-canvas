@@ -64,6 +64,57 @@ export async function exportHighResPng(scaleMultiplier = 2.0): Promise<HighResPn
   return await JetpackInkModule.exportHighResPng({ scaleMultiplier });
 }
 
+/**
+ * Unpacks flat points array [x0, y0, p0, t0, x1, y1, p1, t1, ...] into point objects.
+ */
+export function unpackStrokePoints(stroke: any): { x: number; y: number; p: number; t: number }[] {
+  if (stroke.points && Array.isArray(stroke.points) && stroke.points.length > 0) {
+    return stroke.points;
+  }
+  if (!stroke.flatPoints || !Array.isArray(stroke.flatPoints)) {
+    return [];
+  }
+  const fp = stroke.flatPoints;
+  const pts: { x: number; y: number; p: number; t: number }[] = [];
+  for (let i = 0; i < fp.length; i += 4) {
+    pts.push({
+      x: fp[i],
+      y: fp[i + 1],
+      p: fp[i + 2] ?? 0.5,
+      t: fp[i + 3] ?? 0,
+    });
+  }
+  return pts;
+}
+
+/**
+ * Pulls current serialized strokes directly from native memory on-demand.
+ * Follows industry-standard pull architecture (Goodnotes, Nebo), eliminating bridge bottlenecks during writing.
+ * Automatically unpacks flat points for downstream consumers while preserving flatPoints for fast transfer.
+ */
+export async function getCanvasStrokes(): Promise<any[]> {
+  const { JetpackInkModule } = NativeModules;
+  if (!JetpackInkModule?.getCanvasStrokes) {
+    return [];
+  }
+  const raw = await JetpackInkModule.getCanvasStrokes();
+  if (!Array.isArray(raw)) return [];
+  return raw.map((stroke) => {
+    if ((!stroke.points || stroke.points.length === 0) && stroke.flatPoints) {
+      return {
+        ...stroke,
+        points: unpackStrokePoints(stroke),
+      };
+    }
+    return stroke;
+  });
+}
+
+export interface ScratchOutEvent {
+  deletedCount: number;
+  remainingCount: number;
+}
+
 export interface JetpackInkCanvasProps extends ViewProps {
   strokeColor?: string;
   strokeWidth?: number;
@@ -91,6 +142,7 @@ export interface JetpackInkCanvasProps extends ViewProps {
   onHover?: (event: NativeSyntheticEvent<HoverEvent>) => void;
   onHoverTimeout?: (event: NativeSyntheticEvent<HoverTimeoutEvent>) => void;
   onFingerTap?: (event: NativeSyntheticEvent<FingerTapEvent>) => void;
+  onScratchOut?: (event: NativeSyntheticEvent<ScratchOutEvent>) => void;
 }
 
 interface NativeJetpackInkViewProps extends ViewProps {
@@ -120,11 +172,12 @@ interface NativeJetpackInkViewProps extends ViewProps {
   onHover?: (event: NativeSyntheticEvent<HoverEvent>) => void;
   onHoverTimeout?: (event: NativeSyntheticEvent<HoverTimeoutEvent>) => void;
   onFingerTap?: (event: NativeSyntheticEvent<FingerTapEvent>) => void;
+  onScratchOut?: (event: NativeSyntheticEvent<ScratchOutEvent>) => void;
 }
 
 const NativeJetpackInkView = requireNativeComponent<NativeJetpackInkViewProps>("JetpackInkView");
 
-export const JetpackInkCanvas: React.FC<JetpackInkCanvasProps> = ({
+export const JetpackInkCanvas: React.FC<JetpackInkCanvasProps> = React.memo(({
   strokeColor = "#38BDF8",
   strokeWidth = 18,
   brushType = "pen",
@@ -151,9 +204,21 @@ export const JetpackInkCanvas: React.FC<JetpackInkCanvasProps> = ({
   onHover,
   onHoverTimeout,
   onFingerTap,
+  onScratchOut,
   style,
   ...rest
 }) => {
+  const handleScratchOutInternal = React.useCallback(
+    (event: NativeSyntheticEvent<ScratchOutEvent>) => {
+      const { deletedCount, remainingCount } = event.nativeEvent;
+      console.log(
+        `🧹 [BORRADO CON SWAP] Se ejecutó el borrado: ${deletedCount} trazos eliminados (restantes: ${remainingCount})`
+      );
+      onScratchOut?.(event);
+    },
+    [onScratchOut]
+  );
+
   return (
     <View style={[styles.container, style]}>
       <NativeJetpackInkView
@@ -184,11 +249,12 @@ export const JetpackInkCanvas: React.FC<JetpackInkCanvasProps> = ({
         onHover={onHover}
         onHoverTimeout={onHoverTimeout}
         onFingerTap={onFingerTap}
+        onScratchOut={handleScratchOutInternal}
         {...rest}
       />
     </View>
   );
-};
+});
 
 const styles = StyleSheet.create({
   container: {

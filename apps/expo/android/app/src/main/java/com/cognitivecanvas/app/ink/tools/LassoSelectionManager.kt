@@ -11,7 +11,11 @@ class LassoSelectionManager {
 
     val lassoPoints = mutableListOf<PointF>()
     val selectedStrokes = mutableListOf<Stroke>()
+    val selectedStrokesSet = HashSet<Stroke>()
     var selectionBounds: RectF? = null
+
+    // V3 Affine Matrix Transformation: Decouples visual dragging from stroke reallocation
+    val selectionMatrix = Matrix()
 
     private var isDraggingSelection = false
     private var lastDragX = 0f
@@ -75,6 +79,10 @@ class LassoSelectionManager {
         return false
     }
 
+    /**
+     * V3 Zero-GC drag handler: Accumulates translations in selectionMatrix
+     * without instantiating or replacing Strokes at 120 Hz.
+     */
     fun onTouchMove(
         worldX: Float,
         worldY: Float,
@@ -88,20 +96,10 @@ class LassoSelectionManager {
             totalDragDx += dx
             totalDragDy += dy
 
-            // Translate selected strokes in place
-            val newSelected = mutableListOf<Stroke>()
-            for (stroke in selectedStrokes) {
-                val translated = translateStroke(stroke, dx, dy)
-                val idx = completedStrokes.indexOf(stroke)
-                if (idx != -1) {
-                    completedStrokes[idx] = translated
-                }
-                newSelected.add(translated)
-            }
-            selectedStrokes.clear()
-            selectedStrokes.addAll(newSelected)
+            // Accumulate affine transform in Matrix
+            selectionMatrix.postTranslate(dx, dy)
 
-            // Update bounding box
+            // Update bounding box visually
             selectionBounds?.offset(dx, dy)
 
             lastDragX = worldX
@@ -111,9 +109,38 @@ class LassoSelectionManager {
         }
     }
 
-    fun onTouchUp(completedStrokes: List<Stroke>): Boolean {
+    /**
+     * Commits translation once on touch release or performs point-in-polygon selection.
+     */
+    fun onTouchUp(
+        completedStrokes: CopyOnWriteArrayList<Stroke>,
+        candidateStrokes: Collection<Stroke>? = null,
+        onStrokesTransformed: ((oldList: List<Stroke>, newList: List<Stroke>) -> Unit)? = null
+    ): Boolean {
         if (isDraggingSelection) {
             isDraggingSelection = false
+            if (totalDragDx != 0f || totalDragDy != 0f) {
+                // Apply physical mutation only once upon touch release
+                val oldSelected = ArrayList(selectedStrokes)
+                val newSelected = mutableListOf<Stroke>()
+                for (stroke in oldSelected) {
+                    val translated = translateStroke(stroke, totalDragDx, totalDragDy)
+                    val idx = completedStrokes.indexOf(stroke)
+                    if (idx != -1) {
+                        completedStrokes[idx] = translated
+                    }
+                    newSelected.add(translated)
+                }
+                selectedStrokes.clear()
+                selectedStrokes.addAll(newSelected)
+                selectedStrokesSet.clear()
+                selectedStrokesSet.addAll(newSelected)
+
+                onStrokesTransformed?.invoke(oldSelected, newSelected)
+                totalDragDx = 0f
+                totalDragDy = 0f
+            }
+            selectionMatrix.reset()
             return selectedStrokes.isNotEmpty()
         }
 
@@ -123,14 +150,16 @@ class LassoSelectionManager {
             return false
         }
 
-        // Evaluate point-in-polygon containment for completed strokes
+        // Evaluate point-in-polygon containment for candidate strokes
         val newlySelected = mutableListOf<Stroke>()
         var minX = Float.MAX_VALUE
         var maxX = -Float.MAX_VALUE
         var minY = Float.MAX_VALUE
         var maxY = -Float.MAX_VALUE
 
-        for (stroke in completedStrokes) {
+        val strokesToTest = candidateStrokes ?: completedStrokes
+
+        for (stroke in strokesToTest) {
             val inputs = stroke.inputs
             val inputCount = inputs.size
             if (inputCount == 0) continue
@@ -161,8 +190,11 @@ class LassoSelectionManager {
         if (newlySelected.isNotEmpty()) {
             selectedStrokes.clear()
             selectedStrokes.addAll(newlySelected)
+            selectedStrokesSet.clear()
+            selectedStrokesSet.addAll(newlySelected)
             val padding = 12f
             selectionBounds = RectF(minX - padding, minY - padding, maxX + padding, maxY + padding)
+            selectionMatrix.reset()
             return true
         } else {
             clearSelection()
@@ -193,6 +225,8 @@ class LassoSelectionManager {
         }
         selectedStrokes.clear()
         selectedStrokes.addAll(newSelected)
+        selectedStrokesSet.clear()
+        selectedStrokesSet.addAll(newSelected)
     }
 
     fun deleteSelected(completedStrokes: CopyOnWriteArrayList<Stroke>): List<Stroke> {
@@ -204,8 +238,12 @@ class LassoSelectionManager {
 
     fun clearSelection() {
         selectedStrokes.clear()
+        selectedStrokesSet.clear()
         selectionBounds = null
         isDraggingSelection = false
+        selectionMatrix.reset()
+        totalDragDx = 0f
+        totalDragDy = 0f
         lassoPoints.clear()
     }
 

@@ -114,13 +114,14 @@ class JetpackInkViewManager : SimpleViewManager<JetpackInkView>() {
 
     @ReactProp(name = "loadedStrokesJson")
     fun setLoadedStrokesJson(view: JetpackInkView, json: String?) {
-        view.loadStrokesFromJson(json)
+        view.pendingLoadedStrokesJson = json
     }
 
     @ReactProp(name = "loadStrokesTrigger")
     fun setLoadStrokesTrigger(view: JetpackInkView, trigger: Int) {
-        if (trigger > 0) {
+        if (trigger > 0 && !view.pendingLoadedStrokesJson.isNullOrEmpty()) {
             view.loadStrokesFromJson(view.pendingLoadedStrokesJson)
+            view.pendingLoadedStrokesJson = null
         }
     }
 
@@ -132,7 +133,8 @@ class JetpackInkViewManager : SimpleViewManager<JetpackInkView>() {
             "topSelectionChanged" to mapOf("registrationName" to "onSelectionChanged"),
             "topHover" to mapOf("registrationName" to "onHover"),
             "topHoverTimeout" to mapOf("registrationName" to "onHoverTimeout"),
-            "topFingerTap" to mapOf("registrationName" to "onFingerTap")
+            "topFingerTap" to mapOf("registrationName" to "onFingerTap"),
+            "topScratchOut" to mapOf("registrationName" to "onScratchOut")
         )
     }
 

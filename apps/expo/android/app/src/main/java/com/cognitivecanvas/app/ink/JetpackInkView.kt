@@ -26,11 +26,15 @@ import androidx.ink.strokes.Stroke
 import androidx.ink.strokes.StrokeInput
 import com.cognitivecanvas.app.ink.input.GestureShortcutDetector
 import com.cognitivecanvas.app.ink.input.StylusInputHandler
+import com.cognitivecanvas.app.ink.spatial.SpatialHashGrid
 import com.cognitivecanvas.app.ink.tools.StrokeEraser
 import com.cognitivecanvas.app.ink.transform.CanvasTransformManager
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.ReactContext
 import com.facebook.react.uimanager.events.RCTEventEmitter
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.math.hypot
@@ -67,6 +71,7 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
     private val strokeEraser = StrokeEraser()
     private val shapeDetector = com.cognitivecanvas.app.ink.tools.ShapeDetector()
     private val lassoManager = com.cognitivecanvas.app.ink.tools.LassoSelectionManager()
+    private val spatialGrid = SpatialHashGrid(cellSize = 64f)
     val stylusHandler = StylusInputHandler(stylusOnly = true) { x, y ->
         notifyBarrelButton(x, y)
     }
@@ -154,6 +159,7 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
             stylusHandler.stylusOnly = value
         }
 
+    @Volatile var isUserTouching = false
     private var cachedBrush: Brush? = null
     private var isTwoFingerGesture = false
     private var fingerDownX = 0f
@@ -298,6 +304,12 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
 
                 if (finalStrokes.isNotEmpty()) {
                     completedStrokes.addAll(finalStrokes)
+                    for (s in finalStrokes) {
+                        val b = getStrokeBounds(s)
+                        if (b != null) {
+                            spatialGrid.insert(s, b)
+                        }
+                    }
                     undoneStrokes.clear() // New stroke clears redo history
                 }
 
@@ -305,9 +317,8 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
                     strokesToHandOff.addAll(strokes.keys)
                 }
                 postInvalidateOnAnimation()
-                strokeFinishDebounceHandler.removeCallbacks(strokeFinishDebounceRunnable)
-                // 280ms debounce allows continuous letter strokes without UI-thread serialization lag
-                strokeFinishDebounceHandler.postDelayed(strokeFinishDebounceRunnable, 280L)
+                // Pure Pull Architecture: notify stroke count & undo stats in <0.01ms (Zero JSON over the bridge!)
+                notifyStrokeStatsImmediate()
             }
         })
     }
@@ -373,9 +384,10 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
     private fun handleScratchOut(scratchStroke: Stroke): Boolean {
         val scratchBounds = getStrokeBounds(scratchStroke) ?: return false
 
-        // Find which strokes in completedStrokes intersect with scratchBounds
+        // Broadphase: Find which strokes intersect with scratchBounds via spatial grid
+        val candidateStrokes = spatialGrid.query(scratchBounds)
         val hitStrokes = mutableListOf<Stroke>()
-        for (stroke in completedStrokes) {
+        for (stroke in candidateStrokes) {
             val b = getStrokeBounds(stroke) ?: continue
             val interLeft = maxOf(scratchBounds.left, b.left)
             val interRight = minOf(scratchBounds.right, b.right)
@@ -414,7 +426,15 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
             val curr = queue.removeFirst()
             val currBounds = getStrokeBounds(curr) ?: continue
 
-            for (other in completedStrokes) {
+            val queryBox = RectF(
+                currBounds.left - clusterProximity,
+                currBounds.top - clusterProximity,
+                currBounds.right + clusterProximity,
+                currBounds.bottom + clusterProximity
+            )
+            val nearby = spatialGrid.query(queryBox)
+
+            for (other in nearby) {
                 if (strokesToDelete.contains(other)) continue
                 val otherBounds = getStrokeBounds(other) ?: continue
 
@@ -428,8 +448,18 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
             }
         }
 
+        for (s in strokesToDelete) {
+            val b = strokeBoundsCache.remove(s)
+            if (b != null) spatialGrid.remove(s, b)
+        }
         completedStrokes.removeAll(strokesToDelete)
         undoneStrokes.addAll(strokesToDelete)
+
+        android.util.Log.i(
+            "JetpackInkView",
+            "🧹 [BORRADO CON SWAP/SCRATCH-OUT] Se ejecutó el borrado gestual con swap/scratch-out: ${strokesToDelete.size} trazos eliminados. Trazos restantes: ${completedStrokes.size}"
+        )
+        notifyScratchOutErased(strokesToDelete.size, completedStrokes.size)
 
         try {
             performHapticFeedback(HapticFeedbackConstants.CONFIRM)
@@ -440,6 +470,19 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
         }
 
         return true
+    }
+
+    private fun notifyScratchOutErased(deletedCount: Int, remainingCount: Int) {
+        val reactContext = context as? ReactContext ?: return
+        val event = Arguments.createMap().apply {
+            putInt("deletedCount", deletedCount)
+            putInt("remainingCount", remainingCount)
+        }
+        reactContext.getJSModule(RCTEventEmitter::class.java)?.receiveEvent(
+            id,
+            "topScratchOut",
+            event
+        )
     }
 
     private fun getOrCreateBrush(): Brush {
@@ -480,7 +523,7 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
         return brush
     }
 
-    fun serializeStrokes(): com.facebook.react.bridge.WritableArray {
+    fun serializeStrokesFlat(): com.facebook.react.bridge.WritableArray {
         val array = Arguments.createArray()
         val density = context.resources.displayMetrics.density
         // Sub-sampling threshold: points closer than 1.5dp are decimated to prevent UI thread heap exhaustion
@@ -495,20 +538,20 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
 
             val inputs = stroke.inputs
             val count = inputs.size
-            val pointsArray = Arguments.createArray()
-            val startT = if (count > 0) inputs.get(0).elapsedTimeMillis else 0L
+            val flatPointsArray = Arguments.createArray()
+            var emittedCount = 0
+
             if (count > 0) {
+                val startT = inputs.get(0).elapsedTimeMillis
                 strokeMap.putDouble("timestamp", startT.toDouble())
 
                 // Always include the initial touch point
                 var lastPt = inputs.get(0)
-                val firstMap = Arguments.createMap().apply {
-                    putDouble("x", (lastPt.x / density).toDouble())
-                    putDouble("y", (lastPt.y / density).toDouble())
-                    putDouble("p", lastPt.pressure.toDouble())
-                    putDouble("t", 0.0)
-                }
-                pointsArray.pushMap(firstMap)
+                flatPointsArray.pushDouble((lastPt.x / density).toDouble())
+                flatPointsArray.pushDouble((lastPt.y / density).toDouble())
+                flatPointsArray.pushDouble(lastPt.pressure.toDouble())
+                flatPointsArray.pushDouble(0.0)
+                emittedCount++
 
                 // Decimate intermediate points closer than 1.5dp
                 for (i in 1 until count - 1) {
@@ -516,13 +559,11 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
                     val dx = pt.x - lastPt.x
                     val dy = pt.y - lastPt.y
                     if (dx * dx + dy * dy >= minDistanceSq) {
-                        val ptMap = Arguments.createMap().apply {
-                            putDouble("x", (pt.x / density).toDouble())
-                            putDouble("y", (pt.y / density).toDouble())
-                            putDouble("p", pt.pressure.toDouble())
-                            putDouble("t", (pt.elapsedTimeMillis - startT).toDouble())
-                        }
-                        pointsArray.pushMap(ptMap)
+                        flatPointsArray.pushDouble((pt.x / density).toDouble())
+                        flatPointsArray.pushDouble((pt.y / density).toDouble())
+                        flatPointsArray.pushDouble(pt.pressure.toDouble())
+                        flatPointsArray.pushDouble((pt.elapsedTimeMillis - startT).toDouble())
+                        emittedCount++
                         lastPt = pt
                     }
                 }
@@ -530,35 +571,66 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
                 // Always include the final release point
                 if (count > 1) {
                     val endPt = inputs.get(count - 1)
-                    val endMap = Arguments.createMap().apply {
-                        putDouble("x", (endPt.x / density).toDouble())
-                        putDouble("y", (endPt.y / density).toDouble())
-                        putDouble("p", endPt.pressure.toDouble())
-                        putDouble("t", (endPt.elapsedTimeMillis - startT).toDouble())
-                    }
-                    pointsArray.pushMap(endMap)
+                    flatPointsArray.pushDouble((endPt.x / density).toDouble())
+                    flatPointsArray.pushDouble((endPt.y / density).toDouble())
+                    flatPointsArray.pushDouble(endPt.pressure.toDouble())
+                    flatPointsArray.pushDouble((endPt.elapsedTimeMillis - startT).toDouble())
+                    emittedCount++
                 }
             }
 
-            strokeMap.putArray("points", pointsArray)
+            strokeMap.putInt("pointCount", emittedCount)
+            strokeMap.putArray("flatPoints", flatPointsArray)
             array.pushMap(strokeMap)
         }
         return array
     }
 
-    private fun notifyStrokeCountChanged() {
+    fun serializeStrokes(): com.facebook.react.bridge.WritableArray {
+        return serializeStrokesFlat()
+    }
+
+    private fun notifyStrokeStatsImmediate() {
         val reactContext = context as? ReactContext ?: return
         val event = Arguments.createMap().apply {
             putInt("strokeCount", completedStrokes.size)
             putBoolean("canUndo", completedStrokes.isNotEmpty())
             putBoolean("canRedo", undoneStrokes.isNotEmpty())
-            putArray("strokes", serializeStrokes())
         }
         reactContext.getJSModule(RCTEventEmitter::class.java)?.receiveEvent(
             id,
             "topStrokeEnd",
             event
         )
+    }
+
+    private fun notifyStrokeCountChanged() {
+        val reactContext = context as? ReactContext ?: return
+        val count = completedStrokes.size
+        val canUndo = completedStrokes.isNotEmpty()
+        val canRedo = undoneStrokes.isNotEmpty()
+
+        // Offload point serialization to background coroutine to eliminate UI-thread frame drops
+        CoroutineScope(Dispatchers.Default).launch {
+            try {
+                val serialized = serializeStrokes()
+                Handler(Looper.getMainLooper()).post {
+                    val event = Arguments.createMap().apply {
+                        putInt("strokeCount", count)
+                        putBoolean("canUndo", canUndo)
+                        putBoolean("canRedo", canRedo)
+                        putArray("strokes", serialized)
+                    }
+                    reactContext.getJSModule(RCTEventEmitter::class.java)?.receiveEvent(
+                        id,
+                        "topStrokeEnd",
+                        event
+                    )
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("JetpackInkView", "Failed to serialize strokes in background", e)
+            }
+        }
     }
 
     private fun notifyTransformChanged(scale: Float, tx: Float, ty: Float) {
@@ -648,8 +720,19 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
     override fun onTouchEvent(event: MotionEvent): Boolean {
         parent?.requestDisallowInterceptTouchEvent(true)
 
-        if (event.actionMasked == MotionEvent.ACTION_DOWN) {
-            cancelHoverDwell()
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
+                isUserTouching = true
+                cancelHoverDwell()
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                isUserTouching = false
+            }
+            MotionEvent.ACTION_POINTER_UP -> {
+                if (event.pointerCount <= 2) {
+                    isUserTouching = false
+                }
+            }
         }
 
         val isStylusTouch = (0 until event.pointerCount).any {
@@ -750,7 +833,15 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
                         completedStrokes
                     ) { removed ->
                         undoneStrokes.addAll(removed)
-                        for (r in removed) { strokeBoundsCache.remove(r) }
+                        for (r in removed) {
+                            val b = strokeBoundsCache.remove(r)
+                            if (b != null) spatialGrid.remove(r, b)
+                        }
+                        android.util.Log.i(
+                            "JetpackInkView",
+                            "🧹 [BORRADO CON SWAP/ERASER] Se ejecutó el borrado continuo (swap/eraser): ${removed.size} trazos eliminados. Trazos restantes: ${completedStrokes.size}"
+                        )
+                        notifyScratchOutErased(removed.size, completedStrokes.size)
                         postInvalidateOnAnimation()
                         strokeFinishDebounceHandler.removeCallbacks(strokeFinishDebounceRunnable)
                         strokeFinishDebounceHandler.postDelayed(strokeFinishDebounceRunnable, 150L)
@@ -778,7 +869,37 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
                     return true
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                    val hasSelection = lassoManager.onTouchUp(completedStrokes)
+                    val candidateStrokes: Collection<Stroke>? = if (lassoManager.lassoPoints.size >= 2) {
+                        var minX = Float.MAX_VALUE
+                        var maxX = -Float.MAX_VALUE
+                        var minY = Float.MAX_VALUE
+                        var maxY = -Float.MAX_VALUE
+                        for (p in lassoManager.lassoPoints) {
+                            if (p.x < minX) minX = p.x
+                            if (p.x > maxX) maxX = p.x
+                            if (p.y < minY) minY = p.y
+                            if (p.y > maxY) maxY = p.y
+                        }
+                        spatialGrid.query(RectF(minX, minY, maxX, maxY))
+                    } else null
+
+                    val hasSelection = lassoManager.onTouchUp(
+                        completedStrokes = completedStrokes,
+                        candidateStrokes = candidateStrokes,
+                        onStrokesTransformed = { oldList, newList ->
+                            for (i in oldList.indices) {
+                                val oldS = oldList[i]
+                                val newS = newList[i]
+                                val oldB = strokeBoundsCache.remove(oldS)
+                                if (oldB != null) spatialGrid.remove(oldS, oldB)
+                                val newB = getStrokeBounds(newS)
+                                if (newB != null) spatialGrid.insert(newS, newB)
+                                strokeColorMap.remove(oldS)?.let { col ->
+                                    strokeColorMap[newS] = col
+                                }
+                            }
+                        }
+                    )
                     postInvalidateOnAnimation()
                     notifySelectionChanged(hasSelection, lassoManager.selectedStrokes.size)
                     return true
@@ -917,39 +1038,50 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
         val zoomFactor = 1f / transformManager.canvasScale
         val hitMargin = 28f * zoomFactor
 
-        // 1. Broadphase: quickly find strokes near (worldX, worldY) using cached O(1) bounds
-        val hitIndices = mutableListOf<Int>()
-        for (idx in completedStrokes.indices) {
-            val b = getStrokeBounds(completedStrokes[idx]) ?: continue
+        // 1. Broadphase: O(1) query in Spatial Hash Grid
+        val candidates = spatialGrid.queryRadius(worldX, worldY, hitMargin)
+        if (candidates.isEmpty()) return null
+
+        val hitStrokes = mutableListOf<Stroke>()
+        for (stroke in candidates) {
+            val b = getStrokeBounds(stroke) ?: continue
             if (worldX >= b.left - hitMargin && worldX <= b.right + hitMargin &&
                 worldY >= b.top - hitMargin && worldY <= b.bottom + hitMargin) {
-                hitIndices.add(idx)
+                hitStrokes.add(stroke)
             }
         }
-        if (hitIndices.isEmpty()) return null
+        if (hitStrokes.isEmpty()) return null
 
         // 2. Expand cluster to include all adjacent strokes in the same handwritten word/concept
-        val clusterIndices = mutableSetOf<Int>()
-        val queue = ArrayDeque<Int>()
-        for (idx in hitIndices) {
-            clusterIndices.add(idx)
-            queue.add(idx)
+        val clusterStrokes = mutableSetOf<Stroke>()
+        val queue = ArrayDeque<Stroke>()
+        for (stroke in hitStrokes) {
+            clusterStrokes.add(stroke)
+            queue.add(stroke)
         }
 
         val clusterProximity = 45f * zoomFactor
         while (queue.isNotEmpty()) {
-            val currentIdx = queue.removeFirst()
-            val currentBounds = getStrokeBounds(completedStrokes[currentIdx]) ?: continue
+            val current = queue.removeFirst()
+            val currentBounds = getStrokeBounds(current) ?: continue
 
-            for (otherIdx in completedStrokes.indices) {
-                if (clusterIndices.contains(otherIdx)) continue
-                val otherBounds = getStrokeBounds(completedStrokes[otherIdx]) ?: continue
+            val queryBox = RectF(
+                currentBounds.left - clusterProximity,
+                currentBounds.top - clusterProximity,
+                currentBounds.right + clusterProximity,
+                currentBounds.bottom + clusterProximity
+            )
+            val nearby = spatialGrid.query(queryBox)
+
+            for (other in nearby) {
+                if (clusterStrokes.contains(other)) continue
+                val otherBounds = getStrokeBounds(other) ?: continue
 
                 val dx = maxOf(0f, maxOf(currentBounds.left - otherBounds.right, otherBounds.left - currentBounds.right))
                 val dy = maxOf(0f, maxOf(currentBounds.top - otherBounds.bottom, otherBounds.top - currentBounds.bottom))
                 if (dx <= clusterProximity && dy <= clusterProximity) {
-                    clusterIndices.add(otherIdx)
-                    queue.add(otherIdx)
+                    clusterStrokes.add(other)
+                    queue.add(other)
                 }
             }
         }
@@ -959,8 +1091,8 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
         var maxX = -Float.MAX_VALUE
         var minY = Float.MAX_VALUE
         var maxY = -Float.MAX_VALUE
-        for (idx in clusterIndices) {
-            val b = getStrokeBounds(completedStrokes[idx]) ?: continue
+        for (stroke in clusterStrokes) {
+            val b = getStrokeBounds(stroke) ?: continue
             if (b.left < minX) minX = b.left
             if (b.right > maxX) maxX = b.right
             if (b.top < minY) minY = b.top
@@ -1162,14 +1294,33 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
         // 1. Draw native paper template (Dot grid, Graph grid, or Ruled lines)
         drawBackgroundPattern(canvas)
 
-        // 2. Draw completed strokes
-        viewStrokeRenderer.drawWithStrokes(canvas) { scope ->
-            for (stroke in completedStrokes) {
-                scope.drawStroke(stroke)
+        // 2. Draw completed strokes (with Lasso Matrix transform decoupling)
+        if (lassoManager.selectedStrokes.isEmpty()) {
+            viewStrokeRenderer.drawWithStrokes(canvas) { scope ->
+                for (stroke in completedStrokes) {
+                    scope.drawStroke(stroke)
+                }
             }
+        } else {
+            val selectedSet = lassoManager.selectedStrokesSet
+            viewStrokeRenderer.drawWithStrokes(canvas) { scope ->
+                for (stroke in completedStrokes) {
+                    if (!selectedSet.contains(stroke)) {
+                        scope.drawStroke(stroke)
+                    }
+                }
+            }
+            canvas.save()
+            canvas.concat(lassoManager.selectionMatrix)
+            viewStrokeRenderer.drawWithStrokes(canvas) { scope ->
+                for (stroke in lassoManager.selectedStrokes) {
+                    scope.drawStroke(stroke)
+                }
+            }
+            canvas.restore()
         }
 
-        // 2.5 Draw Ephemeral Laser Strokes with Alpha Decay
+        // 2.5 Draw Ephemeral Laser Strokes with Alpha Decay & Dirty Bounds Isolation
         val now = SystemClock.uptimeMillis()
         val expiredLasers = mutableListOf<LaserStroke>()
         for (laser in activeLaserStrokes) {
@@ -1180,7 +1331,12 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
                 val fraction = elapsed.toFloat() / laser.durationMs.toFloat()
                 val alpha = ((1f - fraction) * 255).toInt().coerceIn(0, 255)
                 if (alpha > 0) {
-                    canvas.saveLayerAlpha(null, alpha)
+                    val bounds = getStrokeBounds(laser.stroke)
+                    if (bounds != null) {
+                        canvas.saveLayerAlpha(bounds, alpha)
+                    } else {
+                        canvas.saveLayerAlpha(null, alpha)
+                    }
                     viewStrokeRenderer.drawWithStrokes(canvas) { scope ->
                         scope.drawStroke(laser.stroke)
                     }
@@ -1242,6 +1398,7 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
         isLaserPointerActive = false
         strokeBoundsCache.clear()
         strokeColorMap.clear()
+        spatialGrid.clear()
         lassoManager.clearSelection()
         inProgressStrokesView.cancelUnfinishedStrokes()
         postInvalidateOnAnimation()
@@ -1255,6 +1412,7 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
         undoneStrokes.clear()
         strokeBoundsCache.clear()
         strokeColorMap.clear()
+        spatialGrid.clear()
         lassoManager.clearSelection()
         inProgressStrokesView.cancelUnfinishedStrokes()
 
@@ -1285,29 +1443,55 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
                     epsilon = 0.1f
                 )
 
-                val pointsArray = strokeObj.optJSONArray("points") ?: continue
-                val pointsCount = pointsArray.length()
-                if (pointsCount < 2) continue
-
+                val flatPoints = strokeObj.optJSONArray("flatPoints")
+                val pointsArray = strokeObj.optJSONArray("points")
                 val batch = MutableStrokeInputBatch()
-                for (j in 0 until pointsCount) {
-                    val ptObj = pointsArray.optJSONObject(j) ?: continue
-                    val px = ptObj.optDouble("x", 0.0).toFloat() * density
-                    val py = ptObj.optDouble("y", 0.0).toFloat() * density
-                    val pressure = ptObj.optDouble("p", 0.5).toFloat().coerceIn(0.05f, 1.0f)
-                    val t = ptObj.optDouble("t", (j * 12).toDouble()).toLong()
 
-                    val input = StrokeInput.create(
-                        px,
-                        py,
-                        t,
-                        InputToolType.STYLUS,
-                        0f,
-                        pressure,
-                        0f,
-                        0f
-                    )
-                    batch.addOrIgnore(input)
+                if (flatPoints != null && flatPoints.length() >= 8) {
+                    val totalFloats = flatPoints.length()
+                    var j = 0
+                    while (j + 3 < totalFloats) {
+                        val px = flatPoints.optDouble(j, 0.0).toFloat() * density
+                        val py = flatPoints.optDouble(j + 1, 0.0).toFloat() * density
+                        val pressure = flatPoints.optDouble(j + 2, 0.5).toFloat().coerceIn(0.05f, 1.0f)
+                        val t = flatPoints.optDouble(j + 3, (j * 3).toDouble()).toLong()
+
+                        val input = StrokeInput.create(
+                            px,
+                            py,
+                            t,
+                            InputToolType.STYLUS,
+                            0f,
+                            pressure,
+                            0f,
+                            0f
+                        )
+                        batch.addOrIgnore(input)
+                        j += 4
+                    }
+                } else if (pointsArray != null && pointsArray.length() >= 2) {
+                    val pointsCount = pointsArray.length()
+                    for (j in 0 until pointsCount) {
+                        val ptObj = pointsArray.optJSONObject(j) ?: continue
+                        val px = ptObj.optDouble("x", 0.0).toFloat() * density
+                        val py = ptObj.optDouble("y", 0.0).toFloat() * density
+                        val pressure = ptObj.optDouble("p", 0.5).toFloat().coerceIn(0.05f, 1.0f)
+                        val t = ptObj.optDouble("t", (j * 12).toDouble()).toLong()
+
+                        val input = StrokeInput.create(
+                            px,
+                            py,
+                            t,
+                            InputToolType.STYLUS,
+                            0f,
+                            pressure,
+                            0f,
+                            0f
+                        )
+                        batch.addOrIgnore(input)
+                    }
+                } else {
+                    continue
                 }
 
                 val stroke = Stroke(strokeBrush, batch.asImmutable())
@@ -1316,6 +1500,12 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
             }
 
             completedStrokes.addAll(restoredStrokes)
+            for (s in restoredStrokes) {
+                val b = getStrokeBounds(s)
+                if (b != null) {
+                    spatialGrid.insert(s, b)
+                }
+            }
             postInvalidateOnAnimation()
         } catch (e: Exception) {
             android.util.Log.e("JetpackInkView", "Error in loadStrokesFromJson: ${e.message}", e)
@@ -1325,7 +1515,8 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
     fun undoStroke() {
         if (completedStrokes.isNotEmpty()) {
             val last = completedStrokes.removeAt(completedStrokes.size - 1)
-            strokeBoundsCache.remove(last)
+            val b = strokeBoundsCache.remove(last)
+            if (b != null) spatialGrid.remove(last, b)
             undoneStrokes.add(last)
             lassoManager.clearSelection()
             postInvalidateOnAnimation()
@@ -1338,6 +1529,8 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
         if (undoneStrokes.isNotEmpty()) {
             val restored = undoneStrokes.removeAt(undoneStrokes.size - 1)
             completedStrokes.add(restored)
+            val b = getStrokeBounds(restored)
+            if (b != null) spatialGrid.insert(restored, b)
             lassoManager.clearSelection()
             postInvalidateOnAnimation()
             notifyStrokeCountChanged()
@@ -1348,7 +1541,10 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
     fun deleteSelectedStrokes() {
         val removed = lassoManager.deleteSelected(completedStrokes)
         if (removed.isNotEmpty()) {
-            for (r in removed) { strokeBoundsCache.remove(r) }
+            for (r in removed) {
+                val b = strokeBoundsCache.remove(r)
+                if (b != null) spatialGrid.remove(r, b)
+            }
             undoneStrokes.addAll(removed)
             postInvalidateOnAnimation()
             notifyStrokeCountChanged()

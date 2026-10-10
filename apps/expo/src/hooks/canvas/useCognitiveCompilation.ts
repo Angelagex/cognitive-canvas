@@ -5,7 +5,7 @@ import { compileCognitiveMap } from "../../services/CompilationService";
 import { cognitiveLayerStore } from "../../stores/useCognitiveLayerStore";
 
 export interface UseCognitiveCompilationProps {
-  getVisualAST?: () => VisualAST | null;
+  getVisualAST?: () => VisualAST | null | Promise<VisualAST | null>;
   getMapTitle?: () => string;
   getCurrentMapId?: () => string;
   getPlacedAttributes?: () => PlacedAttribute[];
@@ -32,7 +32,7 @@ export const useCognitiveCompilation = (props?: UseCognitiveCompilationProps) =>
     isCompilingRef.current = true;
     setIsCompiling(true);
     try {
-      const visualAST = props?.getVisualAST ? props.getVisualAST() : null;
+      const visualAST = props?.getVisualAST ? await props.getVisualAST() : null;
       const title = props?.getMapTitle ? props.getMapTitle() : "Mapa Mental";
       const canvasId = props?.getCurrentMapId ? props.getCurrentMapId() : "canvas_default";
       const placedAttributes = props?.getPlacedAttributes ? props.getPlacedAttributes() : [];
