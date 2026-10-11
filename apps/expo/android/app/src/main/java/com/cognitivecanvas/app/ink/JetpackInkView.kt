@@ -163,7 +163,14 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
     var canvasBackgroundColor: Int = Color.parseColor("#0F172A")
         set(value) {
             field = value
-            updateGridColors(value)
+            postInvalidateOnAnimation()
+        }
+
+    var gridColor: Int = Color.parseColor("#27354A")
+        set(value) {
+            field = value
+            dotPaint.color = value
+            gridLinePaint.color = value
             postInvalidateOnAnimation()
         }
 
@@ -177,17 +184,20 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
             // Light background
             if (r > 245 && g > 240 && b < 250) {
                 // Warm Ivory (#FBF9F5)
-                dotPaint.color = Color.parseColor("#E2D9C8")
-                gridLinePaint.color = Color.parseColor("#E2D9C8")
+                gridColor = Color.parseColor("#E5DEC9")
             } else {
-                // Pure White (#FFFFFF) or other light
-                dotPaint.color = Color.parseColor("#E2E8F0")
-                gridLinePaint.color = Color.parseColor("#E2E8F0")
+                // Pure White (#FFFFFF)
+                gridColor = Color.parseColor("#E2E8F0")
             }
         } else {
-            // Dark background (Dark Slate #0F172A)
-            dotPaint.color = Color.parseColor("#334155")
-            gridLinePaint.color = Color.parseColor("#1E293B")
+            // Dark background (Dark Slate / Charcoal)
+            if (r > 20 && g > 20 && b > 20) {
+                // Charcoal Dark (#18181B)
+                gridColor = Color.parseColor("#27272A")
+            } else {
+                // Dark Slate (#0F172A)
+                gridColor = Color.parseColor("#27354A")
+            }
         }
     }
 
@@ -200,13 +210,13 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
 
     // Background Paint Styles
     private val dotPaint = Paint().apply {
-        color = Color.parseColor("#334155")
+        color = Color.parseColor("#27354A")
         style = Paint.Style.FILL
         isAntiAlias = true
     }
 
     private val gridLinePaint = Paint().apply {
-        color = Color.parseColor("#1E293B")
+        color = Color.parseColor("#27354A")
         style = Paint.Style.STROKE
         strokeWidth = 1f
         isAntiAlias = true
@@ -1337,7 +1347,7 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
             spacing *= 2f
         }
 
-        val dotRadius = (1.5f / scale).coerceIn(0.8f, 3.5f)
+        val dotRadius = (1.8f / scale).coerceIn(1.0f, 4.0f)
 
         when (backgroundType) {
             "dot_grid" -> {
@@ -1437,12 +1447,7 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
                 val fraction = elapsed.toFloat() / laser.durationMs.toFloat()
                 val alpha = ((1f - fraction) * 255).toInt().coerceIn(0, 255)
                 if (alpha > 0) {
-                    val bounds = getStrokeBounds(laser.stroke)
-                    if (bounds != null) {
-                        canvas.saveLayerAlpha(bounds, alpha)
-                    } else {
-                        canvas.saveLayerAlpha(null, alpha)
-                    }
+                    canvas.saveLayerAlpha(null, alpha)
                     viewStrokeRenderer.drawWithStrokes(canvas) { scope ->
                         scope.drawStroke(laser.stroke)
                     }

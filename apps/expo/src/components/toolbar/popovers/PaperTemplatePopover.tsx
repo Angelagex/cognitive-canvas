@@ -38,7 +38,7 @@ export const PaperTemplatePopover: React.FC<PaperTemplatePopoverProps> = ({
   positionStyle,
 }) => {
   return (
-    <View style={[styles.popoverCard, positionStyle, { top: 220, width: 190 }]}>
+    <View style={[styles.popoverCard, positionStyle, { top: 170, width: 200 }]}>
       <Text style={styles.popoverHeader}>TIPO DE PAPEL</Text>
       {PAPER_TEMPLATES.map((tmpl) => {
         const isSelected = backgroundType === tmpl.id;

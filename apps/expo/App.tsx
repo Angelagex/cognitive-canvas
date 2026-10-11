@@ -32,6 +32,7 @@ export default function App() {
     canvasTheme,
     setCanvasTheme,
     canvasBackgroundColor,
+    canvasGridColor,
     favoriteColors,
     updateFavoriteColor,
     stylusOnly,
@@ -165,6 +166,7 @@ export default function App() {
           eraserMode={eraserMode}
           backgroundType={backgroundType}
           canvasBackgroundColor={canvasBackgroundColor}
+          gridColor={canvasGridColor}
           stylusOnly={stylusOnly}
           zoomInTrigger={zoomInTrigger}
           zoomOutTrigger={zoomOutTrigger}

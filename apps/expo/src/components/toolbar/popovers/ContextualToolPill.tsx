@@ -1,6 +1,6 @@
 import React from "react";
 import { StyleSheet, View, Text, TouchableOpacity, ViewStyle } from "react-native";
-import { Eraser, Scissors, Lasso, Trash2, X, Sparkles } from "@sketchyicons/react-native";
+import { Eraser, Scissors, Lasso, Trash2, X } from "@sketchyicons/react-native";
 import { BrushType, EraserMode } from "../../../types/canvas";
 
 interface ContextualToolPillProps {
@@ -26,7 +26,7 @@ export const ContextualToolPill: React.FC<ContextualToolPillProps> = ({
 }) => {
   if (activeBrush === "eraser") {
     return (
-      <View style={[styles.contextualPill, positionStyle, { top: 115 }]}>
+      <View style={[styles.contextualPill, styles.eraserPill, positionStyle, { top: 115 }]}>
         <TouchableOpacity
           style={[
             styles.contextualOption,
@@ -105,15 +105,6 @@ export const ContextualToolPill: React.FC<ContextualToolPillProps> = ({
     );
   }
 
-  if (activeBrush === "laser") {
-    return (
-      <View style={[styles.contextualPill, positionStyle, { top: 235 }]}>
-        <Sparkles size={13} color="#EF4444" strokeWidth={1.8} />
-        <Text style={[styles.lassoBadgeText, { color: "#EF4444" }]}>Láser Efímero (1.5s)</Text>
-      </View>
-    );
-  }
-
   return null;
 };
 
@@ -128,6 +119,9 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
+    flexWrap: "nowrap",
+    flexShrink: 0,
     gap: 6,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 6 },
@@ -135,13 +129,18 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 12,
   },
+  eraserPill: {
+    minWidth: 168,
+  },
   contextualOption: {
-    paddingHorizontal: 10,
+    paddingHorizontal: 9,
     paddingVertical: 5,
     borderRadius: 12,
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    justifyContent: "center",
+    flexShrink: 0,
+    gap: 5,
   },
   contextualOptionActive: {
     backgroundColor: "rgba(56, 189, 248, 0.18)",

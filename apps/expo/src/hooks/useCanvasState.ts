@@ -131,6 +131,7 @@ export const useCanvasState = () => {
     canvasTheme: tools.canvasTheme,
     setCanvasTheme: tools.setCanvasTheme,
     canvasBackgroundColor: tools.canvasBackgroundColor,
+    canvasGridColor: tools.canvasGridColor,
     favoriteColors: tools.favoriteColors,
     setFavoriteColors: tools.setFavoriteColors,
     updateFavoriteColor: tools.updateFavoriteColor,

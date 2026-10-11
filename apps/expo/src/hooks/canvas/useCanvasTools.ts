@@ -22,15 +22,13 @@ const isNearDark = (color: string): boolean => {
 
 export const useCanvasTools = () => {
   const [activeBrush, setActiveBrushState] = useState<BrushType>("pen");
-  const [activeColor, setActiveColor] = useState<string>("#38BDF8");
+  const [activeColor, setActiveColor] = useState<string>(CANVAS_THEMES.dark_slate.defaultInkColor);
   const [activeWidth, setActiveWidth] = useState<number>(4.5);
   const [eraserMode, setEraserMode] = useState<EraserMode>("stroke");
   const [backgroundType, setBackgroundType] = useState<CanvasBackgroundType>("dot_grid");
   const [canvasTheme, setCanvasThemeState] = useState<CanvasThemePreset>("dark_slate");
   const [favoriteColors, setFavoriteColors] = useState<string[]>([
-    "#38BDF8", // Electric Blue
-    "#F43F5E", // Rose Carmine
-    "#10B981", // Emerald Green
+    ...CANVAS_THEMES.dark_slate.favoriteColors,
   ]);
   const [stylusOnly, setStylusOnly] = useState<boolean>(true); // S-Pen palm rejection by default
   const [toolbarDockSide, setToolbarDockSide] = useState<"left" | "right">("left");
@@ -45,38 +43,46 @@ export const useCanvasTools = () => {
     }
   }, []);
 
-  // Step 1: Harmonic inversion rule when changing themes
+  // Sincronización dinámica de tema, favoritos y mapeo de color activo
   const setCanvasTheme = useCallback((newTheme: CanvasThemePreset) => {
     setCanvasThemeState((prevTheme) => {
       const prevConfig = CANVAS_THEMES[prevTheme];
       const newConfig = CANVAS_THEMES[newTheme];
 
-      // If transitioning between dark and light substrates
-      if (prevConfig.isDark !== newConfig.isDark) {
-        if (!newConfig.isDark) {
-          // Transitioned from DARK -> LIGHT: Invert white/near-white to dark charcoal
-          setActiveColor((prevColor) => {
-            if (isNearWhite(prevColor)) {
-              return newConfig.defaultInkColor; // #1E293B or #0F172A
-            }
-            return prevColor;
-          });
-          setFavoriteColors((prevFavs) =>
-            prevFavs.map((c) => (isNearWhite(c) ? newConfig.defaultInkColor : c))
-          );
-        } else {
-          // Transitioned from LIGHT -> DARK: Invert dark charcoal/near-black to crisp white
-          setActiveColor((prevColor) => {
-            if (isNearDark(prevColor)) {
-              return newConfig.defaultInkColor; // #F8FAFC
-            }
-            return prevColor;
-          });
-          setFavoriteColors((prevFavs) =>
-            prevFavs.map((c) => (isNearDark(c) ? newConfig.defaultInkColor : c))
-          );
+      // 1. Sincroniza favoriteColors con CANVAS_THEMES[newTheme].favoriteColors
+      setFavoriteColors([...newConfig.favoriteColors]);
+
+      // 2. Mapeo contextual del color activo para garantizar contraste sobre el nuevo fondo
+      setActiveColor((currActive) => {
+        const prevFavs = prevConfig.favoriteColors;
+        const newFavs = newConfig.favoriteColors;
+        const upperActive = currActive.toUpperCase();
+
+        // Si coincide con el defaultInkColor del tema anterior
+        if (upperActive === prevConfig.defaultInkColor.toUpperCase()) {
+          return newConfig.defaultInkColor;
         }
-      }
+
+        // Si es el acento secundario (índice 1)
+        if (upperActive === prevFavs[1].toUpperCase()) {
+          return newFavs[1];
+        }
+
+        // Si es el acento terciario/resaltado (índice 2)
+        if (upperActive === prevFavs[2].toUpperCase()) {
+          return newFavs[2];
+        }
+
+        // Regla de salvaguarda armónica si es un color personalizado claro/oscuro
+        if (!newConfig.isDark && isNearWhite(currActive)) {
+          return newConfig.defaultInkColor;
+        }
+        if (newConfig.isDark && isNearDark(currActive)) {
+          return newConfig.defaultInkColor;
+        }
+
+        return currActive;
+      });
 
       return newTheme;
     });
@@ -111,6 +117,7 @@ export const useCanvasTools = () => {
   }, []);
 
   const canvasBackgroundColor = CANVAS_THEMES[canvasTheme].backgroundColor;
+  const canvasGridColor = CANVAS_THEMES[canvasTheme].gridColor;
 
   return {
     activeBrush,
@@ -126,6 +133,7 @@ export const useCanvasTools = () => {
     canvasTheme,
     setCanvasTheme,
     canvasBackgroundColor,
+    canvasGridColor,
     favoriteColors,
     setFavoriteColors,
     updateFavoriteColor,

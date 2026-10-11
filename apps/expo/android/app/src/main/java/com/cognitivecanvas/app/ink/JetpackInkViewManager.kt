@@ -62,6 +62,17 @@ class JetpackInkViewManager : SimpleViewManager<JetpackInkView>() {
         }
     }
 
+    @ReactProp(name = "gridColor")
+    fun setGridColor(view: JetpackInkView, colorString: String?) {
+        if (!colorString.isNullOrEmpty()) {
+            try {
+                view.gridColor = Color.parseColor(colorString)
+            } catch (e: IllegalArgumentException) {
+                // Fallback to default
+            }
+        }
+    }
+
     @ReactProp(name = "stylusOnly", defaultBoolean = true)
     fun setStylusOnly(view: JetpackInkView, enabled: Boolean) {
         view.stylusOnly = enabled
