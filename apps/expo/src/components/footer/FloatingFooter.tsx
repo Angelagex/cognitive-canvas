@@ -1,5 +1,6 @@
 import React from "react";
 import { StyleSheet, View, Text, TouchableOpacity } from "react-native";
+import { Pen, Hand, Eye, EyeOff, ZoomIn, ZoomOut, RotateCcw } from "@sketchyicons/react-native";
 import { useCognitiveLayerStore } from "../../stores/useCognitiveLayerStore";
 
 interface FloatingFooterProps {
@@ -30,7 +31,13 @@ export const FloatingFooter: React.FC<FloatingFooterProps> = ({
         onPress={onToggleStylusOnly}
         activeOpacity={0.8}
       >
-        <Text style={styles.pillIcon}>{stylusOnly ? "✍️" : "🖐️"}</Text>
+        <View style={styles.pillIconWrapper}>
+          {stylusOnly ? (
+            <Pen size={14} color="#6EE7B7" strokeWidth={1.8} />
+          ) : (
+            <Hand size={14} color="#94A3B8" strokeWidth={1.8} />
+          )}
+        </View>
         <Text style={[styles.pillText, stylusOnly ? styles.textActive : styles.textInactive]}>
           {stylusOnly ? "Solo S-Pen (Rechazo Palma)" : "Stylus + Dedo"}
         </Text>
@@ -47,7 +54,13 @@ export const FloatingFooter: React.FC<FloatingFooterProps> = ({
           onPress={toggleOverlay}
           activeOpacity={0.8}
         >
-          <Text style={styles.pillIcon}>{isOverlayVisible ? "👁️" : "🙈"}</Text>
+          <View style={styles.pillIconWrapper}>
+            {isOverlayVisible ? (
+              <Eye size={14} color="#A5B4FC" strokeWidth={1.8} />
+            ) : (
+              <EyeOff size={14} color="#94A3B8" strokeWidth={1.8} />
+            )}
+          </View>
           <Text
             style={[
               styles.pillText,
@@ -70,16 +83,16 @@ export const FloatingFooter: React.FC<FloatingFooterProps> = ({
       {/* Right: Zoom controls & Reset to 100% */}
       <View style={styles.zoomControlGroup}>
         <TouchableOpacity style={styles.zoomStepButton} onPress={onZoomOut}>
-          <Text style={styles.zoomStepText}>−</Text>
+          <ZoomOut size={15} color="#38BDF8" strokeWidth={2.0} />
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.zoomBadge} onPress={onResetZoom}>
           <Text style={styles.zoomBadgeText}>{displayZoom}%</Text>
-          <Text style={styles.resetHint}>🎯</Text>
+          <RotateCcw size={11} color="#94A3B8" strokeWidth={2.0} />
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.zoomStepButton} onPress={onZoomIn}>
-          <Text style={styles.zoomStepText}>+</Text>
+          <ZoomIn size={15} color="#38BDF8" strokeWidth={2.0} />
         </TouchableOpacity>
       </View>
     </View>
@@ -150,6 +163,11 @@ const styles = StyleSheet.create({
     borderRadius: 3.5,
     backgroundColor: "#F59E0B",
     marginLeft: 6,
+  },
+  pillIconWrapper: {
+    marginRight: 6,
+    justifyContent: "center",
+    alignItems: "center",
   },
   pillIcon: {
     fontSize: 14,

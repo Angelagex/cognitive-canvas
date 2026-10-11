@@ -2,6 +2,20 @@ import React, { useState } from "react";
 import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, Alert } from "react-native";
 import * as FileSystem from "expo-file-system";
 import {
+  BrainCircuit,
+  Map,
+  AlertTriangle,
+  HelpCircle,
+  Rocket,
+  Crosshair,
+  Zap,
+  Pin,
+  Lock,
+  RotateCcw,
+  Download,
+  Check,
+} from "@sketchyicons/react-native";
+import {
   CognitiveCompilerOutput,
   PacerClassification,
   AnkiFlashcard,
@@ -218,7 +232,7 @@ export const RetrievalPanel: React.FC<RetrievalPanelProps> = ({
               {mapOverview?.bridge_to_next_level && (
                 <View style={styles.bridgeBox}>
                   <View style={styles.bridgeHeader}>
-                    <Text style={styles.bridgeIcon}>🌉</Text>
+                    <BrainCircuit size={16} color="#38BDF8" strokeWidth={1.8} />
                     <Text style={styles.bridgeTitle}>Puente al Siguiente Nivel:</Text>
                   </View>
                   <Text style={styles.bridgeText}>
@@ -248,9 +262,13 @@ export const RetrievalPanel: React.FC<RetrievalPanelProps> = ({
                   activeOpacity={0.75}
                 >
                   <View style={styles.islandInfoRow}>
-                    <Text style={styles.islandIcon}>
-                      {island.is_isolated ? "⚠️" : "🏝️"}
-                    </Text>
+                    <View style={styles.islandIcon}>
+                      {island.is_isolated ? (
+                        <AlertTriangle size={15} color="#EF4444" strokeWidth={2.0} />
+                      ) : (
+                        <Map size={15} color="#38BDF8" strokeWidth={1.8} />
+                      )}
+                    </View>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.islandName}>{island.island_name}</Text>
                       <Text style={styles.islandEntCount}>
@@ -289,7 +307,7 @@ export const RetrievalPanel: React.FC<RetrievalPanelProps> = ({
             {/* 1. Pregunta de Puente Causal */}
             <View style={styles.card}>
               <View style={styles.challengeHeader}>
-                <Text style={styles.challengeIcon}>❓</Text>
+                <HelpCircle size={16} color="#38BDF8" strokeWidth={2.0} />
                 <Text style={styles.cardTitle}>Pregunta de Puente Causal</Text>
               </View>
               <Text style={styles.sectionSubtitle}>
@@ -306,7 +324,7 @@ export const RetrievalPanel: React.FC<RetrievalPanelProps> = ({
             {/* 2. Transferencia Lejana (High-Road Transfer) */}
             <View style={styles.card}>
               <View style={styles.challengeHeader}>
-                <Text style={styles.challengeIcon}>🚀</Text>
+                <Rocket size={16} color="#818CF8" strokeWidth={2.0} />
                 <Text style={styles.cardTitle}>Transferencia Lejana (High-Road)</Text>
               </View>
               <Text style={styles.sectionSubtitle}>
@@ -329,7 +347,7 @@ export const RetrievalPanel: React.FC<RetrievalPanelProps> = ({
             {/* 3. Detección de Falla Intencionada (Derring Effect) */}
             <View style={styles.card}>
               <View style={styles.challengeHeader}>
-                <Text style={styles.challengeIcon}>🎯</Text>
+                <Crosshair size={16} color="#F59E0B" strokeWidth={2.0} />
                 <Text style={styles.cardTitle}>Detección de Falla (Derring Effect)</Text>
               </View>
               <Text style={styles.sectionSubtitle}>
@@ -381,7 +399,10 @@ export const RetrievalPanel: React.FC<RetrievalPanelProps> = ({
               ) : (
                 interventions.procedural_zones.map((zone, zIdx) => (
                   <View key={`proc_zone_${zIdx}`} style={styles.zoneCard}>
-                    <Text style={styles.zoneName}>⚡ {zone.zone_name}</Text>
+                    <View style={styles.zoneNameRow}>
+                      <Zap size={13} color="#F59E0B" strokeWidth={2.0} />
+                      <Text style={styles.zoneName}>{zone.zone_name}</Text>
+                    </View>
                     <Text style={styles.zonePrompt}>
                       {zone.deliberate_practice_prompt}
                     </Text>
@@ -407,7 +428,10 @@ export const RetrievalPanel: React.FC<RetrievalPanelProps> = ({
               ) : (
                 interventions.relational_anchoring_suggestions.map((anc, aIdx) => (
                   <View key={`anchoring_${aIdx}`} style={styles.anchoringCard}>
-                    <Text style={styles.anchoringTarget}>📌 Dato: "{anc.target_content}"</Text>
+                    <View style={styles.zoneNameRow}>
+                      <Pin size={13} color="#38BDF8" strokeWidth={1.8} />
+                      <Text style={styles.anchoringTarget}>Dato: "{anc.target_content}"</Text>
+                    </View>
                     <Text style={styles.anchoringSuggestion}>
                       Sugerencia: {anc.suggested_connection}
                     </Text>
@@ -436,7 +460,9 @@ export const RetrievalPanel: React.FC<RetrievalPanelProps> = ({
 
               {ankiExceptions.length === 0 ? (
                 <View style={styles.emptyAnkiNotice}>
-                  <Text style={styles.emptyAnkiIcon}>🎉</Text>
+                  <View style={{ marginBottom: 10 }}>
+                    <Check size={32} color="#10B981" strokeWidth={2.0} />
+                  </View>
                   <Text style={styles.emptyAnkiTitle}>Cero Conocimiento Inerte</Text>
                   <Text style={styles.emptyAnkiText}>
                     Todo el contenido del mapa puede deducirse pensando a partir del modelo causal. No se requieren tarjetas de memoria.
@@ -450,9 +476,12 @@ export const RetrievalPanel: React.FC<RetrievalPanelProps> = ({
                     <Text style={[styles.ankiFrontLabel, { marginTop: 8 }]}>Respuesta / Back:</Text>
                     <Text style={styles.ankiBackText}>{ex.back}</Text>
                     <View style={styles.whyNotDeducibleBox}>
-                      <Text style={styles.whyNotDeducibleText}>
-                        🔒 Razón: {ex.why_not_deducible}
-                      </Text>
+                      <View style={styles.zoneNameRow}>
+                        <Lock size={12} color="#94A3B8" strokeWidth={1.8} />
+                        <Text style={styles.whyNotDeducibleText}>
+                          Razón: {ex.why_not_deducible}
+                        </Text>
+                      </View>
                     </View>
                   </View>
                 ))
@@ -474,12 +503,14 @@ export const RetrievalPanel: React.FC<RetrievalPanelProps> = ({
                       onPress={handleSyncAnki}
                       disabled={isSyncing}
                     >
+                      <RotateCcw size={13} color="#FFFFFF" strokeWidth={2.0} />
                       <Text style={styles.syncBtnText}>
-                        {isSyncing ? "Sincronizando..." : "🔄 Inyectar a Anki Desktop"}
+                        {isSyncing ? "Sincronizando..." : "Inyectar a Anki Desktop"}
                       </Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.tsvBtn} onPress={handleExportTsv}>
-                      <Text style={styles.tsvBtnText}>📥 Exportar TSV AnkiDroid</Text>
+                      <Download size={13} color="#FFFFFF" strokeWidth={2.0} />
+                      <Text style={styles.tsvBtnText}>Exportar TSV AnkiDroid</Text>
                     </TouchableOpacity>
                   </View>
                   <Text style={styles.syncStatusText}>{syncStatus}</Text>
@@ -665,7 +696,14 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   islandIcon: {
-    fontSize: 18,
+    width: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  zoneNameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
   },
   islandName: {
     color: "#F8FAFC",
@@ -901,7 +939,10 @@ const styles = StyleSheet.create({
     backgroundColor: "#2563EB",
     borderRadius: 8,
     paddingVertical: 10,
+    flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
   },
   btnDisabled: {
     opacity: 0.6,
@@ -916,7 +957,10 @@ const styles = StyleSheet.create({
     backgroundColor: "#334155",
     borderRadius: 8,
     paddingVertical: 10,
+    flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
   },
   tsvBtnText: {
     color: "#E2E8F0",

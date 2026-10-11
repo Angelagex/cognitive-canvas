@@ -1,5 +1,6 @@
 import React from "react";
 import { StyleSheet, View, Text, Modal, TouchableOpacity, TouchableWithoutFeedback } from "react-native";
+import { AlertTriangle, Trash2 } from "@sketchyicons/react-native";
 
 interface ClearCanvasConfirmModalProps {
   visible: boolean;
@@ -24,7 +25,7 @@ export const ClearCanvasConfirmModal: React.FC<ClearCanvasConfirmModalProps> = (
           <TouchableWithoutFeedback>
             <View style={styles.dialogCard}>
               <View style={styles.iconContainer}>
-                <Text style={styles.warningIcon}>⚠️</Text>
+                <AlertTriangle size={26} color="#EF4444" strokeWidth={2.0} />
               </View>
 
               <Text style={styles.title}>¿Limpiar todo el lienzo?</Text>
@@ -46,6 +47,7 @@ export const ClearCanvasConfirmModal: React.FC<ClearCanvasConfirmModalProps> = (
                   onPress={onConfirm}
                   activeOpacity={0.7}
                 >
+                  <Trash2 size={16} color="#FFFFFF" strokeWidth={1.8} />
                   <Text style={styles.confirmText}>Borrar Lienzo</Text>
                 </TouchableOpacity>
               </View>
@@ -133,8 +135,10 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 10,
     backgroundColor: "#DC2626",
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+    gap: 6,
     shadowColor: "#DC2626",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,

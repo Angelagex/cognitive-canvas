@@ -1,5 +1,16 @@
 import React, { useState } from "react";
 import { StyleSheet, View, Text, TouchableOpacity } from "react-native";
+import {
+  Pen,
+  Highlighter,
+  Eraser,
+  Shapes,
+  Lasso,
+  Sparkles,
+  Hand,
+  FileText,
+  ArrowLeftRight,
+} from "@sketchyicons/react-native";
 import { BrushType, CanvasBackgroundType, EraserMode, PassiveAttributeType } from "../../types/canvas";
 import { StrokeWidthPopover } from "./popovers/StrokeWidthPopover";
 import { PaperTemplatePopover } from "./popovers/PaperTemplatePopover";
@@ -62,15 +73,37 @@ export const GoodnotesToolbar: React.FC<GoodnotesToolbarProps> = ({
   const [showSizeMenu, setShowSizeMenu] = useState(false);
   const [showColorMenu, setShowColorMenu] = useState(false);
 
-  const tools: { id: BrushType; label: string; icon: string }[] = [
-    { id: "pen", label: "Pluma", icon: "🖊️" },
-    { id: "highlighter", label: "Resaltador", icon: "✨" },
-    { id: "eraser", label: "Borrador", icon: "🧹" },
-    { id: "shapes", label: "Formas", icon: "📐" },
-    { id: "lasso", label: "Lazo", icon: "🪢" },
-    { id: "laser", label: "Láser", icon: "🔴" },
-    { id: "pan", label: "Mover", icon: "🖐️" },
+  const tools: { id: BrushType; label: string }[] = [
+    { id: "pen", label: "Pluma" },
+    { id: "highlighter", label: "Resaltador" },
+    { id: "eraser", label: "Borrador" },
+    { id: "shapes", label: "Formas" },
+    { id: "lasso", label: "Lazo" },
+    { id: "laser", label: "Láser" },
+    { id: "pan", label: "Mover" },
   ];
+
+  const renderToolIcon = (id: BrushType, isActive: boolean) => {
+    const iconColor = isActive ? "#38BDF8" : "#94A3B8";
+    const size = 22;
+    const strokeWidth = 2.0;
+    switch (id) {
+      case "pen":
+        return <Pen size={size} color={iconColor} strokeWidth={strokeWidth} />;
+      case "highlighter":
+        return <Highlighter size={size} color={iconColor} strokeWidth={strokeWidth} />;
+      case "eraser":
+        return <Eraser size={size} color={iconColor} strokeWidth={strokeWidth} />;
+      case "shapes":
+        return <Shapes size={size} color={iconColor} strokeWidth={strokeWidth} />;
+      case "lasso":
+        return <Lasso size={size} color={iconColor} strokeWidth={strokeWidth} />;
+      case "laser":
+        return <Sparkles size={size} color={iconColor} strokeWidth={strokeWidth} />;
+      case "pan":
+        return <Hand size={size} color={iconColor} strokeWidth={strokeWidth} />;
+    }
+  };
 
   const toggleDockSide = () => {
     if (onToggleDockSide) {
@@ -105,7 +138,7 @@ export const GoodnotesToolbar: React.FC<GoodnotesToolbarProps> = ({
           activeOpacity={0.7}
           accessibilityLabel={`Mover barra al lateral ${dockSide === "left" ? "derecho" : "izquierdo"}`}
         >
-          <Text style={styles.switchSideIcon}>⇄</Text>
+          <ArrowLeftRight size={18} color="#94A3B8" strokeWidth={2.0} />
         </TouchableOpacity>
 
         <View style={styles.horizontalDivider} />
@@ -126,7 +159,7 @@ export const GoodnotesToolbar: React.FC<GoodnotesToolbarProps> = ({
               activeOpacity={0.7}
               accessibilityLabel={t.label}
             >
-              <Text style={styles.toolIcon}>{t.icon}</Text>
+              {renderToolIcon(t.id, isActive)}
               {isActive && (
                 <View
                   style={[
@@ -152,15 +185,7 @@ export const GoodnotesToolbar: React.FC<GoodnotesToolbarProps> = ({
           activeOpacity={0.7}
           accessibilityLabel="Plantilla de papel"
         >
-          <Text style={styles.templateIcon}>
-            {backgroundType === "dot_grid"
-              ? "⠇"
-              : backgroundType === "graph_grid"
-              ? "▦"
-              : backgroundType === "ruled"
-              ? "≡"
-              : "📄"}
-          </Text>
+          <FileText size={20} color={showTemplateMenu ? "#38BDF8" : "#94A3B8"} strokeWidth={2.0} />
         </TouchableOpacity>
 
         <View style={styles.horizontalDivider} />

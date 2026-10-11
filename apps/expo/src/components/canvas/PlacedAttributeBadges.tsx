@@ -1,7 +1,26 @@
 import React, { useState } from "react";
 import { StyleSheet, View, Text, TouchableOpacity, Pressable, Modal, TouchableWithoutFeedback } from "react-native";
+import {
+  Settings,
+  Lightbulb,
+  FlaskConical,
+  X,
+  Trash2,
+  Zap,
+} from "@sketchyicons/react-native";
 import { PlacedAttribute, EntityBoundingBox } from "../../types/canvas";
 import type { VisualASTEntity } from "@cognitive-canvas/core";
+
+const renderAttributeIcon = (type: PlacedAttribute["type"], size: number, color: string) => {
+  switch (type) {
+    case "ANALOGY":
+      return <Lightbulb size={size} color={color} strokeWidth={1.8} />;
+    case "CAUSAL_MECHANISM":
+      return <Settings size={size} color={color} strokeWidth={1.8} />;
+    case "EVIDENCE":
+      return <FlaskConical size={size} color={color} strokeWidth={1.8} />;
+  }
+};
 
 interface PlacedAttributeBadgesProps {
   attributes: PlacedAttribute[];
@@ -50,7 +69,6 @@ export const PlacedAttributeBadges: React.FC<PlacedAttributeBadgesProps> = ({
     switch (type) {
       case "ANALOGY":
         return {
-          icon: "💡",
           bgColor: "#312E81",
           borderColor: "#818CF8",
           textColor: "#C7D2FE",
@@ -62,7 +80,6 @@ export const PlacedAttributeBadges: React.FC<PlacedAttributeBadgesProps> = ({
         };
       case "CAUSAL_MECHANISM":
         return {
-          icon: "⚙️",
           bgColor: "#0C4A6E",
           borderColor: "#38BDF8",
           textColor: "#BAE6FD",
@@ -74,7 +91,6 @@ export const PlacedAttributeBadges: React.FC<PlacedAttributeBadgesProps> = ({
         };
       case "EVIDENCE":
         return {
-          icon: "📊",
           bgColor: "#064E3B",
           borderColor: "#34D399",
           textColor: "#A7F3D0",
@@ -143,7 +159,7 @@ export const PlacedAttributeBadges: React.FC<PlacedAttributeBadgesProps> = ({
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               activeOpacity={0.8}
             >
-              <Text style={styles.anchorPinIcon}>{styleInfo.icon}</Text>
+              {renderAttributeIcon(attr.type, 11, styleInfo.textColor)}
             </TouchableOpacity>
           );
         }
@@ -185,7 +201,7 @@ export const PlacedAttributeBadges: React.FC<PlacedAttributeBadgesProps> = ({
               onPointerEnter={() => onBadgeHover?.(attr, screenX, screenY)}
               onPointerLeave={() => onBadgeHover?.(null)}
             >
-              <Text style={styles.badgeIcon}>{styleInfo.icon}</Text>
+              {renderAttributeIcon(attr.type, 11, styleInfo.textColor)}
               <Text style={[styles.badgeText, { color: styleInfo.textColor }]}>
                 {attr.title}
               </Text>
@@ -207,9 +223,11 @@ export const PlacedAttributeBadges: React.FC<PlacedAttributeBadgesProps> = ({
           ]}
         >
           <View style={styles.hoverHeader}>
-            <Text style={styles.hoverIcon}>
-              {getAttributeStyle(hoveredAttribute.type).icon}
-            </Text>
+            {renderAttributeIcon(
+              hoveredAttribute.type,
+              12,
+              getAttributeStyle(hoveredAttribute.type).textColor
+            )}
             <Text style={styles.hoverType}>
               {getAttributeStyle(hoveredAttribute.type).label}
             </Text>
@@ -240,9 +258,11 @@ export const PlacedAttributeBadges: React.FC<PlacedAttributeBadgesProps> = ({
                   <>
                     <View style={styles.cardHeader}>
                       <View style={styles.cardTitleRow}>
-                        <Text style={styles.cardIcon}>
-                          {getAttributeStyle(selectedAttr.type).icon}
-                        </Text>
+                        {renderAttributeIcon(
+                          selectedAttr.type,
+                          16,
+                          getAttributeStyle(selectedAttr.type).textColor
+                        )}
                         <Text style={styles.cardTitle}>
                           {getAttributeStyle(selectedAttr.type).label}
                         </Text>
@@ -251,7 +271,7 @@ export const PlacedAttributeBadges: React.FC<PlacedAttributeBadgesProps> = ({
                         onPress={() => setSelectedAttr(null)}
                         style={styles.closeBtn}
                       >
-                        <Text style={styles.closeBtnText}>✕</Text>
+                        <X size={16} color="#94A3B8" strokeWidth={2.0} />
                       </TouchableOpacity>
                     </View>
 
@@ -266,7 +286,8 @@ export const PlacedAttributeBadges: React.FC<PlacedAttributeBadgesProps> = ({
                           setSelectedAttr(null);
                         }}
                       >
-                        <Text style={styles.deleteBtnText}>🗑️ Eliminar</Text>
+                        <Trash2 size={13} color="#EF4444" strokeWidth={1.8} />
+                        <Text style={styles.deleteBtnText}>Eliminar</Text>
                       </TouchableOpacity>
 
                       <TouchableOpacity
@@ -276,7 +297,8 @@ export const PlacedAttributeBadges: React.FC<PlacedAttributeBadgesProps> = ({
                           onOpenCompiler();
                         }}
                       >
-                        <Text style={styles.inspectBtnText}>⚡ Auditar en GRINDE</Text>
+                        <Zap size={13} color="#FBBF24" strokeWidth={2.0} />
+                        <Text style={styles.inspectBtnText}>Auditar en GRINDE</Text>
                       </TouchableOpacity>
                     </View>
                   </>
@@ -510,6 +532,9 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 6,
     backgroundColor: "#334155",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
   },
   deleteBtnText: {
     color: "#F87171",
@@ -522,7 +547,10 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 6,
     backgroundColor: "#4F46E5",
+    flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
   },
   inspectBtnText: {
     color: "#FFFFFF",

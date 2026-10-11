@@ -1,5 +1,6 @@
 import React from "react";
 import { StyleSheet, View, Text, TouchableOpacity, ViewStyle } from "react-native";
+import { Eraser, Scissors, Lasso, Trash2, X, Sparkles } from "@sketchyicons/react-native";
 import { BrushType, EraserMode } from "../../../types/canvas";
 
 interface ContextualToolPillProps {
@@ -34,7 +35,19 @@ export const ContextualToolPill: React.FC<ContextualToolPillProps> = ({
           onPress={() => onSelectEraserMode("stroke")}
           activeOpacity={0.8}
         >
-          <Text style={styles.contextualOptionText}>🧹 Trazo</Text>
+          <Eraser
+            size={13}
+            color={eraserMode === "stroke" ? "#38BDF8" : "#94A3B8"}
+            strokeWidth={1.8}
+          />
+          <Text
+            style={[
+              styles.contextualOptionText,
+              eraserMode === "stroke" && styles.contextualOptionTextActive,
+            ]}
+          >
+            Trazo
+          </Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[
@@ -44,7 +57,19 @@ export const ContextualToolPill: React.FC<ContextualToolPillProps> = ({
           onPress={() => onSelectEraserMode("precision")}
           activeOpacity={0.8}
         >
-          <Text style={styles.contextualOptionText}>✂️ Píxel</Text>
+          <Scissors
+            size={13}
+            color={eraserMode === "precision" ? "#38BDF8" : "#94A3B8"}
+            strokeWidth={1.8}
+          />
+          <Text
+            style={[
+              styles.contextualOptionText,
+              eraserMode === "precision" && styles.contextualOptionTextActive,
+            ]}
+          >
+            Píxel
+          </Text>
         </TouchableOpacity>
       </View>
     );
@@ -53,14 +78,18 @@ export const ContextualToolPill: React.FC<ContextualToolPillProps> = ({
   if (activeBrush === "lasso" && hasSelection) {
     return (
       <View style={[styles.contextualPill, positionStyle, { top: 195 }]}>
-        <Text style={styles.lassoBadgeText}>🪢 {selectedCount}</Text>
+        <View style={styles.lassoBadge}>
+          <Lasso size={13} color="#38BDF8" strokeWidth={1.8} />
+          <Text style={styles.lassoBadgeText}>{selectedCount}</Text>
+        </View>
         {onDeleteSelection && (
           <TouchableOpacity
             style={styles.lassoActionBtn}
             onPress={onDeleteSelection}
             activeOpacity={0.8}
           >
-            <Text style={styles.lassoActionBtnText}>🗑️ Borrar</Text>
+            <Trash2 size={12} color="#EF4444" strokeWidth={1.8} />
+            <Text style={[styles.lassoActionBtnText, { color: "#FCA5A5" }]}>Borrar</Text>
           </TouchableOpacity>
         )}
         {onClearSelection && (
@@ -69,7 +98,7 @@ export const ContextualToolPill: React.FC<ContextualToolPillProps> = ({
             onPress={onClearSelection}
             activeOpacity={0.8}
           >
-            <Text style={styles.lassoActionBtnText}>✕</Text>
+            <X size={12} color="#94A3B8" strokeWidth={2.0} />
           </TouchableOpacity>
         )}
       </View>
@@ -79,7 +108,8 @@ export const ContextualToolPill: React.FC<ContextualToolPillProps> = ({
   if (activeBrush === "laser") {
     return (
       <View style={[styles.contextualPill, positionStyle, { top: 235 }]}>
-        <Text style={[styles.lassoBadgeText, { color: "#EF4444" }]}>🔴 Láser Efímero (1.5s)</Text>
+        <Sparkles size={13} color="#EF4444" strokeWidth={1.8} />
+        <Text style={[styles.lassoBadgeText, { color: "#EF4444" }]}>Láser Efímero (1.5s)</Text>
       </View>
     );
   }
@@ -109,6 +139,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
   },
   contextualOptionActive: {
     backgroundColor: "rgba(56, 189, 248, 0.18)",
@@ -120,17 +153,28 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "700",
   },
+  contextualOptionTextActive: {
+    color: "#38BDF8",
+  },
+  lassoBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
   lassoBadgeText: {
     color: "#38BDF8",
     fontSize: 11,
     fontWeight: "700",
-    paddingHorizontal: 4,
+    paddingHorizontal: 2,
   },
   lassoActionBtn: {
     backgroundColor: "#1E293B",
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
   },
   lassoActionBtnText: {
     color: "#E2E8F0",

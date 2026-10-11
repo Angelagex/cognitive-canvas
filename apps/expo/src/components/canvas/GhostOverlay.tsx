@@ -8,6 +8,13 @@ import {
   Modal,
 } from "react-native";
 import {
+  AlertTriangle,
+  Map,
+  HelpCircle,
+  Zap,
+  BrainCircuit,
+} from "@sketchyicons/react-native";
+import {
   CompiledMacroCognitiveMap,
   VisualASTLayer,
   MacroIsland,
@@ -171,8 +178,13 @@ export const GhostOverlay: React.FC<GhostOverlayProps> = ({
                 onPress={() => focusInspectionTarget(ib.island.island_name)}
                 activeOpacity={0.8}
               >
+                {isIsolated ? (
+                  <AlertTriangle size={12} color="#FFFFFF" strokeWidth={2.0} />
+                ) : (
+                  <Map size={12} color="#FFFFFF" strokeWidth={1.8} />
+                )}
                 <Text style={styles.islandTagText}>
-                  {isIsolated ? "⚠️ Isla Aislada: " : "🏝️ Isla: "}
+                  {isIsolated ? " Isla Aislada: " : " Isla: "}
                   {ib.island.island_name}
                 </Text>
               </TouchableOpacity>
@@ -225,7 +237,7 @@ export const GhostOverlay: React.FC<GhostOverlayProps> = ({
                 }}
                 activeOpacity={0.85}
               >
-                <Text style={styles.questionBadgeIcon}>?</Text>
+                <HelpCircle size={20} color="#FFFFFF" strokeWidth={2.2} />
                 <View style={styles.badgePulseGlow} />
               </TouchableOpacity>
             </View>
@@ -260,7 +272,7 @@ export const GhostOverlay: React.FC<GhostOverlayProps> = ({
               pointerEvents="box-none"
             >
               <View style={styles.proceduralBadge}>
-                <Text style={styles.proceduralIcon}>⚡</Text>
+                <Zap size={12} color="#FBBF24" strokeWidth={2.0} />
                 <Text style={styles.proceduralText}>Práctica: {zone.zone_name}</Text>
               </View>
             </View>
@@ -291,7 +303,7 @@ export const GhostOverlay: React.FC<GhostOverlayProps> = ({
               ]}
             >
               <View style={styles.popoverHeader}>
-                <Text style={styles.popoverHeaderIcon}>🌉</Text>
+                <BrainCircuit size={18} color="#38BDF8" strokeWidth={1.8} />
                 <Text style={styles.popoverTitle}>Puente Causal Requerido</Text>
               </View>
 

@@ -1,5 +1,6 @@
 import React from "react";
 import { StyleSheet, View, Text, TouchableOpacity, ViewStyle } from "react-native";
+import { Check } from "@sketchyicons/react-native";
 
 export interface TipSizeItem {
   label: string;
@@ -65,7 +66,7 @@ export const StrokeWidthPopover: React.FC<StrokeWidthPopoverProps> = ({
               </Text>
               <Text style={styles.popoverItemDesc}>{s.desc} • {s.value}px</Text>
             </View>
-            {isSelected && <Text style={styles.popoverCheck}>✓</Text>}
+            {isSelected && <Check size={14} color="#38BDF8" strokeWidth={2.2} />}
           </TouchableOpacity>
         );
       })}

@@ -9,6 +9,22 @@ import {
   ScrollView,
   Alert,
 } from "react-native";
+import {
+  ArrowLeft,
+  X,
+  Plus,
+  Folder,
+  Copy,
+  Image,
+  FileText,
+  Download,
+  Zap,
+  Trash2,
+  ChevronRight,
+  BrainCircuit,
+  Pen,
+  Tag,
+} from "@sketchyicons/react-native";
 import { MapDocumentSummary } from "../../services/StorageService";
 
 interface DocumentActionsModalProps {
@@ -117,7 +133,7 @@ export const DocumentActionsModal: React.FC<DocumentActionsModalProps> = ({
                       onPress={() => setCurrentView("menu")}
                       activeOpacity={0.7}
                     >
-                      <Text style={styles.backButtonIcon}>←</Text>
+                      <ArrowLeft size={16} color="#38BDF8" strokeWidth={2.0} />
                       <Text style={styles.backButtonText}>Menú</Text>
                     </TouchableOpacity>
                   ) : (
@@ -147,12 +163,12 @@ export const DocumentActionsModal: React.FC<DocumentActionsModalProps> = ({
                       }}
                       activeOpacity={0.8}
                     >
-                      <Text style={styles.newMapBtnIcon}>＋</Text>
+                      <Plus size={14} color="#FFFFFF" strokeWidth={2.2} />
                       <Text style={styles.newMapBtnText}>Nuevo</Text>
                     </TouchableOpacity>
                   )}
                   <TouchableOpacity style={styles.closeBtn} onPress={handleClose} activeOpacity={0.7}>
-                    <Text style={styles.closeBtnText}>✕</Text>
+                    <X size={16} color="#94A3B8" strokeWidth={2.0} />
                   </TouchableOpacity>
                 </View>
               </View>
@@ -169,13 +185,13 @@ export const DocumentActionsModal: React.FC<DocumentActionsModalProps> = ({
                     activeOpacity={0.7}
                   >
                     <View style={[styles.actionIconContainer, { backgroundColor: "#1E3A8A" }]}>
-                      <Text style={styles.actionIcon}>📁</Text>
+                      <Folder size={18} color="#FFFFFF" strokeWidth={1.8} />
                     </View>
                     <View style={styles.actionTextCol}>
                       <Text style={styles.actionTitle}>Bóveda de Mapas ({savedMaps.length})</Text>
                       <Text style={styles.actionDesc}>Explorar todos tus proyectos, cambiar de mapa o gestionar copias</Text>
                     </View>
-                    <Text style={styles.arrowIcon}>›</Text>
+                    <ChevronRight size={18} color="#64748B" strokeWidth={2.0} />
                   </TouchableOpacity>
 
                   <TouchableOpacity
@@ -187,13 +203,13 @@ export const DocumentActionsModal: React.FC<DocumentActionsModalProps> = ({
                     activeOpacity={0.7}
                   >
                     <View style={[styles.actionIconContainer, { backgroundColor: "#065F46" }]}>
-                      <Text style={styles.actionIcon}>➕</Text>
+                      <Plus size={18} color="#FFFFFF" strokeWidth={2.0} />
                     </View>
                     <View style={styles.actionTextCol}>
                       <Text style={styles.actionTitle}>Nuevo Mapa en Blanco</Text>
                       <Text style={styles.actionDesc}>Iniciar un nuevo lienzo sin sobrescribir el actual</Text>
                     </View>
-                    <Text style={styles.arrowIcon}>›</Text>
+                    <ChevronRight size={18} color="#64748B" strokeWidth={2.0} />
                   </TouchableOpacity>
 
                   <TouchableOpacity
@@ -202,13 +218,13 @@ export const DocumentActionsModal: React.FC<DocumentActionsModalProps> = ({
                     activeOpacity={0.7}
                   >
                     <View style={[styles.actionIconContainer, { backgroundColor: "#3730A3" }]}>
-                      <Text style={styles.actionIcon}>📋</Text>
+                      <Copy size={18} color="#FFFFFF" strokeWidth={1.8} />
                     </View>
                     <View style={styles.actionTextCol}>
                       <Text style={styles.actionTitle}>Duplicar este Mapa</Text>
                       <Text style={styles.actionDesc}>Crear una copia de respaldo para experimentar nuevas ramas</Text>
                     </View>
-                    <Text style={styles.arrowIcon}>›</Text>
+                    <ChevronRight size={18} color="#64748B" strokeWidth={2.0} />
                   </TouchableOpacity>
 
                   {/* SECCIÓN 2: EXPORTAR */}
@@ -220,13 +236,13 @@ export const DocumentActionsModal: React.FC<DocumentActionsModalProps> = ({
                     activeOpacity={0.7}
                   >
                     <View style={[styles.actionIconContainer, { backgroundColor: "#0284C7" }]}>
-                      <Text style={styles.actionIcon}>🖼️</Text>
+                      <Image size={18} color="#FFFFFF" strokeWidth={1.8} />
                     </View>
                     <View style={styles.actionTextCol}>
                       <Text style={styles.actionTitle}>Exportar como Imagen (PNG)</Text>
                       <Text style={styles.actionDesc}>Alta resolución para compartir en mensajes o diapositivas</Text>
                     </View>
-                    <Text style={styles.arrowIcon}>›</Text>
+                    <ChevronRight size={18} color="#64748B" strokeWidth={2.0} />
                   </TouchableOpacity>
 
                   <TouchableOpacity
@@ -235,13 +251,13 @@ export const DocumentActionsModal: React.FC<DocumentActionsModalProps> = ({
                     activeOpacity={0.7}
                   >
                     <View style={[styles.actionIconContainer, { backgroundColor: "#DC2626" }]}>
-                      <Text style={styles.actionIcon}>📑</Text>
+                      <FileText size={18} color="#FFFFFF" strokeWidth={1.8} />
                     </View>
                     <View style={styles.actionTextCol}>
                       <Text style={styles.actionTitle}>Exportar como Documento (PDF)</Text>
                       <Text style={styles.actionDesc}>Vectorial con páginas estructuradas e imprimibles</Text>
                     </View>
-                    <Text style={styles.arrowIcon}>›</Text>
+                    <ChevronRight size={18} color="#64748B" strokeWidth={2.0} />
                   </TouchableOpacity>
 
                   <TouchableOpacity
@@ -250,13 +266,13 @@ export const DocumentActionsModal: React.FC<DocumentActionsModalProps> = ({
                     activeOpacity={0.7}
                   >
                     <View style={[styles.actionIconContainer, { backgroundColor: "#7C3AED" }]}>
-                      <Text style={styles.actionIcon}>💾</Text>
+                      <Download size={18} color="#FFFFFF" strokeWidth={1.8} />
                     </View>
                     <View style={styles.actionTextCol}>
                       <Text style={styles.actionTitle}>Descargar Archivo Cognitivo (.cmn)</Text>
                       <Text style={styles.actionDesc}>Respaldo nativo con capas de tinta y árbol AST completo</Text>
                     </View>
-                    <Text style={styles.arrowIcon}>›</Text>
+                    <ChevronRight size={18} color="#64748B" strokeWidth={2.0} />
                   </TouchableOpacity>
 
                   {/* SECCIÓN 3: SÍNTESIS */}
@@ -271,13 +287,13 @@ export const DocumentActionsModal: React.FC<DocumentActionsModalProps> = ({
                     activeOpacity={0.7}
                   >
                     <View style={[styles.actionIconContainer, { backgroundColor: "#D97706" }]}>
-                      <Text style={styles.actionIcon}>⚡</Text>
+                      <Zap size={18} color="#FFFFFF" strokeWidth={2.0} />
                     </View>
                     <View style={styles.actionTextCol}>
                       <Text style={styles.actionTitle}>Compilar Mapa Mental (GRINDE)</Text>
                       <Text style={styles.actionDesc}>Extraer conceptos clave y relaciones causales con IA</Text>
                     </View>
-                    <Text style={styles.arrowIcon}>›</Text>
+                    <ChevronRight size={18} color="#64748B" strokeWidth={2.0} />
                   </TouchableOpacity>
 
                   {/* SECCIÓN 4: ACCIÓN PELIGROSA */}
@@ -292,13 +308,13 @@ export const DocumentActionsModal: React.FC<DocumentActionsModalProps> = ({
                     activeOpacity={0.7}
                   >
                     <View style={[styles.actionIconContainer, { backgroundColor: "rgba(239, 68, 68, 0.2)" }]}>
-                      <Text style={styles.actionIcon}>🗑️</Text>
+                      <Trash2 size={18} color="#EF4444" strokeWidth={1.8} />
                     </View>
                     <View style={styles.actionTextCol}>
                       <Text style={[styles.actionTitle, styles.dangerText]}>Limpiar Todo el Lienzo</Text>
                       <Text style={styles.actionDesc}>Borrar todos los trazos manuscritos actuales</Text>
                     </View>
-                    <Text style={[styles.arrowIcon, styles.dangerText]}>›</Text>
+                    <ChevronRight size={18} color="#EF4444" strokeWidth={2.0} />
                   </TouchableOpacity>
                 </ScrollView>
               ) : (
@@ -333,7 +349,7 @@ export const DocumentActionsModal: React.FC<DocumentActionsModalProps> = ({
                   >
                     {savedMaps.length === 0 ? (
                       <View style={styles.emptyContainer}>
-                        <Text style={styles.emptyIcon}>📭</Text>
+                        <Folder size={36} color="#64748B" strokeWidth={1.5} />
                         <Text style={styles.emptyTitle}>No hay mapas en la bóveda</Text>
                         <Text style={styles.emptySubtitle}>
                           Tus mapas mentales se guardarán automáticamente aquí conforme dibujes.
@@ -356,7 +372,7 @@ export const DocumentActionsModal: React.FC<DocumentActionsModalProps> = ({
                               activeOpacity={0.7}
                             >
                               <View style={styles.mapCardThumbnail}>
-                                <Text style={styles.mapCardThumbnailIcon}>🧠</Text>
+                                <BrainCircuit size={22} color="#38BDF8" strokeWidth={1.8} />
                                 {isCurrent && (
                                   <View style={styles.activePill}>
                                     <Text style={styles.activePillText}>Abierto</Text>
@@ -374,18 +390,21 @@ export const DocumentActionsModal: React.FC<DocumentActionsModalProps> = ({
 
                                 <View style={styles.mapCardBadges}>
                                   <View style={styles.mapBadge}>
+                                    <Pen size={10} color="#94A3B8" strokeWidth={1.8} />
                                     <Text style={styles.mapBadgeText}>
-                                      ✍️ {map.stroke_count} trazos
+                                      {map.stroke_count} trazos
                                     </Text>
                                   </View>
                                   <View style={styles.mapBadge}>
+                                    <Tag size={10} color="#94A3B8" strokeWidth={1.8} />
                                     <Text style={styles.mapBadgeText}>
-                                      🏷️ {map.entity_count} conceptos
+                                      {map.entity_count} conceptos
                                     </Text>
                                   </View>
                                   {map.is_compiled && (
                                     <View style={[styles.mapBadge, styles.compiledBadge]}>
-                                      <Text style={styles.compiledBadgeText}>⚡ Compilado</Text>
+                                      <Zap size={10} color="#FBBF24" strokeWidth={2.0} />
+                                      <Text style={styles.compiledBadgeText}>Compilado</Text>
                                     </View>
                                   )}
                                 </View>
@@ -398,7 +417,7 @@ export const DocumentActionsModal: React.FC<DocumentActionsModalProps> = ({
                               activeOpacity={0.7}
                               accessibilityLabel="Eliminar mapa"
                             >
-                              <Text style={styles.deleteIcon}>🗑️</Text>
+                              <Trash2 size={16} color="#EF4444" strokeWidth={1.8} />
                             </TouchableOpacity>
                           </View>
                         );
@@ -749,6 +768,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
   },
   mapBadgeText: {
     color: "#94A3B8",

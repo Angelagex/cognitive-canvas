@@ -9,6 +9,7 @@ import {
   TouchableWithoutFeedback,
   ViewStyle,
 } from "react-native";
+import { Palette, X } from "@sketchyicons/react-native";
 
 export const GOODNOTES_PRESETS = [
   // Vibrant
@@ -82,7 +83,7 @@ export const ColorPickerPopover: React.FC<ColorPickerPopoverProps> = ({
             onPress={() => handleOpenColorSlotCustomizer(0)}
             activeOpacity={0.7}
           >
-            <Text style={styles.customColorTriggerText}>🎨</Text>
+            <Palette size={14} color="#94A3B8" strokeWidth={1.8} />
           </TouchableOpacity>
         </View>
 
@@ -130,7 +131,7 @@ export const ColorPickerPopover: React.FC<ColorPickerPopoverProps> = ({
                     onPress={() => setShowColorCustomizer(false)}
                     style={styles.closeBtn}
                   >
-                    <Text style={styles.closeBtnText}>✕</Text>
+                    <X size={15} color="#94A3B8" strokeWidth={2.0} />
                   </TouchableOpacity>
                 </View>
 

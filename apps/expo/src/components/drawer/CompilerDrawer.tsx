@@ -1,5 +1,6 @@
 import React from "react";
-import { StyleSheet, View, Text, TouchableOpacity, Modal, ScrollView } from "react-native";
+import { StyleSheet, View, Text, TouchableOpacity, Modal } from "react-native";
+import { BrainCircuit, X, Zap, Map } from "@sketchyicons/react-native";
 import { CognitiveCompilerOutput, PacerClassification } from "@cognitive-canvas/core/types";
 import { RetrievalPanel } from "../RetrievalPanel";
 
@@ -42,11 +43,11 @@ export const CompilerDrawer: React.FC<CompilerDrawerProps> = ({
           {/* Header */}
           <View style={styles.drawerHeader}>
             <View style={styles.headerTitleRow}>
-              <Text style={styles.brainIcon}>🧠</Text>
+              <BrainCircuit size={20} color="#38BDF8" strokeWidth={1.8} />
               <Text style={styles.drawerTitle}>Compilador Cognitivo</Text>
             </View>
             <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-              <Text style={styles.closeButtonText}>✕</Text>
+              <X size={16} color="#94A3B8" strokeWidth={2.0} />
             </TouchableOpacity>
           </View>
 
@@ -63,8 +64,9 @@ export const CompilerDrawer: React.FC<CompilerDrawerProps> = ({
               onPress={onCompile}
               disabled={isCompiling}
             >
+              <Zap size={14} color="#FFFFFF" strokeWidth={2.0} />
               <Text style={styles.runCompileText}>
-                {isCompiling ? "Compilando..." : "⚡ Ejecutar IA"}
+                {isCompiling ? "Compilando..." : "Ejecutar IA"}
               </Text>
             </TouchableOpacity>
           </View>
@@ -81,7 +83,9 @@ export const CompilerDrawer: React.FC<CompilerDrawerProps> = ({
               />
             ) : (
               <View style={styles.emptyStateContainer}>
-                <Text style={styles.emptyStateIcon}>🏝️</Text>
+                <View style={styles.emptyStateIconWrapper}>
+                  <Map size={48} color="#475569" strokeWidth={1.5} />
+                </View>
                 <Text style={styles.emptyStateTitle}>Lienzo listo para evaluar</Text>
                 <Text style={styles.emptyStateDescription}>
                   Dibuja tus conceptos y relaciones causales con el S-Pen.
@@ -129,10 +133,7 @@ const styles = StyleSheet.create({
   headerTitleRow: {
     flexDirection: "row",
     alignItems: "center",
-  },
-  brainIcon: {
-    fontSize: 20,
-    marginRight: 8,
+    gap: 10,
   },
   drawerTitle: {
     color: "#F8FAFC",
@@ -146,11 +147,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#1E293B",
     alignItems: "center",
     justifyContent: "center",
-  },
-  closeButtonText: {
-    color: "#94A3B8",
-    fontSize: 14,
-    fontWeight: "800",
   },
   actionBanner: {
     flexDirection: "row",
@@ -182,6 +178,9 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     borderColor: "#F59E0B",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
   },
   runCompileText: {
     color: "#FFFFFF",
@@ -200,8 +199,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     padding: 32,
   },
-  emptyStateIcon: {
-    fontSize: 48,
+  emptyStateIconWrapper: {
     marginBottom: 16,
   },
   emptyStateTitle: {

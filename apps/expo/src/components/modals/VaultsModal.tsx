@@ -9,6 +9,17 @@ import {
   TouchableWithoutFeedback,
   Alert,
 } from "react-native";
+import {
+  Folder,
+  Plus,
+  X,
+  BrainCircuit,
+  FileText,
+  Trash2,
+  Pen,
+  Tag,
+  Zap,
+} from "@sketchyicons/react-native";
 import { MapDocumentSummary } from "../../services/StorageService";
 
 interface VaultsModalProps {
@@ -70,7 +81,7 @@ export const VaultsModal: React.FC<VaultsModalProps> = ({
               <View style={styles.header}>
                 <View style={styles.headerLeft}>
                   <View style={styles.headerIconContainer}>
-                    <Text style={styles.headerIcon}>📁</Text>
+                    <Folder size={20} color="#38BDF8" strokeWidth={1.8} />
                   </View>
                   <View>
                     <Text style={styles.title}>Bóveda de Mapas Cognitivos</Text>
@@ -89,7 +100,7 @@ export const VaultsModal: React.FC<VaultsModalProps> = ({
                     }}
                     activeOpacity={0.8}
                   >
-                    <Text style={styles.newMapIcon}>＋</Text>
+                    <Plus size={14} color="#FFFFFF" strokeWidth={2.2} />
                     <Text style={styles.newMapText}>Nuevo Mapa</Text>
                   </TouchableOpacity>
 
@@ -98,7 +109,7 @@ export const VaultsModal: React.FC<VaultsModalProps> = ({
                     onPress={onClose}
                     activeOpacity={0.7}
                   >
-                    <Text style={styles.closeText}>✕</Text>
+                    <X size={16} color="#94A3B8" strokeWidth={2.0} />
                   </TouchableOpacity>
                 </View>
               </View>
@@ -111,7 +122,7 @@ export const VaultsModal: React.FC<VaultsModalProps> = ({
               >
                 {savedMaps.length === 0 ? (
                   <View style={styles.emptyState}>
-                    <Text style={styles.emptyIcon}>🧠</Text>
+                    <BrainCircuit size={48} color="#475569" strokeWidth={1.5} />
                     <Text style={styles.emptyTitle}>No hay mapas guardados aún</Text>
                     <Text style={styles.emptySubtitle}>
                       Tus dibujos y diagramas se auto-guardan automáticamente aquí como documentos .cmn.
@@ -144,7 +155,7 @@ export const VaultsModal: React.FC<VaultsModalProps> = ({
                         >
                           <View style={styles.cardHeader}>
                             <View style={styles.mapBadge}>
-                              <Text style={styles.mapBadgeIcon}>🗺️</Text>
+                              <FileText size={12} color="#94A3B8" strokeWidth={1.8} />
                               <Text style={styles.mapBadgeText}>.cmn</Text>
                             </View>
 
@@ -162,7 +173,7 @@ export const VaultsModal: React.FC<VaultsModalProps> = ({
                                 }}
                                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                               >
-                                <Text style={styles.deleteButtonText}>🗑️</Text>
+                                <Trash2 size={16} color="#EF4444" strokeWidth={1.8} />
                               </TouchableOpacity>
                             </View>
                           </View>
@@ -173,17 +184,20 @@ export const VaultsModal: React.FC<VaultsModalProps> = ({
 
                           <View style={styles.cardFooter}>
                             <View style={styles.statsRow}>
+                              <Pen size={11} color="#94A3B8" strokeWidth={1.8} />
                               <Text style={styles.statItem}>
-                                ✏️ {map.stroke_count} trazos
+                                {map.stroke_count} trazos
                               </Text>
                               <Text style={styles.statDot}>•</Text>
+                              <Tag size={11} color="#94A3B8" strokeWidth={1.8} />
                               <Text style={styles.statItem}>
-                                🧩 {map.entity_count} entidades
+                                {map.entity_count} entidades
                               </Text>
                               {map.is_compiled && (
                                 <>
                                   <Text style={styles.statDot}>•</Text>
-                                  <Text style={styles.statCompiled}>⚡ Compilado</Text>
+                                  <Zap size={11} color="#F59E0B" strokeWidth={2.0} />
+                                  <Text style={styles.statCompiled}>Compilado</Text>
                                 </>
                               )}
                             </View>

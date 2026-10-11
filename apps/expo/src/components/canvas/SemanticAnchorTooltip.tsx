@@ -8,6 +8,15 @@ import {
   Dimensions,
   TouchableWithoutFeedback,
 } from "react-native";
+import {
+  Settings,
+  Lightbulb,
+  FlaskConical,
+  Pin,
+  Mic,
+  Check,
+  X,
+} from "@sketchyicons/react-native";
 import { PassiveAttributeType, EntityBoundingBox } from "../../types/canvas";
 
 export interface SemanticAnchorTooltipProps {
@@ -33,7 +42,6 @@ export interface SemanticAnchorTooltipProps {
 
 const TYPE_CONFIG = {
   CAUSAL_MECHANISM: {
-    icon: "⚙️",
     label: "Mecanismo",
     color: "#38BDF8",
     bgActive: "#0C4A6E",
@@ -42,7 +50,6 @@ const TYPE_CONFIG = {
     hint: "¿Cómo funciona este proceso causa-efecto?",
   },
   ANALOGY: {
-    icon: "💡",
     label: "Analogía",
     color: "#818CF8",
     bgActive: "#312E81",
@@ -51,7 +58,6 @@ const TYPE_CONFIG = {
     hint: "¿A qué se parece o con qué modelo mental conecta?",
   },
   EVIDENCE: {
-    icon: "🔬",
     label: "Evidencia",
     color: "#34D399",
     bgActive: "#064E3B",
@@ -59,6 +65,17 @@ const TYPE_CONFIG = {
     defaultTitle: "Evidencia Empírica",
     hint: "¿Qué datos, experimentos o fuentes lo respaldan?",
   },
+};
+
+const renderTypeIcon = (type: PassiveAttributeType, size: number, color: string) => {
+  switch (type) {
+    case "CAUSAL_MECHANISM":
+      return <Settings size={size} color={color} strokeWidth={1.8} />;
+    case "ANALOGY":
+      return <Lightbulb size={size} color={color} strokeWidth={1.8} />;
+    case "EVIDENCE":
+      return <FlaskConical size={size} color={color} strokeWidth={1.8} />;
+  }
 };
 
 export const SemanticAnchorTooltip: React.FC<SemanticAnchorTooltipProps> = ({
@@ -180,7 +197,7 @@ export const SemanticAnchorTooltip: React.FC<SemanticAnchorTooltipProps> = ({
                   }}
                   activeOpacity={0.8}
                 >
-                  <Text style={styles.semanticPillIcon}>{conf.icon}</Text>
+                  {renderTypeIcon(t, 14, conf.color)}
                   <Text style={[styles.semanticPillText, { color: conf.color }]}>
                     {conf.label}
                   </Text>
@@ -235,11 +252,11 @@ export const SemanticAnchorTooltip: React.FC<SemanticAnchorTooltipProps> = ({
             {/* Header */}
             <View style={styles.header}>
               <View style={styles.titleRow}>
-                <Text style={styles.headerIcon}>📌</Text>
+                <Pin size={14} color="#E2E8F0" strokeWidth={1.8} />
                 <Text style={styles.headerTitle}>Anclar Atributo</Text>
               </View>
               <TouchableOpacity onPress={onClose} style={styles.closeBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                <Text style={styles.closeBtnText}>✕</Text>
+                <X size={16} color="#94A3B8" strokeWidth={2.0} />
               </TouchableOpacity>
             </View>
 
@@ -261,7 +278,7 @@ export const SemanticAnchorTooltip: React.FC<SemanticAnchorTooltipProps> = ({
                     onPress={() => setSelectedType(t)}
                     activeOpacity={0.7}
                   >
-                    <Text style={styles.chipIcon}>{conf.icon}</Text>
+                    {renderTypeIcon(t, 13, isActive ? conf.color : "#94A3B8")}
                     <Text
                       style={[
                         styles.chipText,
@@ -297,9 +314,13 @@ export const SemanticAnchorTooltip: React.FC<SemanticAnchorTooltipProps> = ({
               onPress={handleToggleVoice}
               activeOpacity={0.7}
             >
-              <Text style={styles.voiceIcon}>
-                {isRecordingAudio ? "🔴" : hasAudioRecorded ? "✅" : "🎙️"}
-              </Text>
+              {isRecordingAudio ? (
+                <Mic size={14} color="#EF4444" strokeWidth={2.0} />
+              ) : hasAudioRecorded ? (
+                <Check size={14} color="#10B981" strokeWidth={2.0} />
+              ) : (
+                <Mic size={14} color="#94A3B8" strokeWidth={1.8} />
+              )}
               <Text style={styles.voiceText}>
                 {isRecordingAudio
                   ? "Grabando audio..."

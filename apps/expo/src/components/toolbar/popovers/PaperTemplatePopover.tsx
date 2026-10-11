@@ -1,5 +1,6 @@
 import React from "react";
 import { StyleSheet, View, Text, TouchableOpacity, ViewStyle } from "react-native";
+import { Check, FileText } from "@sketchyicons/react-native";
 import { CanvasBackgroundType } from "../../../types/canvas";
 
 export interface PaperTemplateItem {
@@ -12,7 +13,7 @@ export const PAPER_TEMPLATES: PaperTemplateItem[] = [
   { id: "dot_grid", label: "Puntos", icon: "⠇" },
   { id: "graph_grid", label: "Cuadrícula", icon: "▦" },
   { id: "ruled", label: "Rayado", icon: "≡" },
-  { id: "blank", label: "Liso", icon: "📄" },
+  { id: "blank", label: "Liso", icon: "file" },
 ];
 
 interface PaperTemplatePopoverProps {
@@ -43,11 +44,17 @@ export const PaperTemplatePopover: React.FC<PaperTemplatePopoverProps> = ({
             }}
             activeOpacity={0.7}
           >
-            <Text style={styles.popoverItemIcon}>{tmpl.icon}</Text>
+            {tmpl.icon === "file" ? (
+              <View style={styles.popoverIconWrapper}>
+                <FileText size={15} color="#94A3B8" strokeWidth={1.8} />
+              </View>
+            ) : (
+              <Text style={styles.popoverItemIcon}>{tmpl.icon}</Text>
+            )}
             <Text style={[styles.popoverItemLabel, isSelected && styles.popoverItemLabelActive]}>
               {tmpl.label}
             </Text>
-            {isSelected && <Text style={styles.popoverCheck}>✓</Text>}
+            {isSelected && <Check size={14} color="#38BDF8" strokeWidth={2.2} />}
           </TouchableOpacity>
         );
       })}
@@ -91,6 +98,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginRight: 10,
     color: "#94A3B8",
+  },
+  popoverIconWrapper: {
+    width: 16,
+    marginRight: 10,
+    justifyContent: "center",
+    alignItems: "center",
   },
   popoverItemLabel: {
     color: "#CBD5E1",

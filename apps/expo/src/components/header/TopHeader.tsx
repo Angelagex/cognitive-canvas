@@ -1,5 +1,16 @@
 import React, { useState, useEffect } from "react";
 import { StyleSheet, View, Text, TouchableOpacity, TextInput } from "react-native";
+import {
+  Menu,
+  Pencil,
+  Check,
+  X,
+  Cloud,
+  Undo2,
+  Redo2,
+  Trash2,
+  BrainCircuit,
+} from "@sketchyicons/react-native";
 
 interface TopHeaderProps {
   mapTitle: string;
@@ -67,7 +78,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
           activeOpacity={0.75}
           accessibilityLabel="Abrir menú del documento y bóveda"
         >
-          <Text style={styles.menuIcon}>☰</Text>
+          <Menu size={16} color="#38BDF8" strokeWidth={2.0} />
           <Text style={styles.menuText}>Menú</Text>
         </TouchableOpacity>
 
@@ -94,7 +105,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
               activeOpacity={0.7}
               accessibilityLabel="Guardar nombre"
             >
-              <Text style={styles.titleConfirmText}>✓</Text>
+              <Check size={14} color="#38BDF8" strokeWidth={2.2} />
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.titleCancelBtn}
@@ -102,7 +113,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
               activeOpacity={0.7}
               accessibilityLabel="Cancelar edición"
             >
-              <Text style={styles.titleCancelText}>✕</Text>
+              <X size={14} color="#94A3B8" strokeWidth={2.0} />
             </TouchableOpacity>
           </View>
         ) : (
@@ -115,7 +126,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
             <Text style={styles.titleDisplayText} numberOfLines={1}>
               {mapTitle}
             </Text>
-            <Text style={styles.titleEditIcon}>✏️</Text>
+            <Pencil size={13} color="#64748B" strokeWidth={1.75} style={{ marginLeft: 6 }} />
           </TouchableOpacity>
         )}
 
@@ -128,7 +139,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
             </View>
           ) : lastSavedAt ? (
             <View style={styles.savedBadge}>
-              <Text style={styles.savedCheck}>☁️✓</Text>
+              <Cloud size={13} color="#34D399" strokeWidth={2.0} />
               <Text style={styles.savedText}>Guardado</Text>
             </View>
           ) : null}
@@ -144,7 +155,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
           activeOpacity={0.7}
           accessibilityLabel="Deshacer"
         >
-          <Text style={[styles.historyIcon, !canUndo && styles.iconDisabled]}>↶</Text>
+          <Undo2 size={18} color={canUndo ? "#94A3B8" : "#475569"} strokeWidth={2.0} />
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -154,7 +165,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
           activeOpacity={0.7}
           accessibilityLabel="Rehacer"
         >
-          <Text style={[styles.historyIcon, !canRedo && styles.iconDisabled]}>↷</Text>
+          <Redo2 size={18} color={canRedo ? "#94A3B8" : "#475569"} strokeWidth={2.0} />
         </TouchableOpacity>
 
         <View style={styles.smallDivider} />
@@ -166,14 +177,14 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
           activeOpacity={0.7}
           accessibilityLabel="Limpiar lienzo con confirmación"
         >
-          <Text style={styles.clearIcon}>🗑️</Text>
+          <Trash2 size={17} color="#F87171" strokeWidth={2.0} />
         </TouchableOpacity>
       </View>
 
       {/* Far Right: [⚡ Compilar Mapa] */}
       <View style={styles.rightSection}>
         <TouchableOpacity style={styles.compileButton} onPress={onOpenCompiler} activeOpacity={0.8}>
-          <Text style={styles.compileLightning}>⚡</Text>
+          <BrainCircuit size={17} color="#FFFFFF" strokeWidth={2.0} />
           <Text style={styles.compileText}>Compilar Mapa</Text>
         </TouchableOpacity>
       </View>
