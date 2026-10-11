@@ -11,7 +11,13 @@ import {
   FileText,
   ArrowLeftRight,
 } from "@sketchyicons/react-native";
-import { BrushType, CanvasBackgroundType, EraserMode, PassiveAttributeType } from "../../types/canvas";
+import {
+  BrushType,
+  CanvasBackgroundType,
+  CanvasThemePreset,
+  EraserMode,
+  PassiveAttributeType,
+} from "../../types/canvas";
 import { StrokeWidthPopover } from "./popovers/StrokeWidthPopover";
 import { PaperTemplatePopover } from "./popovers/PaperTemplatePopover";
 import { ColorPickerPopover } from "./popovers/ColorPickerPopover";
@@ -28,6 +34,8 @@ export interface GoodnotesToolbarProps {
   onSelectEraserMode: (mode: EraserMode) => void;
   backgroundType: CanvasBackgroundType;
   onSelectBackgroundType: (type: CanvasBackgroundType) => void;
+  canvasTheme?: CanvasThemePreset;
+  onSelectCanvasTheme?: (theme: CanvasThemePreset) => void;
   favoriteColors: string[];
   onUpdateFavoriteColor: (slotIndex: number, newColor: string) => void;
   onTriggerPassiveAttribute?: () => void;
@@ -53,6 +61,8 @@ export const GoodnotesToolbar: React.FC<GoodnotesToolbarProps> = ({
   onSelectEraserMode,
   backgroundType,
   onSelectBackgroundType,
+  canvasTheme,
+  onSelectCanvasTheme,
   favoriteColors,
   onUpdateFavoriteColor,
   hasSelection = false,
@@ -74,7 +84,7 @@ export const GoodnotesToolbar: React.FC<GoodnotesToolbarProps> = ({
   const [showColorMenu, setShowColorMenu] = useState(false);
 
   const tools: { id: BrushType; label: string }[] = [
-    { id: "pen", label: "Pluma" },
+    { id: "pen", label: "Bolígrafo" },
     { id: "highlighter", label: "Resaltador" },
     { id: "eraser", label: "Borrador" },
     { id: "shapes", label: "Formas" },
@@ -258,6 +268,8 @@ export const GoodnotesToolbar: React.FC<GoodnotesToolbarProps> = ({
         <PaperTemplatePopover
           backgroundType={backgroundType}
           onSelectBackgroundType={onSelectBackgroundType}
+          canvasTheme={canvasTheme}
+          onSelectCanvasTheme={onSelectCanvasTheme}
           onClose={() => setShowTemplateMenu(false)}
           positionStyle={popoverPositionStyle}
         />

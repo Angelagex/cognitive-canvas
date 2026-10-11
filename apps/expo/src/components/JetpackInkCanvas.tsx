@@ -124,6 +124,7 @@ export interface JetpackInkCanvasProps extends ViewProps {
   brushType?: BrushType;
   eraserMode?: string;
   backgroundType?: string;
+  canvasBackgroundColor?: string;
   stylusOnly?: boolean;
   scale?: number;
   panX?: number;
@@ -154,6 +155,7 @@ interface NativeJetpackInkViewProps extends ViewProps {
   brushType: string;
   eraserMode?: string;
   backgroundType?: string;
+  canvasBackgroundColor?: string;
   stylusOnly: boolean;
   canvasScale?: number;
   panX?: number;
@@ -186,6 +188,7 @@ export const JetpackInkCanvas: React.FC<JetpackInkCanvasProps> = React.memo(({
   brushType = "pen",
   eraserMode = "stroke",
   backgroundType = "dot_grid",
+  canvasBackgroundColor = "#0F172A",
   stylusOnly = true,
   scale = 1.0,
   panX = 0.0,
@@ -231,6 +234,7 @@ export const JetpackInkCanvas: React.FC<JetpackInkCanvasProps> = React.memo(({
         brushType={brushType}
         eraserMode={eraserMode}
         backgroundType={backgroundType}
+        canvasBackgroundColor={canvasBackgroundColor}
         stylusOnly={stylusOnly}
         canvasScale={scale}
         panX={panX}

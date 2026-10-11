@@ -51,6 +51,17 @@ class JetpackInkViewManager : SimpleViewManager<JetpackInkView>() {
         }
     }
 
+    @ReactProp(name = "canvasBackgroundColor")
+    fun setCanvasBackgroundColor(view: JetpackInkView, colorString: String?) {
+        if (!colorString.isNullOrEmpty()) {
+            try {
+                view.canvasBackgroundColor = Color.parseColor(colorString)
+            } catch (e: IllegalArgumentException) {
+                // Fallback to default
+            }
+        }
+    }
+
     @ReactProp(name = "stylusOnly", defaultBoolean = true)
     fun setStylusOnly(view: JetpackInkView, enabled: Boolean) {
         view.stylusOnly = enabled

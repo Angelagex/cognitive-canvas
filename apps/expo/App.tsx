@@ -29,6 +29,9 @@ export default function App() {
     setEraserMode,
     backgroundType,
     setBackgroundType,
+    canvasTheme,
+    setCanvasTheme,
+    canvasBackgroundColor,
     favoriteColors,
     updateFavoriteColor,
     stylusOnly,
@@ -142,6 +145,8 @@ export default function App() {
           onSelectEraserMode={setEraserMode}
           backgroundType={backgroundType}
           onSelectBackgroundType={setBackgroundType}
+          canvasTheme={canvasTheme}
+          onSelectCanvasTheme={setCanvasTheme}
           favoriteColors={favoriteColors}
           onUpdateFavoriteColor={updateFavoriteColor}
           hasSelection={hasSelection}
@@ -159,6 +164,7 @@ export default function App() {
           brushType={activeBrush}
           eraserMode={eraserMode}
           backgroundType={backgroundType}
+          canvasBackgroundColor={canvasBackgroundColor}
           stylusOnly={stylusOnly}
           zoomInTrigger={zoomInTrigger}
           zoomOutTrigger={zoomOutTrigger}

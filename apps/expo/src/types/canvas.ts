@@ -22,6 +22,44 @@ export type PassiveAttributeType = "ANALOGY" | "CAUSAL_MECHANISM" | "EVIDENCE";
 
 export type CanvasBackgroundType = "dot_grid" | "graph_grid" | "ruled" | "blank";
 
+export type CanvasThemePreset = "dark_slate" | "warm_ivory" | "pure_white";
+
+export interface CanvasThemeConfig {
+  id: CanvasThemePreset;
+  label: string;
+  backgroundColor: string;
+  defaultInkColor: string;
+  gridColor: string;
+  isDark: boolean;
+}
+
+export const CANVAS_THEMES: Record<CanvasThemePreset, CanvasThemeConfig> = {
+  dark_slate: {
+    id: "dark_slate",
+    label: "Pizarra Oscura",
+    backgroundColor: "#0F172A",
+    defaultInkColor: "#F8FAFC",
+    gridColor: "#334155",
+    isDark: true,
+  },
+  warm_ivory: {
+    id: "warm_ivory",
+    label: "Marfil Cálido",
+    backgroundColor: "#FBF9F5",
+    defaultInkColor: "#1E293B",
+    gridColor: "#E2D9C8",
+    isDark: false,
+  },
+  pure_white: {
+    id: "pure_white",
+    label: "Blanco Puro",
+    backgroundColor: "#FFFFFF",
+    defaultInkColor: "#0F172A",
+    gridColor: "#E2E8F0",
+    isDark: false,
+  },
+};
+
 export type EraserMode = "stroke" | "precision";
 
 export interface StrokeEndEvent {

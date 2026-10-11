@@ -160,6 +160,37 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
             stylusHandler.stylusOnly = value
         }
 
+    var canvasBackgroundColor: Int = Color.parseColor("#0F172A")
+        set(value) {
+            field = value
+            updateGridColors(value)
+            postInvalidateOnAnimation()
+        }
+
+    private fun updateGridColors(bgColor: Int) {
+        val r = Color.red(bgColor)
+        val g = Color.green(bgColor)
+        val b = Color.blue(bgColor)
+        val luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255.0
+
+        if (luminance > 0.5) {
+            // Light background
+            if (r > 245 && g > 240 && b < 250) {
+                // Warm Ivory (#FBF9F5)
+                dotPaint.color = Color.parseColor("#E2D9C8")
+                gridLinePaint.color = Color.parseColor("#E2D9C8")
+            } else {
+                // Pure White (#FFFFFF) or other light
+                dotPaint.color = Color.parseColor("#E2E8F0")
+                gridLinePaint.color = Color.parseColor("#E2E8F0")
+            }
+        } else {
+            // Dark background (Dark Slate #0F172A)
+            dotPaint.color = Color.parseColor("#334155")
+            gridLinePaint.color = Color.parseColor("#1E293B")
+        }
+    }
+
     @Volatile var isUserTouching = false
     private var cachedBrush: Brush? = null
     private var isTwoFingerGesture = false
@@ -532,8 +563,9 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
         if (brush == null) {
             val family = when (brushType) {
                 "highlighter" -> StockBrushes.highlighterLatest
-                "marker" -> StockBrushes.markerLatest
-                else -> StockBrushes.pressurePenLatest
+                // Ballpoint Pen: continuous, crisp, uniform-width stroke without pressure-induced distortions
+                "pen" -> StockBrushes.markerLatest
+                else -> StockBrushes.markerLatest
             }
 
             val colorToUse = if (brushType == "highlighter") {
@@ -546,8 +578,6 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
 
             val widthToUse = if (brushType == "highlighter") {
                 strokeWidth * 2.2f
-            } else if (brushType == "marker") {
-                strokeWidth * 1.4f
             } else if (brushType == "laser") {
                 strokeWidth * 1.2f
             } else {
@@ -577,6 +607,8 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
             val colorStr = strokeColorMap[stroke] ?: String.format("#%06X", 0xFFFFFF and strokeColor)
             strokeMap.putString("color", colorStr)
             strokeMap.putDouble("width", (stroke.brush.size / density).toDouble())
+            val bType = if (stroke.brush.family == StockBrushes.highlighterLatest) "highlighter" else "pen"
+            strokeMap.putString("brushType", bType)
 
             val inputs = stroke.inputs
             val count = inputs.size
@@ -1360,6 +1392,7 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
     }
 
     override fun dispatchDraw(canvas: Canvas) {
+        canvas.drawColor(canvasBackgroundColor)
         val renderMatrix = transformManager.getRenderMatrix()
         canvas.save()
         canvas.concat(renderMatrix)
@@ -1502,16 +1535,27 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
             for (i in 0 until jsonArray.length()) {
                 val strokeObj = jsonArray.optJSONObject(i) ?: continue
                 val colorHex = strokeObj.optString("color", "#38BDF8")
-                val widthDp = strokeObj.optDouble("width", 18.0).toFloat()
+                val widthDp = strokeObj.optDouble("width", 4.5).toFloat()
+                val strokeType = strokeObj.optString("brushType", "pen")
+                val family = when (strokeType) {
+                    "highlighter" -> StockBrushes.highlighterLatest
+                    else -> StockBrushes.markerLatest
+                }
                 val strokeColorInt = try {
                     Color.parseColor(colorHex)
                 } catch (_: Exception) {
                     Color.parseColor("#38BDF8")
                 }
 
+                val finalColorInt = if (strokeType == "highlighter") {
+                    Color.argb(120, Color.red(strokeColorInt), Color.green(strokeColorInt), Color.blue(strokeColorInt))
+                } else {
+                    strokeColorInt
+                }
+
                 val strokeBrush = Brush.createWithColorIntArgb(
-                    family = StockBrushes.pressurePenLatest,
-                    colorIntArgb = strokeColorInt,
+                    family = family,
+                    colorIntArgb = finalColorInt,
                     size = widthDp * density,
                     epsilon = 0.1f
                 )
@@ -1696,7 +1740,7 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
                     setPosition(0, 0, targetW, targetH)
                 }
                 val canvas = renderNode.beginRecording(targetW, targetH)
-                canvas.drawColor(Color.parseColor("#090D16"))
+                canvas.drawColor(canvasBackgroundColor)
                 canvas.scale(scaleMultiplier, scaleMultiplier)
                 canvas.save()
                 canvas.concat(renderMatrix)
@@ -1750,7 +1794,7 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
         // Fallback for devices without HardwareRenderer
         val fallbackBitmap = Bitmap.createBitmap(targetW, targetH, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(fallbackBitmap)
-        canvas.drawColor(Color.parseColor("#090D16"))
+        canvas.drawColor(canvasBackgroundColor)
         canvas.scale(scaleMultiplier, scaleMultiplier)
         canvas.save()
         canvas.concat(renderMatrix)
