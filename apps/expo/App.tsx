@@ -12,6 +12,7 @@ import { PacerOverlayLayer } from "./src/components/canvas/PacerOverlayLayer";
 import { ClearCanvasConfirmModal } from "./src/components/modals/ClearCanvasConfirmModal";
 import { DocumentActionsModal } from "./src/components/modals/DocumentActionsModal";
 import { GhostOverlay } from "./src/components/canvas/GhostOverlay";
+import { ContextualSelectionPill } from "./src/components/toolbar/popovers/ContextualToolPill";
 import { cognitiveLayerStore } from "./src/stores/useCognitiveLayerStore";
 
 export default function App() {
@@ -54,11 +55,17 @@ export default function App() {
     compilation,
     hasSelection,
     selectedCount,
+    selectionBounds,
     deleteSelectionTrigger,
+    duplicateSelectionTrigger,
     clearSelectionTrigger,
     handleSelectionChanged,
     handleDeleteSelection,
+    handleDuplicateSelection,
     handleClearSelection,
+    handleAssignAttributeToLasso,
+    handleOpenAttributeModalFromLasso,
+    handleStrokesTransformed,
     placedAttributes,
     handleAddAttribute,
     handleDeleteAttribute,
@@ -150,12 +157,22 @@ export default function App() {
           onSelectCanvasTheme={setCanvasTheme}
           favoriteColors={favoriteColors}
           onUpdateFavoriteColor={updateFavoriteColor}
-          hasSelection={hasSelection}
-          selectedCount={selectedCount}
-          onDeleteSelection={handleDeleteSelection}
-          onClearSelection={handleClearSelection}
           dockSide={toolbarDockSide}
           onToggleDockSide={handleToggleDockSide}
+        />
+
+        {/* Pastilla Contextual Flotante de Selección por Lazo */}
+        <ContextualSelectionPill
+          hasSelection={hasSelection}
+          selectedCount={selectedCount}
+          selectionBounds={selectionBounds}
+          canvasScale={canvasScale}
+          canvasTranslateX={canvasTranslateX}
+          canvasTranslateY={canvasTranslateY}
+          onOpenAttributeModal={handleOpenAttributeModalFromLasso}
+          onDuplicateSelection={handleDuplicateSelection}
+          onDeleteSelection={handleDeleteSelection}
+          onClearSelection={handleClearSelection}
         />
 
         <JetpackInkCanvas
@@ -175,6 +192,7 @@ export default function App() {
           undoTrigger={undoTrigger}
           redoTrigger={redoTrigger}
           deleteSelectionTrigger={deleteSelectionTrigger}
+          duplicateSelectionTrigger={duplicateSelectionTrigger}
           clearSelectionTrigger={clearSelectionTrigger}
           loadedStrokesJson={loadedStrokesJson}
           loadStrokesTrigger={loadStrokesTrigger}
@@ -188,6 +206,7 @@ export default function App() {
           onHover={handleHover}
           onHoverTimeout={handleHoverTimeout}
           onFingerTap={handleFingerTap}
+          onStrokesTransformed={handleStrokesTransformed}
         />
 
         {/* Capa Fantasma Semántica HUD (Ghost Overlay - Macro-Islas y Puentes) */}
@@ -239,6 +258,7 @@ export default function App() {
             screenY={anchorTooltip.screenY}
             worldX={anchorTooltip.worldX}
             worldY={anchorTooltip.worldY}
+            initialStage={anchorTooltip.initialStage}
             entityBounds={activeEntityBounds}
             canvasScale={canvasScale}
             canvasTranslateX={canvasTranslateX}

@@ -38,11 +38,12 @@ class StrokeEraser {
         canvasScale: Float,
         strokeWidth: Float,
         completedStrokes: CopyOnWriteArrayList<Stroke>,
+        density: Float = 1.0f,
         onStrokesRemoved: (removed: List<Stroke>) -> Unit
     ) {
-        val worldX = (screenX - canvasTranslateX) / canvasScale
-        val worldY = (screenY - canvasTranslateY) / canvasScale
-        val eraseRadius = (strokeWidth * 3.0f).coerceAtLeast(80f) / canvasScale
+        val worldX = (screenX - canvasTranslateX) / (canvasScale * density)
+        val worldY = (screenY - canvasTranslateY) / (canvasScale * density)
+        val eraseRadius = (strokeWidth * 3.0f).coerceAtLeast(30f) / canvasScale
         val eraseRadiusSq = eraseRadius * eraseRadius
 
         if (eraserMode == "stroke") {
@@ -56,15 +57,19 @@ class StrokeEraser {
                 var hit = false
                 for (i in 0 until inputCount) {
                     val pt = inputs.get(i)
-                    val dx = pt.x - worldX
-                    val dy = pt.y - worldY
+                    val ptWorldX = pt.x / density
+                    val ptWorldY = pt.y / density
+                    val dx = ptWorldX - worldX
+                    val dy = ptWorldY - worldY
                     if (dx * dx + dy * dy <= eraseRadiusSq) {
                         hit = true
                         break
                     }
                     if (i < inputCount - 1) {
                         val pNext = inputs.get(i + 1)
-                        if (distanceToSegmentSquared(worldX, worldY, pt.x, pt.y, pNext.x, pNext.y) <= eraseRadiusSq) {
+                        val pNextWorldX = pNext.x / density
+                        val pNextWorldY = pNext.y / density
+                        if (distanceToSegmentSquared(worldX, worldY, ptWorldX, ptWorldY, pNextWorldX, pNextWorldY) <= eraseRadiusSq) {
                             hit = true
                             break
                         }
@@ -95,8 +100,10 @@ class StrokeEraser {
 
                 for (i in 0 until inputCount) {
                     val pt = inputs.get(i)
-                    val dx = pt.x - worldX
-                    val dy = pt.y - worldY
+                    val ptWorldX = pt.x / density
+                    val ptWorldY = pt.y / density
+                    val dx = ptWorldX - worldX
+                    val dy = ptWorldY - worldY
                     if (dx * dx + dy * dy <= eraseRadiusSq) {
                         isErased[i] = true
                         anyPointErased = true

@@ -5,6 +5,7 @@ import {
   SelectionChangedEvent,
   PlacedAttribute,
   EntityBoundingBox,
+  SelectionBounds,
 } from "../../types/canvas";
 import {
   VisualASTEngine,
@@ -33,7 +34,9 @@ export const useCanvasAst = ({
   // Selection state (Lasso)
   const [hasSelection, setHasSelection] = useState<boolean>(false);
   const [selectedCount, setSelectedCount] = useState<number>(0);
+  const [selectionBounds, setSelectionBounds] = useState<SelectionBounds | null>(null);
   const [deleteSelectionTrigger, setDeleteSelectionTrigger] = useState<number>(0);
+  const [duplicateSelectionTrigger, setDuplicateSelectionTrigger] = useState<number>(0);
   const [clearSelectionTrigger, setClearSelectionTrigger] = useState<number>(0);
 
   // History & Undo / Redo
@@ -178,15 +181,22 @@ export const useCanvasAst = ({
   }, [markDirty]);
 
   const handleSelectionChanged = useCallback((event: NativeSyntheticEvent<SelectionChangedEvent>) => {
-    const { hasSelection: isSelected, selectedCount: count } = event.nativeEvent;
+    const { hasSelection: isSelected, selectedCount: count, bounds } = event.nativeEvent;
     setHasSelection(isSelected);
     setSelectedCount(count);
+    setSelectionBounds(isSelected && bounds ? bounds : null);
   }, []);
 
   const handleDeleteSelection = useCallback(() => {
     setDeleteSelectionTrigger((prev) => prev + 1);
     setHasSelection(false);
     setSelectedCount(0);
+    setSelectionBounds(null);
+    markDirty();
+  }, [markDirty]);
+
+  const handleDuplicateSelection = useCallback(() => {
+    setDuplicateSelectionTrigger((prev) => prev + 1);
     markDirty();
   }, [markDirty]);
 
@@ -194,6 +204,7 @@ export const useCanvasAst = ({
     setClearSelectionTrigger((prev) => prev + 1);
     setHasSelection(false);
     setSelectedCount(0);
+    setSelectionBounds(null);
   }, []);
 
   return {
@@ -221,7 +232,9 @@ export const useCanvasAst = ({
     setLoadStrokesTrigger,
     hasSelection,
     selectedCount,
+    selectionBounds,
     deleteSelectionTrigger,
+    duplicateSelectionTrigger,
     clearSelectionTrigger,
     handleStrokeEnd,
     handleUndo,
@@ -229,6 +242,7 @@ export const useCanvasAst = ({
     handleClear,
     handleSelectionChanged,
     handleDeleteSelection,
+    handleDuplicateSelection,
     handleClearSelection,
   };
 };

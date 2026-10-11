@@ -11,7 +11,7 @@ import {
   MapDocumentSummary,
   getUserPreferences,
 } from "../../services/StorageService";
-import { PlacedAttribute, EntityBoundingBox, PassiveAttributeType } from "../../types/canvas";
+import { PlacedAttribute, EntityBoundingBox, PassiveAttributeType, SelectionBounds } from "../../types/canvas";
 import { VisualASTLayer, RawInkStroke } from "@cognitive-canvas/core";
 import { getCanvasStrokes } from "../../components/JetpackInkCanvas";
 
@@ -22,6 +22,7 @@ interface UseCanvasDocumentProps {
   setCanvasScale: (scale: number) => void;
   setCanvasTranslateX: (tx: number) => void;
   setCanvasTranslateY: (ty: number) => void;
+  handleResetZoom?: () => void;
   strokesRef: React.MutableRefObject<RawInkStroke[]>;
   strokeBBoxesRef: React.MutableRefObject<Map<string, EntityBoundingBox>>;
   setRawStrokes: (strokes: RawInkStroke[]) => void;
@@ -45,6 +46,7 @@ export const useCanvasDocument = ({
   setCanvasScale,
   setCanvasTranslateX,
   setCanvasTranslateY,
+  handleResetZoom,
   strokesRef,
   strokeBBoxesRef,
   setRawStrokes,
@@ -197,6 +199,70 @@ export const useCanvasDocument = ({
     (id: string) => {
       setPlacedAttributes((prev) => prev.filter((a) => a.id !== id));
       markDirty();
+    },
+    [markDirty]
+  );
+
+  const handleTransformAttributes = useCallback(
+    (dx: number, dy: number, bounds?: SelectionBounds | null) => {
+      setPlacedAttributes((prev) =>
+        prev.map((attr) => {
+          if (bounds) {
+            const pad = 35;
+            const isInside =
+              attr.worldX >= bounds.minX - pad &&
+              attr.worldX <= bounds.maxX + pad &&
+              attr.worldY >= bounds.minY - pad &&
+              attr.worldY <= bounds.maxY + pad;
+            if (!isInside) return attr;
+          }
+          return {
+            ...attr,
+            worldX: attr.worldX + dx,
+            worldY: attr.worldY + dy,
+            entityBounds: attr.entityBounds
+              ? {
+                  xmin: attr.entityBounds.xmin + dx,
+                  xmax: attr.entityBounds.xmax + dx,
+                  ymin: attr.entityBounds.ymin + dy,
+                  ymax: attr.entityBounds.ymax + dy,
+                }
+              : undefined,
+          };
+        })
+      );
+      markDirty();
+    },
+    [markDirty]
+  );
+
+  const handleAssignAttributeToSelection = useCallback(
+    (type: PassiveAttributeType, bounds: SelectionBounds, title?: string, note?: string) => {
+      const defaultTitle =
+        type === "CAUSAL_MECHANISM"
+          ? "Mecanismo Causal"
+          : type === "ANALOGY"
+          ? "Analogía Cognitiva"
+          : "Evidencia Empírica";
+
+      const newAttr: PlacedAttribute = {
+        id: `attr_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        type,
+        title: title || defaultTitle,
+        note: note || "",
+        worldX: bounds.centerX,
+        worldY: bounds.centerY,
+        entityBounds: {
+          xmin: bounds.minX,
+          ymin: bounds.minY,
+          xmax: bounds.maxX,
+          ymax: bounds.maxY,
+        },
+      };
+
+      setPlacedAttributes((prev) => [...prev, newAttr]);
+      markDirty();
+      return newAttr;
     },
     [markDirty]
   );
@@ -425,6 +491,13 @@ export const useCanvasDocument = ({
     setStrokeCount(0);
     setCanUndo(false);
     setCanRedo(false);
+
+    // Restablecer zoom al 100% y desplazamiento a origen
+    setCanvasScale(1.0);
+    setCanvasTranslateX(0.0);
+    setCanvasTranslateY(0.0);
+    handleResetZoom?.();
+
     const newId = `map_${Date.now()}`;
     setCurrentMapId(newId);
     await setLastActiveMapId(newId);
@@ -441,6 +514,25 @@ export const useCanvasDocument = ({
     placedAttributes,
     visualAST,
     compilation,
+    handleResetZoom,
+    setCanvasScale,
+    setCanvasTranslateX,
+    setCanvasTranslateY,
+    setClearTrigger,
+    setLoadedStrokesJson,
+    setLoadStrokesTrigger,
+    setPlacedAttributes,
+    setVisualAST,
+    setCompilation,
+    strokesRef,
+    strokeBBoxesRef,
+    setRawStrokes,
+    setStrokeCount,
+    setCanUndo,
+    setCanRedo,
+    setCurrentMapId,
+    setMapTitle,
+    setLastSavedAt,
   ]);
 
   const handleDeleteMap = useCallback(
@@ -475,6 +567,8 @@ export const useCanvasDocument = ({
     setPlacedAttributes,
     handleAddAttribute,
     handleDeleteAttribute,
+    handleTransformAttributes,
+    handleAssignAttributeToSelection,
     markDirty,
     isDirtyRef,
     placedAttributesRef,

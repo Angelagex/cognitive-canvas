@@ -8,8 +8,10 @@ import {
   PlacedAttribute,
   EntityBoundingBox,
   PassiveAttributeType,
+  SelectionBounds,
 } from "../../types/canvas";
 import { VisualASTEntity, VisualASTLayer, RawInkStroke } from "@cognitive-canvas/core";
+import { getCanvasStrokes, unpackStrokePoints } from "../../components/JetpackInkCanvas";
 
 interface UseCanvasHoverProps {
   placedAttributes: PlacedAttribute[];
@@ -51,6 +53,7 @@ export const useCanvasHover = ({
     screenY: number;
     worldX: number;
     worldY: number;
+    initialStage?: "icon" | "modal";
   } | null>(null);
 
   const handleHover = useCallback((event: NativeSyntheticEvent<HoverEvent>) => {
@@ -209,7 +212,50 @@ export const useCanvasHover = ({
 
   const handleHoverTimeout = useCallback(
     (event: NativeSyntheticEvent<HoverTimeoutEvent>) => {
+      // Hover dwell is strictly for non-intrusive Air View inspection/halo preview.
+      // Creation of attributes is strictly triggered via single-finger tap (handleFingerTap).
+      const { entityBounds } = event.nativeEvent;
+      if (entityBounds) {
+        setActiveEntityBounds(entityBounds);
+      }
+    },
+    []
+  );
+
+  const handleFingerTap = useCallback(
+    async (event: NativeSyntheticEvent<FingerTapEvent>) => {
       const { worldX, worldY, screenX, screenY, entityBounds } = event.nativeEvent;
+
+      // 1. Check if user tapped directly on an existing placed attribute badge or pin
+      const tappedAttr = placedAttributes.find((attr) => {
+        if (attr.entityBounds) {
+          const pinLeft = attr.entityBounds.xmax * canvasScale + canvasTranslateX - 4;
+          const pinTop = attr.entityBounds.ymin * canvasScale + canvasTranslateY - 12;
+          const isPinHit =
+            screenX >= pinLeft - 14 &&
+            screenX <= pinLeft + 32 &&
+            screenY >= pinTop - 14 &&
+            screenY <= pinTop + 32;
+          if (isPinHit) return true;
+        }
+        const attrScreenX = attr.worldX * canvasScale + canvasTranslateX;
+        const attrScreenY = attr.worldY * canvasScale + canvasTranslateY;
+        const baseWidth = Math.max(120, attr.title.length * 8 + 36);
+        const baseHeight = 34;
+        return (
+          screenX >= attrScreenX - 8 &&
+          screenX <= attrScreenX + baseWidth + 8 &&
+          screenY >= attrScreenY - 8 &&
+          screenY <= attrScreenY + baseHeight + 8
+        );
+      });
+
+      if (tappedAttr) {
+        setHoveredAttribute(tappedAttr);
+        return;
+      }
+
+      // 2. Direct hit from native spatial hash grid (when native passes entityBounds)
       if (entityBounds) {
         setActiveAnchorEntity(null);
         setActiveEntityBounds(entityBounds);
@@ -221,90 +267,182 @@ export const useCanvasHover = ({
           worldX,
           worldY,
         });
-      }
-    },
-    []
-  );
-
-  const handleFingerTap = useCallback(
-    (event: NativeSyntheticEvent<FingerTapEvent>) => {
-      const { worldX, worldY, screenX, screenY } = event.nativeEvent;
-
-      const tappedAttr = placedAttributes.find((attr) => {
-        if (attr.entityBounds) {
-          const pinLeft = attr.entityBounds.xmax * canvasScale + canvasTranslateX - 4;
-          const pinTop = attr.entityBounds.ymin * canvasScale + canvasTranslateY - 12;
-          const isPinHit =
-            screenX >= pinLeft - 12 &&
-            screenX <= pinLeft + 30 &&
-            screenY >= pinTop - 12 &&
-            screenY <= pinTop + 30;
-          if (isPinHit) return true;
-        }
-        const attrScreenX = attr.worldX * canvasScale + canvasTranslateX;
-        const attrScreenY = attr.worldY * canvasScale + canvasTranslateY;
-        const baseWidth = Math.max(120, attr.title.length * 8 + 36);
-        const baseHeight = 34;
-        return (
-          screenX >= attrScreenX &&
-          screenX <= attrScreenX + baseWidth &&
-          screenY >= attrScreenY &&
-          screenY <= attrScreenY + baseHeight
-        );
-      });
-
-      if (tappedAttr) {
-        setHoveredAttribute(tappedAttr);
         return;
       }
 
-      const hitTolerance = 30;
-      let matchedEntity: VisualASTEntity | null = null;
-      let minDistance = Infinity;
+      let matchedBounds: EntityBoundingBox | null = null;
+      const zoomFactor = 1.0 / (canvasScale || 1.0);
+      const hitTolerance = Math.max(40, 40 * zoomFactor);
 
-      for (const ent of visualAST.entities) {
-        const isInside =
-          worldX >= ent.bbox.xmin - hitTolerance &&
-          worldX <= ent.bbox.xmax + hitTolerance &&
-          worldY >= ent.bbox.ymin - hitTolerance &&
-          worldY <= ent.bbox.ymax + hitTolerance;
+      // 3. Check visualAST entities if already computed
+      if (visualAST.entities && visualAST.entities.length > 0) {
+        let bestEntity: VisualASTEntity | null = null;
+        let minDistance = Infinity;
 
-        if (isInside) {
-          const cx = (ent.bbox.xmin + ent.bbox.xmax) / 2;
-          const cy = (ent.bbox.ymin + ent.bbox.ymax) / 2;
-          const dist = Math.hypot(worldX - cx, worldY - cy);
-          if (dist < minDistance) {
-            minDistance = dist;
-            matchedEntity = ent;
+        for (const ent of visualAST.entities) {
+          const isInside =
+            worldX >= ent.bbox.xmin - hitTolerance &&
+            worldX <= ent.bbox.xmax + hitTolerance &&
+            worldY >= ent.bbox.ymin - hitTolerance &&
+            worldY <= ent.bbox.ymax + hitTolerance;
+
+          if (isInside) {
+            const cx = (ent.bbox.xmin + ent.bbox.xmax) / 2;
+            const cy = (ent.bbox.ymin + ent.bbox.ymax) / 2;
+            const dist = Math.hypot(worldX - cx, worldY - cy);
+            if (dist < minDistance) {
+              minDistance = dist;
+              bestEntity = ent;
+            }
+          }
+        }
+
+        if (bestEntity) {
+          matchedBounds = {
+            xmin: bestEntity.bbox.xmin,
+            ymin: bestEntity.bbox.ymin,
+            xmax: bestEntity.bbox.xmax,
+            ymax: bestEntity.bbox.ymax,
+          };
+        }
+      }
+
+      // 4. Check hoveredEntityBounds if recent S-Pen hover identified a cluster
+      if (!matchedBounds && hoveredEntityBounds) {
+        const isNearHover =
+          worldX >= hoveredEntityBounds.xmin - hitTolerance &&
+          worldX <= hoveredEntityBounds.xmax + hitTolerance &&
+          worldY >= hoveredEntityBounds.ymin - hitTolerance &&
+          worldY <= hoveredEntityBounds.ymax + hitTolerance;
+        if (isNearHover) {
+          matchedBounds = hoveredEntityBounds;
+        }
+      }
+
+      // 5. Check cached stroke bounding boxes
+      if (!matchedBounds && strokeBBoxesRef.current && strokeBBoxesRef.current.size > 0) {
+        for (const bbox of strokeBBoxesRef.current.values()) {
+          const isInside =
+            worldX >= bbox.xmin - hitTolerance &&
+            worldX <= bbox.xmax + hitTolerance &&
+            worldY >= bbox.ymin - hitTolerance &&
+            worldY <= bbox.ymax + hitTolerance;
+          if (isInside) {
+            matchedBounds = bbox;
+            break;
           }
         }
       }
 
-      if (matchedEntity) {
-        setActiveAnchorEntity(null);
-        setActiveEntityBounds({
-          xmin: matchedEntity.bbox.xmin,
-          ymin: matchedEntity.bbox.ymin,
-          xmax: matchedEntity.bbox.xmax,
-          ymax: matchedEntity.bbox.ymax,
-        });
-        setIsAnchorModalOpen(false);
-        setAnchorTooltip({
-          visible: true,
-          screenX,
-          screenY,
-          worldX,
-          worldY,
-        });
-      } else {
-        if (!isAnchorModalOpen) {
-          setAnchorTooltip(null);
-          setActiveAnchorEntity(null);
-          setActiveEntityBounds(null);
-        }
+      // 6. Pull strokes on-demand directly from native memory
+      if (!matchedBounds) {
+        try {
+          let currentStrokes = strokesRef.current;
+          if (!currentStrokes || currentStrokes.length === 0) {
+            currentStrokes = await getCanvasStrokes();
+            if (currentStrokes && currentStrokes.length > 0) {
+              strokesRef.current = currentStrokes;
+            }
+          }
+
+          if (currentStrokes && currentStrokes.length > 0) {
+            const hitStrokes: any[] = [];
+            const strokeBoxes: Map<any, { xmin: number; ymin: number; xmax: number; ymax: number }> = new Map();
+
+            for (const s of currentStrokes) {
+              const pts = unpackStrokePoints(s);
+              if (!pts || pts.length === 0) continue;
+
+              let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+              for (const pt of pts) {
+                if (pt.x < minX) minX = pt.x;
+                if (pt.x > maxX) maxX = pt.x;
+                if (pt.y < minY) minY = pt.y;
+                if (pt.y > maxY) maxY = pt.y;
+              }
+              const b = { xmin: minX, ymin: minY, xmax: maxX, ymax: maxY };
+              strokeBoxes.set(s, b);
+
+              if (
+                worldX >= minX - hitTolerance &&
+                worldX <= maxX + hitTolerance &&
+                worldY >= minY - hitTolerance &&
+                worldY <= maxY + hitTolerance
+              ) {
+                let isHit = false;
+                for (const pt of pts) {
+                  if (Math.hypot(pt.x - worldX, pt.y - worldY) <= hitTolerance) {
+                    isHit = true;
+                    break;
+                  }
+                }
+                if (isHit) {
+                  hitStrokes.push(s);
+                }
+              }
+            }
+
+            if (hitStrokes.length > 0) {
+              const cluster = new Set<any>(hitStrokes);
+              const queue = [...hitStrokes];
+              const proximity = Math.max(45, 45 * zoomFactor);
+
+              while (queue.length > 0) {
+                const cur = queue.shift()!;
+                const curBox = strokeBoxes.get(cur);
+                if (!curBox) continue;
+
+                for (const other of currentStrokes) {
+                  if (cluster.has(other)) continue;
+                  const otherBox = strokeBoxes.get(other);
+                  if (!otherBox) continue;
+
+                  const dx = Math.max(0, curBox.xmin - otherBox.xmax, otherBox.xmin - curBox.xmax);
+                  const dy = Math.max(0, curBox.ymin - otherBox.ymax, otherBox.ymin - curBox.ymax);
+                  if (dx <= proximity && dy <= proximity) {
+                    cluster.add(other);
+                    queue.push(other);
+                  }
+                }
+              }
+
+              let cMinX = Infinity, cMinY = Infinity, cMaxX = -Infinity, cMaxY = -Infinity;
+              for (const s of cluster) {
+                const b = strokeBoxes.get(s);
+                if (b) {
+                  if (b.xmin < cMinX) cMinX = b.xmin;
+                  if (b.xmax > cMaxX) cMaxX = b.xmax;
+                  if (b.ymin < cMinY) cMinY = b.ymin;
+                  if (b.ymax > cMaxY) cMaxY = b.ymax;
+                }
+              }
+
+              const pad = 10;
+              matchedBounds = {
+                xmin: cMinX - pad,
+                ymin: cMinY - pad,
+                xmax: cMaxX + pad,
+                ymax: cMaxY + pad,
+              };
+            }
+          }
+        } catch (_) {}
       }
+
+      // 7. ALWAYS reveal the 3 Semantic Pills micro-menu on single-finger tap!
+      // If matchedBounds is found, anchor to it with entity focus glow; if not, anchor directly to tap position.
+      setActiveAnchorEntity(null);
+      setActiveEntityBounds(matchedBounds || null);
+      setIsAnchorModalOpen(false);
+      setAnchorTooltip({
+        visible: true,
+        screenX,
+        screenY,
+        worldX,
+        worldY,
+      });
     },
-    [placedAttributes, canvasScale, canvasTranslateX, canvasTranslateY, visualAST, isAnchorModalOpen]
+    [placedAttributes, canvasScale, canvasTranslateX, canvasTranslateY, visualAST, hoveredEntityBounds, isAnchorModalOpen, strokeBBoxesRef, strokesRef]
   );
 
   const handleBarrelButton = useCallback(
@@ -325,6 +463,29 @@ export const useCanvasHover = ({
   const handleAnchorModalOpen = useCallback(() => {
     setIsAnchorModalOpen(true);
   }, []);
+
+  const openAnchorModalForBounds = useCallback(
+    (bounds: SelectionBounds) => {
+      const screenX = bounds.centerX * canvasScale + canvasTranslateX;
+      const screenY = bounds.centerY * canvasScale + canvasTranslateY;
+      setActiveEntityBounds({
+        xmin: bounds.minX,
+        ymin: bounds.minY,
+        xmax: bounds.maxX,
+        ymax: bounds.maxY,
+      });
+      setAnchorTooltip({
+        visible: true,
+        screenX,
+        screenY,
+        worldX: bounds.centerX,
+        worldY: bounds.centerY,
+        initialStage: "modal",
+      });
+      setIsAnchorModalOpen(true);
+    },
+    [canvasScale, canvasTranslateX, canvasTranslateY]
+  );
 
   const handleSaveAnchorTooltip = useCallback(
     (type: PassiveAttributeType, title: string, note: string, worldX: number, worldY: number) => {
@@ -366,5 +527,6 @@ export const useCanvasHover = ({
     handleCloseAnchorTooltip,
     handleAnchorModalOpen,
     handleSaveAnchorTooltip,
+    openAnchorModalForBounds,
   };
 };

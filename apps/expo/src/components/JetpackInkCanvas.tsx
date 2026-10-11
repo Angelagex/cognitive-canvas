@@ -17,6 +17,7 @@ import {
   HoverTimeoutEvent,
   FingerTapEvent,
   HighResPngExportResult,
+  StrokesTransformedEvent,
 } from "../types/canvas";
 
 export * from "../types/canvas";
@@ -137,6 +138,7 @@ export interface JetpackInkCanvasProps extends ViewProps {
   undoTrigger?: number;
   redoTrigger?: number;
   deleteSelectionTrigger?: number;
+  duplicateSelectionTrigger?: number;
   clearSelectionTrigger?: number;
   loadedStrokesJson?: string;
   loadStrokesTrigger?: number;
@@ -148,6 +150,7 @@ export interface JetpackInkCanvasProps extends ViewProps {
   onHoverTimeout?: (event: NativeSyntheticEvent<HoverTimeoutEvent>) => void;
   onFingerTap?: (event: NativeSyntheticEvent<FingerTapEvent>) => void;
   onScratchOut?: (event: NativeSyntheticEvent<ScratchOutEvent>) => void;
+  onStrokesTransformed?: (event: NativeSyntheticEvent<StrokesTransformedEvent>) => void;
 }
 
 interface NativeJetpackInkViewProps extends ViewProps {
@@ -169,6 +172,7 @@ interface NativeJetpackInkViewProps extends ViewProps {
   undoTrigger: number;
   redoTrigger: number;
   deleteSelectionTrigger?: number;
+  duplicateSelectionTrigger?: number;
   clearSelectionTrigger?: number;
   loadedStrokesJson?: string;
   loadStrokesTrigger?: number;
@@ -180,6 +184,7 @@ interface NativeJetpackInkViewProps extends ViewProps {
   onHoverTimeout?: (event: NativeSyntheticEvent<HoverTimeoutEvent>) => void;
   onFingerTap?: (event: NativeSyntheticEvent<FingerTapEvent>) => void;
   onScratchOut?: (event: NativeSyntheticEvent<ScratchOutEvent>) => void;
+  onStrokesTransformed?: (event: NativeSyntheticEvent<StrokesTransformedEvent>) => void;
 }
 
 const NativeJetpackInkView = requireNativeComponent<NativeJetpackInkViewProps>("JetpackInkView");
@@ -203,6 +208,7 @@ export const JetpackInkCanvas: React.FC<JetpackInkCanvasProps> = React.memo(({
   undoTrigger = 0,
   redoTrigger = 0,
   deleteSelectionTrigger = 0,
+  duplicateSelectionTrigger = 0,
   clearSelectionTrigger = 0,
   loadedStrokesJson,
   loadStrokesTrigger = 0,
@@ -214,6 +220,7 @@ export const JetpackInkCanvas: React.FC<JetpackInkCanvasProps> = React.memo(({
   onHoverTimeout,
   onFingerTap,
   onScratchOut,
+  onStrokesTransformed,
   style,
   ...rest
 }) => {
@@ -250,6 +257,7 @@ export const JetpackInkCanvas: React.FC<JetpackInkCanvasProps> = React.memo(({
         undoTrigger={undoTrigger}
         redoTrigger={redoTrigger}
         deleteSelectionTrigger={deleteSelectionTrigger}
+        duplicateSelectionTrigger={duplicateSelectionTrigger}
         clearSelectionTrigger={clearSelectionTrigger}
         loadedStrokesJson={loadedStrokesJson}
         loadStrokesTrigger={loadStrokesTrigger}
@@ -261,6 +269,7 @@ export const JetpackInkCanvas: React.FC<JetpackInkCanvasProps> = React.memo(({
         onHoverTimeout={onHoverTimeout}
         onFingerTap={onFingerTap}
         onScratchOut={handleScratchOutInternal}
+        onStrokesTransformed={onStrokesTransformed}
         {...rest}
       />
     </View>

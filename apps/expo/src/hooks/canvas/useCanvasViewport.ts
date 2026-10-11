@@ -24,6 +24,9 @@ export const useCanvasViewport = () => {
   const handleResetZoom = useCallback(() => {
     setResetZoomTrigger((prev) => prev + 1);
     setDisplayZoom(100);
+    setCanvasScale(1.0);
+    setCanvasTranslateX(0.0);
+    setCanvasTranslateY(0.0);
   }, []);
 
   const handleTransform = useCallback((event: NativeSyntheticEvent<TransformEvent>) => {

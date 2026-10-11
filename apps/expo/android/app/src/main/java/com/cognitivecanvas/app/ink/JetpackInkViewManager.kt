@@ -127,6 +127,13 @@ class JetpackInkViewManager : SimpleViewManager<JetpackInkView>() {
         }
     }
 
+    @ReactProp(name = "duplicateSelectionTrigger")
+    fun setDuplicateSelectionTrigger(view: JetpackInkView, trigger: Int) {
+        if (trigger > 0) {
+            view.duplicateSelectedStrokes()
+        }
+    }
+
     @ReactProp(name = "clearSelectionTrigger")
     fun setClearSelectionTrigger(view: JetpackInkView, trigger: Int) {
         if (trigger > 0) {
@@ -156,7 +163,8 @@ class JetpackInkViewManager : SimpleViewManager<JetpackInkView>() {
             "topHover" to mapOf("registrationName" to "onHover"),
             "topHoverTimeout" to mapOf("registrationName" to "onHoverTimeout"),
             "topFingerTap" to mapOf("registrationName" to "onFingerTap"),
-            "topScratchOut" to mapOf("registrationName" to "onScratchOut")
+            "topScratchOut" to mapOf("registrationName" to "onScratchOut"),
+            "topStrokesTransformed" to mapOf("registrationName" to "onStrokesTransformed")
         )
     }
 

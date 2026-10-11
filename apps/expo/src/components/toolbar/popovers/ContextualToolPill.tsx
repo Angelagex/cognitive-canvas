@@ -1,183 +1,152 @@
 import React from "react";
-import { StyleSheet, View, Text, TouchableOpacity, ViewStyle } from "react-native";
-import { Eraser, Scissors, Lasso, Trash2, X } from "@sketchyicons/react-native";
-import { BrushType, EraserMode } from "../../../types/canvas";
+import { StyleSheet, View, Text, TouchableOpacity, Dimensions } from "react-native";
+import { Lasso, Trash2, X, BookmarkPlus, Copy } from "@sketchyicons/react-native";
+import { SelectionBounds } from "../../../types/canvas";
 
-interface ContextualToolPillProps {
-  activeBrush: BrushType;
-  eraserMode: EraserMode;
-  onSelectEraserMode: (mode: EraserMode) => void;
-  hasSelection?: boolean;
-  selectedCount?: number;
+export interface ContextualSelectionPillProps {
+  hasSelection: boolean;
+  selectedCount: number;
+  selectionBounds: SelectionBounds | null;
+  canvasScale: number;
+  canvasTranslateX: number;
+  canvasTranslateY: number;
+  onOpenAttributeModal: () => void;
+  onDuplicateSelection?: () => void;
   onDeleteSelection?: () => void;
   onClearSelection?: () => void;
-  positionStyle: ViewStyle;
 }
 
-export const ContextualToolPill: React.FC<ContextualToolPillProps> = ({
-  activeBrush,
-  eraserMode,
-  onSelectEraserMode,
-  hasSelection = false,
-  selectedCount = 0,
+export const ContextualSelectionPill: React.FC<ContextualSelectionPillProps> = ({
+  hasSelection,
+  selectedCount,
+  selectionBounds,
+  canvasScale,
+  canvasTranslateX,
+  canvasTranslateY,
+  onOpenAttributeModal,
+  onDuplicateSelection,
   onDeleteSelection,
   onClearSelection,
-  positionStyle,
 }) => {
-  if (activeBrush === "eraser") {
-    return (
-      <View style={[styles.contextualPill, styles.eraserPill, positionStyle, { top: 115 }]}>
-        <TouchableOpacity
-          style={[
-            styles.contextualOption,
-            eraserMode === "stroke" && styles.contextualOptionActive,
-          ]}
-          onPress={() => onSelectEraserMode("stroke")}
-          activeOpacity={0.8}
-        >
-          <Eraser
-            size={13}
-            color={eraserMode === "stroke" ? "#38BDF8" : "#94A3B8"}
-            strokeWidth={1.8}
-          />
-          <Text
-            style={[
-              styles.contextualOptionText,
-              eraserMode === "stroke" && styles.contextualOptionTextActive,
-            ]}
-          >
-            Trazo
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[
-            styles.contextualOption,
-            eraserMode === "precision" && styles.contextualOptionActive,
-          ]}
-          onPress={() => onSelectEraserMode("precision")}
-          activeOpacity={0.8}
-        >
-          <Scissors
-            size={13}
-            color={eraserMode === "precision" ? "#38BDF8" : "#94A3B8"}
-            strokeWidth={1.8}
-          />
-          <Text
-            style={[
-              styles.contextualOptionText,
-              eraserMode === "precision" && styles.contextualOptionTextActive,
-            ]}
-          >
-            Píxel
-          </Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
+  if (!hasSelection || !selectionBounds) return null;
 
-  if (activeBrush === "lasso" && hasSelection) {
-    return (
-      <View style={[styles.contextualPill, positionStyle, { top: 195 }]}>
-        <View style={styles.lassoBadge}>
+  const { width: screenW, height: screenH } = Dimensions.get("window");
+
+  // Proyección de mundo a pantalla
+  const screenX = selectionBounds.centerX * canvasScale + canvasTranslateX;
+  const screenY = selectionBounds.minY * canvasScale + canvasTranslateY;
+
+  const PILL_WIDTH = 250;
+  const PILL_HEIGHT = 44;
+
+  const left = Math.max(16, Math.min(screenW - PILL_WIDTH - 16, screenX - PILL_WIDTH / 2));
+  const top = Math.max(70, Math.min(screenH - PILL_HEIGHT - 20, screenY - PILL_HEIGHT - 12));
+
+  return (
+    <View style={[styles.floatingWrapper, { left, top }]} pointerEvents="box-none">
+      <View style={styles.pillContainer}>
+        <View style={styles.badge}>
           <Lasso size={13} color="#38BDF8" strokeWidth={1.8} />
-          <Text style={styles.lassoBadgeText}>{selectedCount}</Text>
+          <Text style={styles.badgeText}>{selectedCount}</Text>
         </View>
-        {onDeleteSelection && (
+
+        <View style={styles.divider} />
+
+        <TouchableOpacity
+          style={styles.attributeChip}
+          onPress={onOpenAttributeModal}
+          activeOpacity={0.8}
+        >
+          <BookmarkPlus size={13} color="#38BDF8" strokeWidth={1.8} />
+          <Text style={styles.attributeChipText}>Atributo</Text>
+        </TouchableOpacity>
+
+        <View style={styles.divider} />
+
+        {onDuplicateSelection && (
           <TouchableOpacity
-            style={styles.lassoActionBtn}
-            onPress={onDeleteSelection}
+            style={styles.actionBtn}
+            onPress={onDuplicateSelection}
             activeOpacity={0.8}
+            accessibilityLabel="Duplicar selección"
           >
-            <Trash2 size={12} color="#EF4444" strokeWidth={1.8} />
-            <Text style={[styles.lassoActionBtnText, { color: "#FCA5A5" }]}>Borrar</Text>
+            <Copy size={13} color="#38BDF8" strokeWidth={1.8} />
           </TouchableOpacity>
         )}
+
+        {onDeleteSelection && (
+          <TouchableOpacity style={styles.actionBtn} onPress={onDeleteSelection} activeOpacity={0.8}>
+            <Trash2 size={13} color="#EF4444" strokeWidth={1.8} />
+          </TouchableOpacity>
+        )}
+
         {onClearSelection && (
-          <TouchableOpacity
-            style={styles.lassoActionBtn}
-            onPress={onClearSelection}
-            activeOpacity={0.8}
-          >
-            <X size={12} color="#94A3B8" strokeWidth={2.0} />
+          <TouchableOpacity style={styles.actionBtn} onPress={onClearSelection} activeOpacity={0.8}>
+            <X size={13} color="#94A3B8" strokeWidth={2.0} />
           </TouchableOpacity>
         )}
       </View>
-    );
-  }
-
-  return null;
+    </View>
+  );
 };
 
+export const ContextualToolPill = ContextualSelectionPill;
+
 const styles = StyleSheet.create({
-  contextualPill: {
+  floatingWrapper: {
     position: "absolute",
+    zIndex: 999,
+  },
+  pillContainer: {
     backgroundColor: "#0B1120",
     borderRadius: 20,
     borderWidth: 1,
     borderColor: "#1E293B",
-    paddingHorizontal: 8,
-    paddingVertical: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    flexWrap: "nowrap",
-    flexShrink: 0,
-    gap: 6,
+    gap: 8,
+    elevation: 12,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 6 },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.45,
     shadowRadius: 10,
-    elevation: 12,
   },
-  eraserPill: {
-    minWidth: 168,
+  badge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
   },
-  contextualOption: {
+  badgeText: {
+    color: "#38BDF8",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  divider: {
+    width: 1,
+    height: 16,
+    backgroundColor: "#1E293B",
+  },
+  attributeChip: {
+    backgroundColor: "#0C4A6E",
+    borderColor: "#38BDF8",
+    borderWidth: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
     paddingHorizontal: 9,
     paddingVertical: 5,
     borderRadius: 12,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
-    gap: 5,
   },
-  contextualOptionActive: {
-    backgroundColor: "rgba(56, 189, 248, 0.18)",
-    borderWidth: 1,
-    borderColor: "rgba(56, 189, 248, 0.4)",
-  },
-  contextualOptionText: {
-    color: "#E2E8F0",
-    fontSize: 11,
+  attributeChipText: {
+    color: "#BAE6FD",
+    fontSize: 12,
     fontWeight: "700",
   },
-  contextualOptionTextActive: {
-    color: "#38BDF8",
-  },
-  lassoBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  lassoBadgeText: {
-    color: "#38BDF8",
-    fontSize: 11,
-    fontWeight: "700",
-    paddingHorizontal: 2,
-  },
-  lassoActionBtn: {
+  actionBtn: {
     backgroundColor: "#1E293B",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    padding: 6,
     borderRadius: 8,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  lassoActionBtnText: {
-    color: "#E2E8F0",
-    fontSize: 11,
-    fontWeight: "700",
   },
 });

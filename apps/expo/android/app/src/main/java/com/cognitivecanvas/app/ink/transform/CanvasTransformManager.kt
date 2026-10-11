@@ -56,6 +56,10 @@ class CanvasTransformManager(
             onTransformChanged(canvasScale, canvasTranslateX, canvasTranslateY)
             return true
         }
+
+        override fun onScaleEnd(detector: ScaleGestureDetector) {
+            onTransformChanged(canvasScale, canvasTranslateX, canvasTranslateY)
+        }
     }).apply {
         // CRITICAL: Disable double-tap/stylus button quick scaling.
         // Android's ScaleGestureDetector automatically triggers single-finger zoom
@@ -83,7 +87,8 @@ class CanvasTransformManager(
             return false
         }
 
-        return scaleDetector.onTouchEvent(event)
+        scaleDetector.onTouchEvent(event)
+        return true
     }
 
     fun startSingleTouchPan(x: Float, y: Float) {

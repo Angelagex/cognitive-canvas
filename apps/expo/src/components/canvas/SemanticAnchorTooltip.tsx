@@ -25,6 +25,7 @@ export interface SemanticAnchorTooltipProps {
   screenY: number;
   worldX: number;
   worldY: number;
+  initialStage?: "icon" | "modal";
   entityBounds?: EntityBoundingBox | null;
   canvasScale?: number;
   canvasTranslateX?: number;
@@ -84,6 +85,7 @@ export const SemanticAnchorTooltip: React.FC<SemanticAnchorTooltipProps> = ({
   screenY,
   worldX,
   worldY,
+  initialStage = "icon",
   entityBounds,
   canvasScale,
   canvasTranslateX,
@@ -92,7 +94,7 @@ export const SemanticAnchorTooltip: React.FC<SemanticAnchorTooltipProps> = ({
   onSave,
   onClose,
 }) => {
-  const [stage, setStage] = useState<"icon" | "modal">("icon");
+  const [stage, setStage] = useState<"icon" | "modal">(initialStage);
   const [selectedType, setSelectedType] = useState<PassiveAttributeType>("CAUSAL_MECHANISM");
   const [note, setNote] = useState("");
   const [isRecordingAudio, setIsRecordingAudio] = useState(false);
@@ -100,12 +102,12 @@ export const SemanticAnchorTooltip: React.FC<SemanticAnchorTooltipProps> = ({
 
   useEffect(() => {
     if (visible) {
-      setStage("icon");
+      setStage(initialStage);
       setNote("");
       setIsRecordingAudio(false);
       setHasAudioRecorded(false);
     }
-  }, [visible]);
+  }, [visible, initialStage]);
 
   if (!visible) return null;
 
@@ -204,6 +206,15 @@ export const SemanticAnchorTooltip: React.FC<SemanticAnchorTooltipProps> = ({
                 </TouchableOpacity>
               );
             })}
+
+            <TouchableOpacity
+              style={styles.closeMicroPill}
+              onPress={onClose}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              activeOpacity={0.7}
+            >
+              <X size={13} color="#94A3B8" strokeWidth={2.0} />
+            </TouchableOpacity>
           </View>
         </View>
       </TouchableWithoutFeedback>
@@ -435,7 +446,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(15, 23, 42, 0.92)",
+    backgroundColor: "rgba(15, 23, 42, 0.95)",
     borderRadius: 22,
     paddingHorizontal: 6,
     paddingVertical: 5,
@@ -445,8 +456,17 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.4,
     shadowRadius: 10,
-    elevation: 8,
+    elevation: 12,
+    zIndex: 100,
     gap: 6,
+  },
+  closeMicroPill: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(30, 41, 59, 0.8)",
   },
   semanticPill: {
     flexDirection: "row",

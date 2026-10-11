@@ -1,10 +1,12 @@
 import { useState, useCallback } from "react";
+import { NativeSyntheticEvent } from "react-native";
 import { useCanvasTools } from "./canvas/useCanvasTools";
 import { useCanvasViewport } from "./canvas/useCanvasViewport";
 import { useCanvasAst } from "./canvas/useCanvasAst";
 import { useCanvasDocument } from "./canvas/useCanvasDocument";
 import { useCanvasHover } from "./canvas/useCanvasHover";
 import { useCognitiveCompilation } from "./canvas/useCognitiveCompilation";
+import { PassiveAttributeType, StrokesTransformedEvent } from "../types/canvas";
 
 export const useCanvasState = () => {
   // 1. Tools, Colors & Dock Side State
@@ -50,6 +52,7 @@ export const useCanvasState = () => {
     setCanvasScale: viewport.setCanvasScale,
     setCanvasTranslateX: viewport.setCanvasTranslateX,
     setCanvasTranslateY: viewport.setCanvasTranslateY,
+    handleResetZoom: viewport.handleResetZoom,
     strokesRef: ast.strokesRef,
     strokeBBoxesRef: ast.strokeBBoxesRef,
     setRawStrokes: ast.setRawStrokes,
@@ -99,6 +102,38 @@ export const useCanvasState = () => {
   const handleCancelClear = useCallback(() => {
     setShowClearConfirmModal(false);
   }, []);
+
+  const handleAssignAttributeToLasso = useCallback(
+    (type: PassiveAttributeType) => {
+      if (!ast.selectionBounds) return;
+      doc.handleAssignAttributeToSelection(type, ast.selectionBounds);
+      ast.handleClearSelection();
+    },
+    [ast.selectionBounds, doc.handleAssignAttributeToSelection, ast.handleClearSelection]
+  );
+
+  const handleOpenAttributeModalFromLasso = useCallback(() => {
+    if (!ast.selectionBounds) return;
+    hover.openAnchorModalForBounds(ast.selectionBounds);
+  }, [ast.selectionBounds, hover.openAnchorModalForBounds]);
+
+  const handleSaveAnchorTooltipWithLassoClear = useCallback(
+    (type: PassiveAttributeType, title: string, note: string, worldX: number, worldY: number) => {
+      hover.handleSaveAnchorTooltip(type, title, note, worldX, worldY);
+      if (ast.hasSelection) {
+        ast.handleClearSelection();
+      }
+    },
+    [hover.handleSaveAnchorTooltip, ast.hasSelection, ast.handleClearSelection]
+  );
+
+  const handleStrokesTransformed = useCallback(
+    (event: NativeSyntheticEvent<StrokesTransformedEvent>) => {
+      const { dx, dy } = event.nativeEvent;
+      doc.handleTransformAttributes(dx, dy, ast.selectionBounds);
+    },
+    [doc.handleTransformAttributes, ast.selectionBounds]
+  );
 
   return {
     // Document
@@ -167,7 +202,9 @@ export const useCanvasState = () => {
     loadStrokesTrigger: ast.loadStrokesTrigger,
     hasSelection: ast.hasSelection,
     selectedCount: ast.selectedCount,
+    selectionBounds: ast.selectionBounds,
     deleteSelectionTrigger: ast.deleteSelectionTrigger,
+    duplicateSelectionTrigger: ast.duplicateSelectionTrigger,
     clearSelectionTrigger: ast.clearSelectionTrigger,
     handleStrokeEnd: ast.handleStrokeEnd,
     handleUndo: ast.handleUndo,
@@ -175,7 +212,11 @@ export const useCanvasState = () => {
     handleClear: ast.handleClear,
     handleSelectionChanged: ast.handleSelectionChanged,
     handleDeleteSelection: ast.handleDeleteSelection,
+    handleDuplicateSelection: ast.handleDuplicateSelection,
     handleClearSelection: ast.handleClearSelection,
+    handleAssignAttributeToLasso,
+    handleOpenAttributeModalFromLasso,
+    handleStrokesTransformed,
 
     // Compilation & PACER
     isDrawerOpen: compiler.isDrawerOpen,
@@ -206,7 +247,7 @@ export const useCanvasState = () => {
     handleFingerTap: hover.handleFingerTap,
     handleBarrelButton: hover.handleBarrelButton,
     handleCloseAnchorTooltip: hover.handleCloseAnchorTooltip,
-    handleSaveAnchorTooltip: hover.handleSaveAnchorTooltip,
+    handleSaveAnchorTooltip: handleSaveAnchorTooltipWithLassoClear,
 
     // Modals
     showVaultModal,

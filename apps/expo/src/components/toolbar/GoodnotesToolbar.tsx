@@ -21,7 +21,7 @@ import {
 import { StrokeWidthPopover } from "./popovers/StrokeWidthPopover";
 import { PaperTemplatePopover } from "./popovers/PaperTemplatePopover";
 import { ColorPickerPopover } from "./popovers/ColorPickerPopover";
-import { ContextualToolPill } from "./popovers/ContextualToolPill";
+import { EraserModePill } from "./popovers/EraserModePill";
 
 export interface GoodnotesToolbarProps {
   activeBrush: BrushType;
@@ -43,6 +43,7 @@ export interface GoodnotesToolbarProps {
   selectedCount?: number;
   onDeleteSelection?: () => void;
   onClearSelection?: () => void;
+  onAssignAttribute?: (type: PassiveAttributeType) => void;
   onAddAttribute?: (type: PassiveAttributeType, title: string, note: string) => void;
   dockSide?: "left" | "right";
   initialDockSide?: "left" | "right";
@@ -69,6 +70,7 @@ export const GoodnotesToolbar: React.FC<GoodnotesToolbarProps> = ({
   selectedCount = 0,
   onDeleteSelection,
   onClearSelection,
+  onAssignAttribute,
   dockSide: dockSideProp,
   initialDockSide = "left",
   onToggleDockSide,
@@ -275,17 +277,14 @@ export const GoodnotesToolbar: React.FC<GoodnotesToolbarProps> = ({
         />
       )}
 
-      {/* 5. Sub-Dock Contextual: Borrador o Lazo */}
-      <ContextualToolPill
-        activeBrush={activeBrush}
-        eraserMode={eraserMode}
-        onSelectEraserMode={onSelectEraserMode}
-        hasSelection={hasSelection}
-        selectedCount={selectedCount}
-        onDeleteSelection={onDeleteSelection}
-        onClearSelection={onClearSelection}
-        positionStyle={popoverPositionStyle}
-      />
+      {/* 5. Sub-Dock Contextual: Selector de Modo de Borrador */}
+      {activeBrush === "eraser" && (
+        <EraserModePill
+          eraserMode={eraserMode}
+          onSelectEraserMode={onSelectEraserMode}
+          positionStyle={popoverPositionStyle}
+        />
+      )}
     </View>
   );
 };

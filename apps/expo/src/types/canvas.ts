@@ -95,9 +95,25 @@ export interface BarrelButtonEvent {
   worldY?: number;
 }
 
+export interface SelectionBounds {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+  centerX: number;
+  centerY: number;
+}
+
 export interface SelectionChangedEvent {
   hasSelection: boolean;
   selectedCount: number;
+  bounds?: SelectionBounds;
+}
+
+export interface StrokesTransformedEvent {
+  dx: number;
+  dy: number;
+  affectedStrokeCount: number;
 }
 
 export interface PlacedAttribute {
@@ -141,5 +157,6 @@ export interface FingerTapEvent {
   worldY: number;
   screenX: number;
   screenY: number;
+  entityBounds?: EntityBoundingBox | null;
 }
 
