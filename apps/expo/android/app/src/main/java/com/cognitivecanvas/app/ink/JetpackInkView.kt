@@ -90,9 +90,11 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
         )
     }
 
+    private val mainHandler = Handler(Looper.getMainLooper())
+
     private val gestureDetector = GestureShortcutDetector(
-        onUndoGesture = { undoStroke() },
-        onRedoGesture = { redoStroke() }
+        onUndoGesture = { mainHandler.post { undoStroke() } },
+        onRedoGesture = { mainHandler.post { redoStroke() } }
     )
 
     private val hoverManager = AirViewHoverManager(
@@ -332,15 +334,23 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
         val isBarrelPressed = stylusHandler.isBarrelButtonPressed(event)
         val isHardwareEraser = stylusHandler.isStylusEraser(event)
 
-        // 1. Evaluar navegación multitáctil ANTES de cualquier herramienta (incluyendo el Lazo)
+        // 1. Todos los toques con dedos (simples y multitáctiles) alimentan el detector de atajos gestuales
+        if (!isStylusTouch && !isHardwareEraser && !isBarrelPressed) {
+            gestureDetector.onTouchEvent(event)
+        }
+
+        // 2. Navegación multitáctil (Pinch-to-zoom y Paneo con 2 dedos) ANTES de herramientas
         if (!isStylusTouch && !isHardwareEraser && !isBarrelPressed && event.pointerCount >= 2) {
+            if (activeStrokeIds.isNotEmpty()) {
+                inProgressStrokesView.cancelUnfinishedStrokes()
+                activeStrokeIds.clear()
+            }
+            dwellHandler.removeCallbacks(dwellRunnable)
             if (isMomentaryLassoActive) {
                 isMomentaryLassoActive = false
             }
             transformManager.isUserInteracting = true
             isTwoFingerGesture = true
-            inProgressStrokesView.cancelUnfinishedStrokes()
-            activeStrokeIds.clear()
             transformManager.onTouchEvent(event)
             return true
         }
@@ -353,11 +363,6 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
                 transformManager.onTouchEvent(event)
             }
             return true
-        }
-
-        // Multi-finger gestures (undo/redo) strictly for fingers
-        if (!isStylusTouch && !isHardwareEraser && !isBarrelPressed) {
-            gestureDetector.onTouchEvent(event)
         }
 
         stylusHandler.checkBarrelButton(event)
@@ -384,7 +389,8 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
         }
 
         // Single Finger Tap detection (Word selection & Attribute Pin trigger)
-        if (!isStylusTouch && !isHardwareEraser && !isBarrelPressed && event.pointerCount == 1) {
+        // Desactivado completamente en modo borrador
+        if (!isStylusTouch && !isHardwareEraser && !isBarrelPressed && brushType != "eraser" && event.pointerCount == 1) {
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     fingerDownX = event.x
@@ -395,7 +401,7 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
                     val dist = hypot(event.x - fingerDownX, event.y - fingerDownY)
                     val elapsed = System.currentTimeMillis() - fingerDownTime
                     val density = context.resources.displayMetrics.density
-                    if (dist < 30f * density && elapsed < 500L && !isTwoFingerGesture && brushType != "pan") {
+                    if (dist < 30f * density && elapsed < 500L && !isTwoFingerGesture && brushType != "pan" && brushType != "eraser") {
                         val dpX = event.x / density
                         val dpY = event.y / density
                         val dpTx = transformManager.canvasTranslateX / density
@@ -404,7 +410,9 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
                         val worldX = (dpX - dpTx) / scale
                         val worldY = (dpY - dpTy) / scale
                         val cluster = findEntityClusterAt(worldX, worldY)
-                        eventEmitter.emitFingerTap(worldX, worldY, dpX, dpY, cluster)
+                        if (cluster != null) {
+                            eventEmitter.emitFingerTap(worldX, worldY, dpX, dpY, cluster)
+                        }
                     }
                 }
             }
@@ -530,7 +538,7 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
 
         // 5. Stylus rejection for drawing: ignore fingers when stylusOnly is active
         if (!stylusHandler.shouldAcceptDrawingTouch(event, 0)) {
-            return false
+            return true
         }
 
         // 6. Laser Pointer Tool
@@ -552,6 +560,9 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
         // 7. Regular Stroke Drawing (Pen / Marker / Highlighter / Shapes / Laser)
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
+                if (!stylusHandler.shouldAcceptDrawingTouch(event, 0)) {
+                    return true
+                }
                 isStrokeSnapped = false
                 val pointerId = event.getPointerId(0)
                 val brush = getOrCreateBrush()
