@@ -56,6 +56,7 @@ export interface PlacedAttribute {
   note: string;
   worldX: number;
   worldY: number;
+  entityBounds?: EntityBoundingBox;
 }
 
 export interface EntityBoundingBox {

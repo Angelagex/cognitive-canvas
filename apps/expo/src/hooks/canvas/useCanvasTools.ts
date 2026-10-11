@@ -5,7 +5,7 @@ import { getUserPreferences, saveUserPreferences } from "../../services/StorageS
 export const useCanvasTools = () => {
   const [activeBrush, setActiveBrush] = useState<BrushType>("pen");
   const [activeColor, setActiveColor] = useState<string>("#38BDF8");
-  const [activeWidth, setActiveWidth] = useState<number>(18);
+  const [activeWidth, setActiveWidth] = useState<number>(4.5);
   const [eraserMode, setEraserMode] = useState<EraserMode>("stroke");
   const [backgroundType, setBackgroundType] = useState<CanvasBackgroundType>("dot_grid");
   const [favoriteColors, setFavoriteColors] = useState<string[]>([

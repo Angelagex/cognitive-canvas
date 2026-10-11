@@ -56,12 +56,15 @@ export async function initializeDigitalInk(language = "es"): Promise<boolean> {
  * Captures high-resolution offscreen PNG bitmap from native Jetpack Ink view
  * @param scaleMultiplier Scaling factor (default 2.0x for crisp Retina/DPI output)
  */
-export async function exportHighResPng(scaleMultiplier = 2.0): Promise<HighResPngExportResult> {
+export async function exportHighResPng(
+  scaleMultiplier = 2.0,
+  fullDocument = false
+): Promise<HighResPngExportResult> {
   const { JetpackInkModule } = NativeModules;
   if (!JetpackInkModule?.exportHighResPng) {
     throw new Error("JetpackInkModule is not available on this platform.");
   }
-  return await JetpackInkModule.exportHighResPng({ scaleMultiplier });
+  return await JetpackInkModule.exportHighResPng({ scaleMultiplier, fullDocument });
 }
 
 /**

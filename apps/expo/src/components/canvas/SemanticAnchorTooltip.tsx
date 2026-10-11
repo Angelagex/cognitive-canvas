@@ -117,39 +117,77 @@ export const SemanticAnchorTooltip: React.FC<SemanticAnchorTooltipProps> = ({
     onModalOpen?.();
   };
 
-  // 1. Stage "icon": Compact semi-opaque floating trigger (ADR 3.1 & Ergonomic 2-step anchor)
+  // 1. Stage "icon": 3 Semantic Pills Micro-Menu (ADR V5 & Finger Tap)
   if (stage === "icon") {
-    const ICON_WIDTH = 48;
-    const ICON_HEIGHT = 48;
-    let iconLeft = screenX - ICON_WIDTH / 2;
-    let iconTop = screenY - ICON_HEIGHT - 12;
+    const MENU_WIDTH = 290;
+    const MENU_HEIGHT = 44;
+    let menuLeft = screenX - MENU_WIDTH / 2;
+    let menuTop = screenY - MENU_HEIGHT - 14;
 
-    // If an entity was recognized, place the icon directly at its top-right corner
+    // Position adjacent to entity if bounds exist
     if (entityBounds && canvasScale !== undefined && canvasTranslateX !== undefined && canvasTranslateY !== undefined) {
-      const entityRight = entityBounds.xmax * canvasScale + canvasTranslateX;
+      const entityCenterX = ((entityBounds.xmin + entityBounds.xmax) / 2) * canvasScale + canvasTranslateX;
       const entityTop = entityBounds.ymin * canvasScale + canvasTranslateY;
-      iconLeft = entityRight - ICON_WIDTH / 2;
-      iconTop = entityTop - ICON_HEIGHT - 8;
+      menuLeft = entityCenterX - MENU_WIDTH / 2;
+      menuTop = entityTop - MENU_HEIGHT - 12;
     }
 
-    // Ensure icon stays within bounds
-    iconLeft = Math.max(16, Math.min(windowWidth - ICON_WIDTH - 16, iconLeft));
-    iconTop = Math.max(65, Math.min(windowHeight - ICON_HEIGHT - 20, iconTop));
+    menuLeft = Math.max(16, Math.min(windowWidth - MENU_WIDTH - 16, menuLeft));
+    menuTop = Math.max(65, Math.min(windowHeight - MENU_HEIGHT - 20, menuTop));
 
     return (
       <TouchableWithoutFeedback onPress={onClose}>
         <View style={StyleSheet.absoluteFillObject} pointerEvents="box-none">
-          <TouchableOpacity
-            style={[styles.floatingAnchorBtn, { left: iconLeft, top: iconTop }]}
-            onPress={handleOpenModal}
-            activeOpacity={0.8}
-            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          {/* Subtle Focus Glow over recognized entity */}
+          {entityBounds && canvasScale !== undefined && canvasTranslateX !== undefined && canvasTranslateY !== undefined && (
+            <View
+              pointerEvents="none"
+              style={[
+                styles.focusGlow,
+                {
+                  left: entityBounds.xmin * canvasScale + canvasTranslateX - 4,
+                  top: entityBounds.ymin * canvasScale + canvasTranslateY - 4,
+                  width: (entityBounds.xmax - entityBounds.xmin) * canvasScale + 8,
+                  height: (entityBounds.ymax - entityBounds.ymin) * canvasScale + 8,
+                },
+              ]}
+            />
+          )}
+
+          {/* Micro-Menu with 3 Semantic Pills */}
+          <View
+            style={[
+              styles.microMenuContainer,
+              { left: menuLeft, top: menuTop },
+            ]}
           >
-            <View style={styles.floatingAnchorInner}>
-              <Text style={styles.floatingPlus}>＋</Text>
-              <Text style={styles.floatingPin}>📌</Text>
-            </View>
-          </TouchableOpacity>
+            {(Object.keys(TYPE_CONFIG) as PassiveAttributeType[]).map((t) => {
+              const conf = TYPE_CONFIG[t];
+              return (
+                <TouchableOpacity
+                  key={t}
+                  style={[
+                    styles.semanticPill,
+                    {
+                      backgroundColor: conf.bgActive,
+                      borderColor: conf.borderActive,
+                    },
+                  ]}
+                  onPress={() => {
+                    setSelectedType(t);
+                    setStage("modal");
+                    onModalOpen?.();
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.semanticPillIcon}>{conf.icon}</Text>
+                  <Text style={[styles.semanticPillText, { color: conf.color }]}>
+                    {conf.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
         </View>
       </TouchableWithoutFeedback>
     );
@@ -364,6 +402,46 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: "#94A3B8",
     fontWeight: "500",
+  },
+  focusGlow: {
+    position: "absolute",
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: "rgba(56, 189, 248, 0.45)",
+    backgroundColor: "rgba(56, 189, 248, 0.08)",
+  },
+  microMenuContainer: {
+    position: "absolute",
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(15, 23, 42, 0.92)",
+    borderRadius: 22,
+    paddingHorizontal: 6,
+    paddingVertical: 5,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.12)",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 10,
+    elevation: 8,
+    gap: 6,
+  },
+  semanticPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    gap: 4,
+  },
+  semanticPillIcon: {
+    fontSize: 13,
+  },
+  semanticPillText: {
+    fontSize: 11,
+    fontWeight: "700",
   },
   floatingAnchorBtn: {
     position: "absolute",

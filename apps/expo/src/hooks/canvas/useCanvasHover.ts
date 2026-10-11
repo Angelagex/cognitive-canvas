@@ -208,8 +208,20 @@ export const useCanvasHover = ({
   }, []);
 
   const handleHoverTimeout = useCallback(
-    (_event: NativeSyntheticEvent<HoverTimeoutEvent>) => {
-      // Hover dwell no longer shows the intrusive floating pin.
+    (event: NativeSyntheticEvent<HoverTimeoutEvent>) => {
+      const { worldX, worldY, screenX, screenY, entityBounds } = event.nativeEvent;
+      if (entityBounds) {
+        setActiveAnchorEntity(null);
+        setActiveEntityBounds(entityBounds);
+        setIsAnchorModalOpen(false);
+        setAnchorTooltip({
+          visible: true,
+          screenX,
+          screenY,
+          worldX,
+          worldY,
+        });
+      }
     },
     []
   );
@@ -219,6 +231,16 @@ export const useCanvasHover = ({
       const { worldX, worldY, screenX, screenY } = event.nativeEvent;
 
       const tappedAttr = placedAttributes.find((attr) => {
+        if (attr.entityBounds) {
+          const pinLeft = attr.entityBounds.xmax * canvasScale + canvasTranslateX - 4;
+          const pinTop = attr.entityBounds.ymin * canvasScale + canvasTranslateY - 12;
+          const isPinHit =
+            screenX >= pinLeft - 12 &&
+            screenX <= pinLeft + 30 &&
+            screenY >= pinTop - 12 &&
+            screenY <= pinTop + 30;
+          if (isPinHit) return true;
+        }
         const attrScreenX = attr.worldX * canvasScale + canvasTranslateX;
         const attrScreenY = attr.worldY * canvasScale + canvasTranslateY;
         const baseWidth = Math.max(120, attr.title.length * 8 + 36);
@@ -313,6 +335,7 @@ export const useCanvasHover = ({
         note,
         worldX,
         worldY,
+        entityBounds: activeEntityBounds || undefined,
       };
       setPlacedAttributes((prev) => [...prev, newAttr]);
       markDirty();
@@ -321,7 +344,7 @@ export const useCanvasHover = ({
       setActiveEntityBounds(null);
       setIsAnchorModalOpen(false);
     },
-    [setPlacedAttributes, markDirty]
+    [activeEntityBounds, setPlacedAttributes, markDirty]
   );
 
   return {

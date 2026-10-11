@@ -71,6 +71,7 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
     private val strokeEraser = StrokeEraser()
     private val shapeDetector = com.cognitivecanvas.app.ink.tools.ShapeDetector()
     private val lassoManager = com.cognitivecanvas.app.ink.tools.LassoSelectionManager()
+    private var isMomentaryLassoActive = false
     private val spatialGrid = SpatialHashGrid(cellSize = 64f)
     val stylusHandler = StylusInputHandler(stylusOnly = true) { x, y ->
         notifyBarrelButton(x, y)
@@ -324,44 +325,77 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
     }
 
     private fun isScratchOutStroke(stroke: Stroke): Boolean {
+        // 1. Precondición de Sustrato: debe haber trazos completados con solapamiento real debajo
+        if (completedStrokes.isEmpty()) return false
+        val scratchBounds = getStrokeBounds(stroke) ?: return false
+        val candidates = spatialGrid.query(scratchBounds)
+        if (candidates.isEmpty()) return false
+
+        val scale = transformManager.canvasScale.coerceAtLeast(0.1f)
+        val density = context.resources.displayMetrics.density
+        val scaleDensity = density * scale
+
+        var hasSubstrateOverlap = false
+        val minOverlap = (4f / scale).coerceIn(1.5f, 6f)
+        for (other in candidates) {
+            if (other === stroke) continue
+            val b = getStrokeBounds(other) ?: continue
+            val interLeft = maxOf(scratchBounds.left, b.left)
+            val interRight = minOf(scratchBounds.right, b.right)
+            val interTop = maxOf(scratchBounds.top, b.top)
+            val interBottom = minOf(scratchBounds.bottom, b.bottom)
+            if (interRight > interLeft && interBottom > interTop) {
+                val interW = interRight - interLeft
+                val interH = interBottom - interTop
+                // Solapamiento físico significativo adaptado a la escala
+                if (interW >= minOverlap && interH >= minOverlap) {
+                    hasSubstrateOverlap = true
+                    break
+                }
+            }
+        }
+        if (!hasSubstrateOverlap) return false
+
         val inputs = stroke.inputs
         val count = inputs.size
-        if (count < 6) return false
+        if (count < 8) return false
 
-        val density = context.resources.displayMetrics.density
         var minX = Float.MAX_VALUE
         var maxX = -Float.MAX_VALUE
         var minY = Float.MAX_VALUE
         var maxY = -Float.MAX_VALUE
 
-        var totalLength = 0f
+        var totalLengthWorldDp = 0f
         var xReversals = 0
         var yReversals = 0
         var prevDx = 0f
         var prevDy = 0f
 
-        val minDelta = 4f * density // 4dp movement threshold to filter jitter
+        val minDeltaWorldDp = 4f // 4dp movement threshold in world space to filter jitter invariant to zoom
 
         for (i in 0 until count) {
             val pt = inputs.get(i)
-            if (pt.x < minX) minX = pt.x
-            if (pt.x > maxX) maxX = pt.x
-            if (pt.y < minY) minY = pt.y
-            if (pt.y > maxY) maxY = pt.y
+            // Proyección a coordenadas de mundo (dp) normalizadas por escala
+            val px = pt.x / scaleDensity
+            val py = pt.y / scaleDensity
+            if (px < minX) minX = px
+            if (px > maxX) maxX = px
+            if (py < minY) minY = py
+            if (py > maxY) maxY = py
 
             if (i > 0) {
                 val prevPt = inputs.get(i - 1)
-                val dx = pt.x - prevPt.x
-                val dy = pt.y - prevPt.y
-                totalLength += kotlin.math.hypot(dx, dy)
+                val dx = (pt.x - prevPt.x) / scaleDensity
+                val dy = (pt.y - prevPt.y) / scaleDensity
+                totalLengthWorldDp += kotlin.math.hypot(dx, dy)
 
-                if (kotlin.math.abs(dx) >= minDelta) {
+                if (kotlin.math.abs(dx) >= minDeltaWorldDp) {
                     if (prevDx != 0f && (dx > 0) != (prevDx > 0)) {
                         xReversals++
                     }
                     prevDx = dx
                 }
-                if (kotlin.math.abs(dy) >= minDelta) {
+                if (kotlin.math.abs(dy) >= minDeltaWorldDp) {
                     if (prevDy != 0f && (dy > 0) != (prevDy > 0)) {
                         yReversals++
                     }
@@ -370,15 +404,22 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
             }
         }
 
-        val widthDp = (maxX - minX) / density
-        val heightDp = (maxY - minY) / density
-        val totalLengthDp = totalLength / density
+        // 2. Incrementar Reversiones de Dirección: mínimo 5 reversiones en X o en Y
+        if (xReversals < 5 && yReversals < 5) return false
 
-        // A scratch-out has at least 3 direction reversals (zigzag)
-        val isHorizontalZigZag = xReversals >= 3 && totalLengthDp >= 45f && widthDp >= 20f
-        val isVerticalZigZag = yReversals >= 3 && totalLengthDp >= 45f && heightDp >= 20f
+        val widthWorldDp = maxX - minX
+        if (totalLengthWorldDp < 45f) return false
 
-        return isHorizontalZigZag || isVerticalZigZag
+        // 3. Filtro de Tortuosidad (Densidad de Tinta): totalLength / boxDiag >= 4.5f
+        val boxDiag = kotlin.math.hypot(maxX - minX, maxY - minY)
+        if (boxDiag <= 0.001f) return false
+        val tortuosity = totalLengthWorldDp / boxDiag
+        if (tortuosity < 4.5f) return false
+
+        // 4. Filtro de Regresión Horizontal: ancho de la caja pequeño comparado con recorrido total
+        if (widthWorldDp > totalLengthWorldDp * 0.28f) return false
+
+        return true
     }
 
     private fun handleScratchOut(scratchStroke: Stroke): Boolean {
@@ -417,10 +458,11 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
         val strokesToDelete = mutableSetOf<Stroke>()
         strokesToDelete.addAll(hitStrokes)
 
-        // Cluster proximity: any strokes within 40dp of hit strokes belong to the same entity
+        // Cluster proximity: bounded dynamically (max 15dp) to avoid erasing neighboring words
         val queue = ArrayDeque<Stroke>()
         queue.addAll(hitStrokes)
-        val clusterProximity = 40f
+        val scratchHeight = scratchBounds.bottom - scratchBounds.top
+        val clusterProximity = minOf(15f, maxOf(6f, scratchHeight * 0.35f))
 
         while (queue.isNotEmpty()) {
             val curr = queue.removeFirst()
@@ -738,10 +780,31 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
         val isStylusTouch = (0 until event.pointerCount).any {
             stylusHandler.isStylus(event, it)
         }
-        val isHardwareEraser = stylusHandler.isStylusEraser(event) || stylusHandler.isBarrelButtonPressed(event)
+        val isBarrelPressed = stylusHandler.isBarrelButtonPressed(event)
+        val isHardwareEraser = stylusHandler.isStylusEraser(event)
+
+        // S-Pen Barrel button momentary lasso activation and touch-down handling
+        if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+            if (isBarrelPressed) {
+                isMomentaryLassoActive = true
+                if (activeStrokeIds.isNotEmpty()) {
+                    inProgressStrokesView.cancelUnfinishedStrokes()
+                    activeStrokeIds.clear()
+                }
+            } else if (isMomentaryLassoActive) {
+                val worldX = (event.x - transformManager.canvasTranslateX) / transformManager.canvasScale
+                val worldY = (event.y - transformManager.canvasTranslateY) / transformManager.canvasScale
+                if (!lassoManager.isHandlingSelection(worldX, worldY, transformManager.canvasScale)) {
+                    lassoManager.clearSelection()
+                    isMomentaryLassoActive = false
+                    postInvalidateOnAnimation()
+                    notifySelectionChanged(false, 0)
+                }
+            }
+        }
 
         // Single Finger Tap detection (Word selection & Attribute Pin trigger)
-        if (!isStylusTouch && !isHardwareEraser && event.pointerCount == 1) {
+        if (!isStylusTouch && !isHardwareEraser && !isBarrelPressed && event.pointerCount == 1) {
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     fingerDownX = event.x
@@ -768,7 +831,7 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
 
         // Multi-finger gestures (undo/redo, canvas pinch & pan) are STRICTLY for finger touches!
         // Never allow a stylus or barrel button event to feed the scale or gesture detectors.
-        if (!isStylusTouch && !isHardwareEraser) {
+        if (!isStylusTouch && !isHardwareEraser && !isBarrelPressed) {
             gestureDetector.onTouchEvent(event)
             transformManager.onTouchEvent(event)
         }
@@ -777,7 +840,7 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
         stylusHandler.checkBarrelButton(event)
 
         // 1. Two-finger Gestures (Infinite Canvas Pinch-to-Zoom & Pan)
-        if (!isStylusTouch && !isHardwareEraser && event.pointerCount >= 2) {
+        if (!isStylusTouch && !isHardwareEraser && !isBarrelPressed && event.pointerCount >= 2) {
             transformManager.isUserInteracting = true
             if (!isTwoFingerGesture) {
                 isTwoFingerGesture = true
@@ -814,7 +877,7 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
             return true
         }
 
-        // 3. Eraser Mode (or S-Pen barrel button held down)
+        // 3. Eraser Mode (Hardware tail eraser or explicit UI eraser)
         if (brushType == "eraser" || isHardwareEraser) {
             // Cancel any pending wet strokes if we switched into eraser mid-stroke
             if (activeStrokeIds.isNotEmpty()) {
@@ -852,14 +915,20 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
             return true
         }
 
-        // 4. Lasso Selection Mode
-        if (brushType == "lasso") {
+        // 4. Lasso Selection Mode (UI tool or S-Pen barrel button momentary lasso)
+        val isLassoActive = brushType == "lasso" || isMomentaryLassoActive || isBarrelPressed
+        if (isLassoActive) {
+            if (activeStrokeIds.isNotEmpty()) {
+                inProgressStrokesView.cancelUnfinishedStrokes()
+                activeStrokeIds.clear()
+            }
+
             val worldX = (event.x - transformManager.canvasTranslateX) / transformManager.canvasScale
             val worldY = (event.y - transformManager.canvasTranslateY) / transformManager.canvasScale
 
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
-                    lassoManager.onTouchDown(worldX, worldY)
+                    lassoManager.onTouchDown(worldX, worldY, transformManager.canvasScale)
                     postInvalidateOnAnimation()
                     return true
                 }
@@ -900,6 +969,10 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
                             }
                         }
                     )
+                    // Retain momentary lasso active while selection persists so user can drag strokes
+                    if (isMomentaryLassoActive && !hasSelection) {
+                        isMomentaryLassoActive = false
+                    }
                     postInvalidateOnAnimation()
                     notifySelectionChanged(hasSelection, lassoManager.selectedStrokes.size)
                     return true
@@ -1571,9 +1644,51 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
         )
     }
 
-    fun captureBitmap(scaleMultiplier: Float = 2.0f): Bitmap {
+    fun captureBitmap(scaleMultiplier: Float = 2.0f, fullDocument: Boolean = false): Bitmap {
         val targetW = (width.coerceAtLeast(1) * scaleMultiplier).toInt()
         val targetH = (height.coerceAtLeast(1) * scaleMultiplier).toInt()
+        val viewW = width.coerceAtLeast(1).toFloat()
+        val viewH = height.coerceAtLeast(1).toFloat()
+
+        // Compute render matrix: Global Bounding Box framing with 40dp padding if fullDocument, else Viewport
+        val renderMatrix: Matrix = if (fullDocument && completedStrokes.isNotEmpty()) {
+            var minX = Float.MAX_VALUE
+            var maxX = -Float.MAX_VALUE
+            var minY = Float.MAX_VALUE
+            var maxY = -Float.MAX_VALUE
+
+            for (stroke in completedStrokes) {
+                val b = getStrokeBounds(stroke) ?: continue
+                if (b.left < minX) minX = b.left
+                if (b.right > maxX) maxX = b.right
+                if (b.top < minY) minY = b.top
+                if (b.bottom > maxY) maxY = b.bottom
+            }
+
+            if (minX < maxX && minY < maxY) {
+                val padding = 40f
+                val contentLeft = minX - padding
+                val contentTop = minY - padding
+                val contentRight = maxX + padding
+                val contentBottom = maxY + padding
+                val contentW = (contentRight - contentLeft).coerceAtLeast(50f)
+                val contentH = (contentBottom - contentTop).coerceAtLeast(50f)
+
+                val fitScale = minOf(viewW / contentW, viewH / contentH)
+                val offsetX = (viewW - contentW * fitScale) / 2f
+                val offsetY = (viewH - contentH * fitScale) / 2f
+
+                Matrix().apply {
+                    postTranslate(-contentLeft, -contentTop)
+                    postScale(fitScale, fitScale)
+                    postTranslate(offsetX, offsetY)
+                }
+            } else {
+                transformManager.getRenderMatrix()
+            }
+        } else {
+            transformManager.getRenderMatrix()
+        }
 
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
             try {
@@ -1583,7 +1698,6 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
                 val canvas = renderNode.beginRecording(targetW, targetH)
                 canvas.drawColor(Color.parseColor("#090D16"))
                 canvas.scale(scaleMultiplier, scaleMultiplier)
-                val renderMatrix = transformManager.getRenderMatrix()
                 canvas.save()
                 canvas.concat(renderMatrix)
                 drawBackgroundPattern(canvas)
@@ -1638,7 +1752,15 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
         val canvas = Canvas(fallbackBitmap)
         canvas.drawColor(Color.parseColor("#090D16"))
         canvas.scale(scaleMultiplier, scaleMultiplier)
+        canvas.save()
+        canvas.concat(renderMatrix)
         drawBackgroundPattern(canvas)
+        viewStrokeRenderer.drawWithStrokes(canvas) { scope ->
+            for (stroke in completedStrokes) {
+                scope.drawStroke(stroke)
+            }
+        }
+        canvas.restore()
         return fallbackBitmap
     }
 }

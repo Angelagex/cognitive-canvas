@@ -133,11 +133,17 @@ class JetpackInkModule(private val reactContext: ReactApplicationContext) :
             2.0f
         }
 
+        val fullDocument = if (options?.hasKey("fullDocument") == true) {
+            options.getBoolean("fullDocument")
+        } else {
+            false
+        }
+
         Handler(Looper.getMainLooper()).post {
             try {
                 var bitmap: Bitmap? = null
                 try {
-                    bitmap = inkView.captureBitmap(scaleMultiplier)
+                    bitmap = inkView.captureBitmap(scaleMultiplier, fullDocument)
                 } catch (e: Exception) {
                     android.util.Log.w("JetpackInkModule", "captureBitmap threw exception: ${e.message}", e)
                 }

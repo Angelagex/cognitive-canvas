@@ -55,6 +55,10 @@ export const PlacedAttributeBadges: React.FC<PlacedAttributeBadgesProps> = ({
           borderColor: "#818CF8",
           textColor: "#C7D2FE",
           label: "Analogía",
+          underGlowColor: "rgba(168, 85, 247, 0.12)",
+          underGlowBorder: "rgba(168, 85, 247, 0.35)",
+          pinBg: "#3B0764",
+          pinBorder: "#C084FC",
         };
       case "CAUSAL_MECHANISM":
         return {
@@ -63,24 +67,90 @@ export const PlacedAttributeBadges: React.FC<PlacedAttributeBadgesProps> = ({
           borderColor: "#38BDF8",
           textColor: "#BAE6FD",
           label: "Mecanismo Causal",
+          underGlowColor: "rgba(56, 189, 248, 0.12)",
+          underGlowBorder: "rgba(56, 189, 248, 0.35)",
+          pinBg: "#0C4A6E",
+          pinBorder: "#38BDF8",
         };
       case "EVIDENCE":
         return {
-          icon: "🔬",
+          icon: "📊",
           bgColor: "#064E3B",
           borderColor: "#34D399",
           textColor: "#A7F3D0",
           label: "Evidencia Empírica",
+          underGlowColor: "rgba(251, 191, 36, 0.12)",
+          underGlowBorder: "rgba(251, 191, 36, 0.35)",
+          pinBg: "#78350F",
+          pinBorder: "#FBBF24",
         };
     }
   };
 
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+      {/* 1. Permanent Under-Glow Shading beneath entities (ADR V5 Section E) */}
       {attributes.map((attr) => {
+        if (!attr.entityBounds) return null;
+        const styleInfo = getAttributeStyle(attr.type);
+        const DILATION = 12;
+        const left = (attr.entityBounds.xmin - DILATION) * canvasScale + canvasTranslateX;
+        const top = (attr.entityBounds.ymin - DILATION) * canvasScale + canvasTranslateY;
+        const width = (attr.entityBounds.xmax - attr.entityBounds.xmin + DILATION * 2) * canvasScale;
+        const height = (attr.entityBounds.ymax - attr.entityBounds.ymin + DILATION * 2) * canvasScale;
+
+        return (
+          <View
+            key={`underglow_${attr.id}`}
+            pointerEvents="none"
+            style={[
+              styles.underGlowCapsule,
+              {
+                left,
+                top,
+                width: Math.max(24, width),
+                height: Math.max(24, height),
+                backgroundColor: styleInfo.underGlowColor,
+                borderColor: styleInfo.underGlowBorder,
+              },
+            ]}
+          />
+        );
+      })}
+
+      {/* 2. Semantic Anchor Pins and Badges */}
+      {attributes.map((attr) => {
+        const styleInfo = getAttributeStyle(attr.type);
+
+        // If entity bounds exist, anchor an 18-22dp pin at the top-right of the entity
+        if (attr.entityBounds) {
+          const pinLeft = attr.entityBounds.xmax * canvasScale + canvasTranslateX - 4;
+          const pinTop = attr.entityBounds.ymin * canvasScale + canvasTranslateY - 12;
+
+          return (
+            <TouchableOpacity
+              key={`pin_${attr.id}`}
+              style={[
+                styles.anchorPinBtn,
+                {
+                  left: pinLeft,
+                  top: pinTop,
+                  backgroundColor: styleInfo.pinBg,
+                  borderColor: styleInfo.pinBorder,
+                },
+              ]}
+              onPress={() => setSelectedAttr(attr)}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.anchorPinIcon}>{styleInfo.icon}</Text>
+            </TouchableOpacity>
+          );
+        }
+
+        // Fallback for legacy placed attributes without entityBounds
         const screenX = attr.worldX * canvasScale + canvasTranslateX;
         const screenY = attr.worldY * canvasScale + canvasTranslateY;
-        const styleInfo = getAttributeStyle(attr.type);
         const isHovered = hoveredAttribute?.id === attr.id;
         const isAnchoring = activeAnchorEntityId === attr.id;
         const hasHalo = isHovered || isAnchoring;
@@ -97,7 +167,6 @@ export const PlacedAttributeBadges: React.FC<PlacedAttributeBadgesProps> = ({
               },
             ]}
           >
-            {/* Halo Perimetral / Resplandor Neón */}
             {hasHalo && <View style={styles.haloAura} pointerEvents="none" />}
 
             <Pressable
@@ -121,69 +190,6 @@ export const PlacedAttributeBadges: React.FC<PlacedAttributeBadgesProps> = ({
                 {attr.title}
               </Text>
             </Pressable>
-          </View>
-        );
-      })}
-
-      {/* Halo Perimetral / Resplandor Neón sobre la palabra o entidad completa */}
-      {(() => {
-        const bounds = activeEntityBounds || hoveredEntityBounds;
-        if (!bounds) return null;
-
-        const left = bounds.xmin * canvasScale + canvasTranslateX;
-        const top = bounds.ymin * canvasScale + canvasTranslateY;
-        const width = (bounds.xmax - bounds.xmin) * canvasScale;
-        const height = (bounds.ymax - bounds.ymin) * canvasScale;
-
-        return (
-          <View
-            pointerEvents="none"
-            style={[
-              styles.wordEntityHalo,
-              {
-                left,
-                top,
-                width,
-                height,
-              },
-            ]}
-          >
-            <View style={styles.wordEntityInnerBorder} />
-            {hoveredEntity && (
-              <View style={styles.entityTagBadge}>
-                <Text style={styles.entityTagText}>
-                  {hoveredEntity.type === "CONTAINER_BOX" ? "📦 CAJA" : "🏷️ " + hoveredEntity.type} • {hoveredEntity.stroke_ids.length} trazos
-                </Text>
-              </View>
-            )}
-          </View>
-        );
-      })()}
-
-      {/* Resaltado de Nodos / Trazos NO Agrupados dentro de la Entidad (Debug de Agrupamiento) */}
-      {unclusteredStrokesInEntity && unclusteredStrokesInEntity.map((unclustered) => {
-        const left = unclustered.bbox.xmin * canvasScale + canvasTranslateX;
-        const top = unclustered.bbox.ymin * canvasScale + canvasTranslateY;
-        const width = (unclustered.bbox.xmax - unclustered.bbox.xmin) * canvasScale;
-        const height = (unclustered.bbox.ymax - unclustered.bbox.ymin) * canvasScale;
-
-        return (
-          <View
-            key={`unclustered_${unclustered.id}`}
-            pointerEvents="none"
-            style={[
-              styles.unclusteredStrokeHalo,
-              {
-                left,
-                top,
-                width: Math.max(18, width),
-                height: Math.max(18, height),
-              },
-            ]}
-          >
-            <View style={styles.unclusteredTagBadge}>
-              <Text style={styles.unclusteredTagText}>⚠️ No agrupado</Text>
-            </View>
           </View>
         );
       })}
@@ -285,6 +291,30 @@ export const PlacedAttributeBadges: React.FC<PlacedAttributeBadgesProps> = ({
 };
 
 const styles = StyleSheet.create({
+  underGlowCapsule: {
+    position: "absolute",
+    borderRadius: 16,
+    borderWidth: 1.5,
+    zIndex: 1,
+  },
+  anchorPinBtn: {
+    position: "absolute",
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.35,
+    shadowRadius: 4,
+    elevation: 8,
+    zIndex: 10,
+  },
+  anchorPinIcon: {
+    fontSize: 12,
+  },
   badgeWrapper: {
     position: "absolute",
     zIndex: 5,

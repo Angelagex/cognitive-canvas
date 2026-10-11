@@ -364,8 +364,8 @@ export async function compileCognitiveMap(params: CompileParams): Promise<Cognit
       if (!imageBase64) {
         console.log(`[CompilationService] 📸 Capturando imagen PNG en alta resolución del lienzo...`);
         try {
-          const capture = await exportHighResPng(1.0);
-          console.log(`[CompilationService] 📸 Resultado exportHighResPng:`, capture);
+          const capture = await exportHighResPng(1.0, true);
+          console.log(`[CompilationService] 📸 Resultado exportHighResPng (fullDocument):`, capture);
 
           if (capture?.uri) {
             imageBase64 = await FileSystem.readAsStringAsync(capture.uri, {

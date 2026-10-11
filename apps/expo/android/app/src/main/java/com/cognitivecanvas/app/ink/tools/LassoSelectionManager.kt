@@ -53,15 +53,15 @@ class LassoSelectionManager {
         isAntiAlias = true
     }
 
-    fun isHandlingSelection(worldX: Float, worldY: Float): Boolean {
+    fun isHandlingSelection(worldX: Float, worldY: Float, canvasScale: Float = 1.0f): Boolean {
         val bounds = selectionBounds ?: return false
-        val padding = 20f
+        val padding = (20f / canvasScale.coerceAtLeast(0.1f)).coerceIn(10f, 32f)
         return worldX >= bounds.left - padding && worldX <= bounds.right + padding &&
                worldY >= bounds.top - padding && worldY <= bounds.bottom + padding
     }
 
-    fun onTouchDown(worldX: Float, worldY: Float): Boolean {
-        if (selectedStrokes.isNotEmpty() && isHandlingSelection(worldX, worldY)) {
+    fun onTouchDown(worldX: Float, worldY: Float, canvasScale: Float = 1.0f): Boolean {
+        if (selectedStrokes.isNotEmpty() && isHandlingSelection(worldX, worldY, canvasScale)) {
             // Touch landed inside active selection -> begin dragging strokes
             isDraggingSelection = true
             lastDragX = worldX
