@@ -291,14 +291,14 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
                         }
                     }
                     undoneStrokes.clear()
+                    synchronized(strokesToHandOff) {
+                        strokesToHandOff.addAll(strokes.keys)
+                    }
                     postInvalidateOnAnimation()
                     eventEmitter.emitStrokeStatsImmediate(completedStrokes.size, completedStrokes.isNotEmpty(), undoneStrokes.isNotEmpty())
                     strokeFinishDebounceHandler.removeCallbacks(strokeFinishDebounceRunnable)
                     strokeFinishDebounceHandler.postDelayed(strokeFinishDebounceRunnable, 120L)
                 }
-
-                // Liberar el buffer de la vista en progreso para evitar trazos fantasma
-                inProgressStrokesView.removeFinishedStrokes(strokes.keys)
             }
         })
     }
@@ -701,6 +701,16 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
                 }
             }
             canvas.restore()
+        }
+
+        // Handoff sincronizado: liberar trazos en progreso una vez garantizado su renderizado en completedStrokes
+        if (strokesToHandOff.isNotEmpty()) {
+            val toRemove = synchronized(strokesToHandOff) {
+                val copy = HashSet(strokesToHandOff)
+                strokesToHandOff.clear()
+                copy
+            }
+            inProgressStrokesView.removeFinishedStrokes(toRemove)
         }
 
         // 3. Draw Ephemeral Laser Strokes & Laser Pointer Head
