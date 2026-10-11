@@ -118,8 +118,15 @@ export const useCanvasState = () => {
   }, [ast.selectionBounds, hover.openAnchorModalForBounds]);
 
   const handleSaveAnchorTooltipWithLassoClear = useCallback(
-    (type: PassiveAttributeType, title: string, note: string, worldX: number, worldY: number) => {
-      hover.handleSaveAnchorTooltip(type, title, note, worldX, worldY);
+    (
+      type: PassiveAttributeType,
+      title: string,
+      note: string,
+      worldX: number,
+      worldY: number,
+      strokeIds?: string[]
+    ) => {
+      hover.handleSaveAnchorTooltip(type, title, note, worldX, worldY, strokeIds);
       if (ast.hasSelection) {
         ast.handleClearSelection();
       }

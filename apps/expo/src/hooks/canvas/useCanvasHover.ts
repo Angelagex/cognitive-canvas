@@ -54,6 +54,7 @@ export const useCanvasHover = ({
     worldX: number;
     worldY: number;
     initialStage?: "icon" | "modal";
+    strokeIds?: string[];
   } | null>(null);
 
   const handleHover = useCallback((event: NativeSyntheticEvent<HoverEvent>) => {
@@ -271,6 +272,7 @@ export const useCanvasHover = ({
       }
 
       let matchedBounds: EntityBoundingBox | null = null;
+      let matchedStrokeIds: string[] = [];
       const zoomFactor = 1.0 / (canvasScale || 1.0);
       const hitTolerance = Math.max(40, 40 * zoomFactor);
 
@@ -304,6 +306,9 @@ export const useCanvasHover = ({
             xmax: bestEntity.bbox.xmax,
             ymax: bestEntity.bbox.ymax,
           };
+          if (bestEntity.stroke_ids) {
+            matchedStrokeIds = [...bestEntity.stroke_ids];
+          }
         }
       }
 
@@ -321,7 +326,7 @@ export const useCanvasHover = ({
 
       // 5. Check cached stroke bounding boxes
       if (!matchedBounds && strokeBBoxesRef.current && strokeBBoxesRef.current.size > 0) {
-        for (const bbox of strokeBBoxesRef.current.values()) {
+        for (const [sId, bbox] of strokeBBoxesRef.current.entries()) {
           const isInside =
             worldX >= bbox.xmin - hitTolerance &&
             worldX <= bbox.xmax + hitTolerance &&
@@ -329,6 +334,7 @@ export const useCanvasHover = ({
             worldY <= bbox.ymax + hitTolerance;
           if (isInside) {
             matchedBounds = bbox;
+            matchedStrokeIds = [sId];
             break;
           }
         }
@@ -424,13 +430,15 @@ export const useCanvasHover = ({
                 xmax: cMaxX + pad,
                 ymax: cMaxY + pad,
               };
+              matchedStrokeIds = Array.from(cluster)
+                .map((s: any) => s.id || s.strokeId)
+                .filter(Boolean);
             }
           }
         } catch (_) {}
       }
 
-      // 7. ALWAYS reveal the 3 Semantic Pills micro-menu on single-finger tap!
-      // If matchedBounds is found, anchor to it with entity focus glow; if not, anchor directly to tap position.
+      // 7. Reveal the minimalist Atributo floating pill on single-finger tap!
       setActiveAnchorEntity(null);
       setActiveEntityBounds(matchedBounds || null);
       setIsAnchorModalOpen(false);
@@ -440,6 +448,7 @@ export const useCanvasHover = ({
         screenY,
         worldX,
         worldY,
+        strokeIds: matchedStrokeIds.length > 0 ? matchedStrokeIds : undefined,
       });
     },
     [placedAttributes, canvasScale, canvasTranslateX, canvasTranslateY, visualAST, hoveredEntityBounds, isAnchorModalOpen, strokeBBoxesRef, strokesRef]
@@ -462,6 +471,7 @@ export const useCanvasHover = ({
 
   const handleAnchorModalOpen = useCallback(() => {
     setIsAnchorModalOpen(true);
+    setActiveAnchorEntity(null);
   }, []);
 
   const openAnchorModalForBounds = useCallback(
@@ -488,7 +498,14 @@ export const useCanvasHover = ({
   );
 
   const handleSaveAnchorTooltip = useCallback(
-    (type: PassiveAttributeType, title: string, note: string, worldX: number, worldY: number) => {
+    (
+      type: PassiveAttributeType,
+      title: string,
+      note: string,
+      worldX: number,
+      worldY: number,
+      strokeIds?: string[]
+    ) => {
       const newAttr: PlacedAttribute = {
         id: `attr-${Date.now()}`,
         type,
@@ -497,6 +514,7 @@ export const useCanvasHover = ({
         worldX,
         worldY,
         entityBounds: activeEntityBounds || undefined,
+        strokeIds: strokeIds || anchorTooltip?.strokeIds || undefined,
       };
       setPlacedAttributes((prev) => [...prev, newAttr]);
       markDirty();
@@ -505,7 +523,7 @@ export const useCanvasHover = ({
       setActiveEntityBounds(null);
       setIsAnchorModalOpen(false);
     },
-    [activeEntityBounds, setPlacedAttributes, markDirty]
+    [activeEntityBounds, anchorTooltip, setPlacedAttributes, markDirty]
   );
 
   return {

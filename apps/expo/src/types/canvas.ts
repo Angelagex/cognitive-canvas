@@ -124,6 +124,7 @@ export interface PlacedAttribute {
   worldX: number;
   worldY: number;
   entityBounds?: EntityBoundingBox;
+  strokeIds?: string[];
 }
 
 export interface EntityBoundingBox {

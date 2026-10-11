@@ -250,7 +250,7 @@ export default function App() {
           onBadgeHover={handleBadgeHover}
         />
 
-        {/* Tooltip flotante contextual de Anclaje Semántico (Hover Dwell 800ms) */}
+        {/* Tooltip flotante contextual de Anclaje Semántico */}
         {anchorTooltip?.visible && (
           <SemanticAnchorTooltip
             visible={anchorTooltip.visible}
@@ -260,6 +260,7 @@ export default function App() {
             worldY={anchorTooltip.worldY}
             initialStage={anchorTooltip.initialStage}
             entityBounds={activeEntityBounds}
+            strokeIds={anchorTooltip.strokeIds}
             canvasScale={canvasScale}
             canvasTranslateX={canvasTranslateX}
             canvasTranslateY={canvasTranslateY}

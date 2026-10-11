@@ -16,6 +16,7 @@ import {
   Mic,
   Check,
   X,
+  Tag,
 } from "@sketchyicons/react-native";
 import { PassiveAttributeType, EntityBoundingBox } from "../../types/canvas";
 
@@ -27,6 +28,7 @@ export interface SemanticAnchorTooltipProps {
   worldY: number;
   initialStage?: "icon" | "modal";
   entityBounds?: EntityBoundingBox | null;
+  strokeIds?: string[];
   canvasScale?: number;
   canvasTranslateX?: number;
   canvasTranslateY?: number;
@@ -36,7 +38,8 @@ export interface SemanticAnchorTooltipProps {
     title: string,
     note: string,
     worldX: number,
-    worldY: number
+    worldY: number,
+    strokeIds?: string[]
   ) => void;
   onClose: () => void;
 }
@@ -87,6 +90,7 @@ export const SemanticAnchorTooltip: React.FC<SemanticAnchorTooltipProps> = ({
   worldY,
   initialStage = "icon",
   entityBounds,
+  strokeIds,
   canvasScale,
   canvasTranslateX,
   canvasTranslateY,
@@ -117,7 +121,7 @@ export const SemanticAnchorTooltip: React.FC<SemanticAnchorTooltipProps> = ({
   const handleSave = () => {
     const finalTitle = activeConfig.defaultTitle;
     const finalNote = note.trim() || (hasAudioRecorded ? "🎙️ [Nota de voz grabada para auditoría GRINDE]" : "Anotación conceptual");
-    onSave(selectedType, finalTitle, finalNote, worldX, worldY);
+    onSave(selectedType, finalTitle, finalNote, worldX, worldY, strokeIds);
     onClose();
   };
 
@@ -136,10 +140,10 @@ export const SemanticAnchorTooltip: React.FC<SemanticAnchorTooltipProps> = ({
     onModalOpen?.();
   };
 
-  // 1. Stage "icon": 3 Semantic Pills Micro-Menu (ADR V5 & Finger Tap)
+  // 1. Stage "icon": Minimalist Unified Floating Pill (ADR V5 & Finger Tap)
   if (stage === "icon") {
-    const MENU_WIDTH = 290;
-    const MENU_HEIGHT = 44;
+    const MENU_WIDTH = 135;
+    const MENU_HEIGHT = 42;
     let menuLeft = screenX - MENU_WIDTH / 2;
     let menuTop = screenY - MENU_HEIGHT - 14;
 
@@ -173,42 +177,26 @@ export const SemanticAnchorTooltip: React.FC<SemanticAnchorTooltipProps> = ({
             />
           )}
 
-          {/* Micro-Menu with 3 Semantic Pills */}
+          {/* Minimalist Floating Pill matching Lasso contextual bar */}
           <View
             style={[
-              styles.microMenuContainer,
+              styles.floatingPillContainer,
               { left: menuLeft, top: menuTop },
             ]}
           >
-            {(Object.keys(TYPE_CONFIG) as PassiveAttributeType[]).map((t) => {
-              const conf = TYPE_CONFIG[t];
-              return (
-                <TouchableOpacity
-                  key={t}
-                  style={[
-                    styles.semanticPill,
-                    {
-                      backgroundColor: conf.bgActive,
-                      borderColor: conf.borderActive,
-                    },
-                  ]}
-                  onPress={() => {
-                    setSelectedType(t);
-                    setStage("modal");
-                    onModalOpen?.();
-                  }}
-                  activeOpacity={0.8}
-                >
-                  {renderTypeIcon(t, 14, conf.color)}
-                  <Text style={[styles.semanticPillText, { color: conf.color }]}>
-                    {conf.label}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
+            <TouchableOpacity
+              style={styles.attributeChip}
+              onPress={handleOpenModal}
+              activeOpacity={0.8}
+            >
+              <Tag size={13} color="#38BDF8" strokeWidth={1.8} />
+              <Text style={styles.attributeChipText}>Atributo</Text>
+            </TouchableOpacity>
+
+            <View style={styles.pillDivider} />
 
             <TouchableOpacity
-              style={styles.closeMicroPill}
+              style={styles.closeActionBtn}
               onPress={onClose}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               activeOpacity={0.7}
@@ -442,47 +430,51 @@ const styles = StyleSheet.create({
     borderColor: "rgba(56, 189, 248, 0.45)",
     backgroundColor: "rgba(56, 189, 248, 0.08)",
   },
-  microMenuContainer: {
+  floatingPillContainer: {
     position: "absolute",
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(15, 23, 42, 0.95)",
-    borderRadius: 22,
-    paddingHorizontal: 6,
+    backgroundColor: "#0B1120",
+    borderRadius: 16,
+    paddingHorizontal: 8,
     paddingVertical: 5,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.12)",
+    borderColor: "#1E293B",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
+    shadowOpacity: 0.45,
     shadowRadius: 10,
     elevation: 12,
-    zIndex: 100,
+    zIndex: 999,
     gap: 6,
   },
-  closeMicroPill: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(30, 41, 59, 0.8)",
-  },
-  semanticPill: {
+  attributeChip: {
+    backgroundColor: "#0C4A6E",
+    borderColor: "#38BDF8",
+    borderWidth: 1,
     flexDirection: "row",
     alignItems: "center",
+    gap: 5,
     paddingHorizontal: 9,
-    paddingVertical: 6,
-    borderRadius: 16,
-    borderWidth: 1,
-    gap: 4,
+    paddingVertical: 5,
+    borderRadius: 12,
   },
-  semanticPillIcon: {
-    fontSize: 13,
-  },
-  semanticPillText: {
-    fontSize: 11,
+  attributeChipText: {
+    color: "#BAE6FD",
+    fontSize: 12,
     fontWeight: "700",
+  },
+  pillDivider: {
+    width: 1,
+    height: 16,
+    backgroundColor: "#1E293B",
+  },
+  closeActionBtn: {
+    backgroundColor: "#1E293B",
+    padding: 5,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
   },
   floatingAnchorBtn: {
     position: "absolute",
