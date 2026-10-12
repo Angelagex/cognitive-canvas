@@ -15,6 +15,7 @@
   },
   "devDependencies": {
     "@tsconfig/node22": "^22",
+    "svg-path-properties": "^2.1.0",
     "tsx": "^4.22.4",
     "typescript": "^5"
   },
