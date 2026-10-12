@@ -22,3 +22,24 @@ Antes de proponer o aplicar cualquier cambio en Kotlin o en hooks/componentes de
    - Cero asignaciones de memoria innecesarias en eventos a 120 Hz (`onTouchMove`, `dispatchDraw`).
    - Mantener el patrón de traspaso sincronizado (`strokesToHandOff`) para evitar parpadeos (Zero-Flicker) o trazos fantasma congelados.
 3. **Validación Obligatoria:** Tras cada cambio, compilar y verificar tipos (`npx tsc --noEmit`), suite de tests (`npx vitest run`) y ciclo de vida de la tablet.
+
+## 4. ESTÁNDARES DE CLEAN CODE, MODULARIDAD Y LÍMITES DE ARCHIVOS
+
+### A. Límites Duros de Tamaño de Archivo (Strict File Budgets)
+- **Máximo recomendado por archivo:** 250 a 300 líneas de código.
+- **Límite crítico inadmisible:** Si un archivo (clase de Kotlin, hook de React Native o componente UI) supera las **400 líneas**, es OBLIGATORIO descomponerlo en módulos cohesivos antes de continuar agregando lógica.
+- PROHIBIDO crear "God Files", "God Hooks" o "God Classes" que mezclen ciclo de vida, rendering, matemáticas vectoriales y lógica de eventos en una misma unidad.
+
+### B. Principio de Responsabilidad Única (SRP) y Patrón Facade
+- **Separación de Capas en React Native:**
+  * Componentes (`.tsx`): Exclusivamente JSX declarativo, estilos y cableado de callbacks. Prohibido albergar más de 15 líneas de lógica de negocio continua dentro de un componente UI.
+  * Hooks de Estado / Negocio (`useCanvas...`): Divididos temáticamente (ej. Viewport, Tools, Document, AST, Hover, Compilation). Si se necesita un punto único de consumo en `App.tsx`, usa un **Facade Hook** que solo ensamble y reenvíe submódulos sin acumular estado propio.
+  * Utilidades Puras (`utils/`): Funciones matemáticas, algoritmos de geometría y transformaciones sin efectos secundarios ni dependencias de React Native / Android.
+- **Separación de Capas en Kotlin / Android:**
+  * La vista principal (`JetpackInkView.kt`) debe actuar únicamente como orquestador / compositor de ciclo de vida.
+  * Cada responsabilidad física o de interacción debe residir en su propio delegado en `tools/`, `transform/`, `rendering/`, `input/`, `spatial/` o `hover/`.
+
+### C. Cohesión, Acoplamiento y Nombres Autodescriptivos
+- **Evitar flags booleanos dispersos:** Si una clase tiene más de 4 estados booleanos cruzados para rastrear el flujo de interacción, modela una máquina de estados finita (`sealed class` en Kotlin o `type State = ...` en TS).
+- **Prohibido el "Copy-Paste" de cálculos repetitivos:** Las transformaciones geométricas o proyecciones de coordenadas (`ScreenToWorld`, `WorldToScreen`, etc.) deben centralizarse en métodos canónicos reutilizables, nunca reescribirse a mano en múltiples archivos.
+- **Funciones pequeñas y predecibles:** Funciones que hagan una sola cosa bien, con un máximo ideal de 25-35 líneas por método.
