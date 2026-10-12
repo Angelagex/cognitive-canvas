@@ -1,16 +1,6 @@
 import React, { useState } from "react";
-import { StyleSheet, View, Text, TouchableOpacity } from "react-native";
-import {
-  Pen,
-  Highlighter,
-  Eraser,
-  Shapes,
-  Lasso,
-  Sparkles,
-  Hand,
-  FileText,
-  ArrowLeftRight,
-} from "@sketchyicons/react-native";
+import { View, Text, TouchableOpacity } from "react-native";
+import { FileText, ArrowLeftRight } from "@sketchyicons/react-native";
 import {
   BrushType,
   CanvasBackgroundType,
@@ -22,6 +12,9 @@ import { StrokeWidthPopover } from "./popovers/StrokeWidthPopover";
 import { PaperTemplatePopover } from "./popovers/PaperTemplatePopover";
 import { ColorPickerPopover } from "./popovers/ColorPickerPopover";
 import { EraserModePill } from "./popovers/EraserModePill";
+import { ToolbarToolIcon } from "./ToolbarToolIcon";
+import { StickerToolbarButton } from "../../features/stickers/StickerToolbarButton";
+import { styles } from "./GoodnotesToolbar.styles";
 
 export interface GoodnotesToolbarProps {
   activeBrush: BrushType;
@@ -49,6 +42,16 @@ export interface GoodnotesToolbarProps {
   initialDockSide?: "left" | "right";
   onToggleDockSide?: () => void;
   onDockSideChange?: (side: "left" | "right") => void;
+  canvasScale?: number;
+  canvasTranslateX?: number;
+  canvasTranslateY?: number;
+  onOpenStickerPicker?: (
+    targetWorld: { x: number; y: number },
+    anchorScreen?: { x: number; y: number }
+  ) => void;
+  onStickerDragChange?: (
+    dragState: { isDragging: boolean; screenX: number; screenY: number } | null
+  ) => void;
 }
 
 export const GoodnotesToolbar: React.FC<GoodnotesToolbarProps> = ({
@@ -66,21 +69,19 @@ export const GoodnotesToolbar: React.FC<GoodnotesToolbarProps> = ({
   onSelectCanvasTheme,
   favoriteColors,
   onUpdateFavoriteColor,
-  hasSelection = false,
-  selectedCount = 0,
-  onDeleteSelection,
-  onClearSelection,
-  onAssignAttribute,
   dockSide: dockSideProp,
   initialDockSide = "left",
   onToggleDockSide,
   onDockSideChange,
+  canvasScale = 1,
+  canvasTranslateX = 0,
+  canvasTranslateY = 0,
+  onOpenStickerPicker,
+  onStickerDragChange,
 }) => {
-  // Dock placement state (Left or Right side of canvas)
   const [internalDockSide, setInternalDockSide] = useState<"left" | "right">(initialDockSide);
   const dockSide = dockSideProp !== undefined ? dockSideProp : internalDockSide;
 
-  // Popover menus state
   const [showTemplateMenu, setShowTemplateMenu] = useState(false);
   const [showSizeMenu, setShowSizeMenu] = useState(false);
   const [showColorMenu, setShowColorMenu] = useState(false);
@@ -95,43 +96,17 @@ export const GoodnotesToolbar: React.FC<GoodnotesToolbarProps> = ({
     { id: "pan", label: "Mover" },
   ];
 
-  const renderToolIcon = (id: BrushType, isActive: boolean) => {
-    const iconColor = isActive ? "#38BDF8" : "#94A3B8";
-    const size = 22;
-    const strokeWidth = 2.0;
-    switch (id) {
-      case "pen":
-        return <Pen size={size} color={iconColor} strokeWidth={strokeWidth} />;
-      case "highlighter":
-        return <Highlighter size={size} color={iconColor} strokeWidth={strokeWidth} />;
-      case "eraser":
-        return <Eraser size={size} color={iconColor} strokeWidth={strokeWidth} />;
-      case "shapes":
-        return <Shapes size={size} color={iconColor} strokeWidth={strokeWidth} />;
-      case "lasso":
-        return <Lasso size={size} color={iconColor} strokeWidth={strokeWidth} />;
-      case "laser":
-        return <Sparkles size={size} color={iconColor} strokeWidth={strokeWidth} />;
-      case "pan":
-        return <Hand size={size} color={iconColor} strokeWidth={strokeWidth} />;
-    }
-  };
-
-  const toggleDockSide = () => {
+  const handleToggleSide = () => {
+    const nextSide = dockSide === "left" ? "right" : "left";
     if (onToggleDockSide) {
       onToggleDockSide();
     } else {
-      const nextSide = dockSide === "left" ? "right" : "left";
       setInternalDockSide(nextSide);
-      if (onDockSideChange) onDockSideChange(nextSide);
+      onDockSideChange?.(nextSide);
     }
-    // Close open popovers when flipping sides
-    setShowTemplateMenu(false);
-    setShowSizeMenu(false);
-    setShowColorMenu(false);
   };
 
-  const popoverPositionStyle = dockSide === "left" ? { left: 62 } : { right: 62 };
+  const popoverPositionStyle = dockSide === "left" ? { left: 70 } : { right: 70 };
 
   return (
     <View
@@ -139,14 +114,11 @@ export const GoodnotesToolbar: React.FC<GoodnotesToolbarProps> = ({
         styles.dockWrapper,
         dockSide === "left" ? styles.dockWrapperLeft : styles.dockWrapperRight,
       ]}
-      pointerEvents="box-none"
     >
-      {/* 1. Main Vertical Floating Dock Pill */}
       <View style={styles.dockPill}>
-        {/* Toggle Left/Right Position Button */}
         <TouchableOpacity
           style={styles.switchSideButton}
-          onPress={toggleDockSide}
+          onPress={handleToggleSide}
           activeOpacity={0.7}
           accessibilityLabel={`Mover barra al lateral ${dockSide === "left" ? "derecho" : "izquierdo"}`}
         >
@@ -155,7 +127,6 @@ export const GoodnotesToolbar: React.FC<GoodnotesToolbarProps> = ({
 
         <View style={styles.horizontalDivider} />
 
-        {/* Tools Section */}
         {tools.map((t) => {
           const isActive = activeBrush === t.id;
           return (
@@ -171,7 +142,7 @@ export const GoodnotesToolbar: React.FC<GoodnotesToolbarProps> = ({
               activeOpacity={0.7}
               accessibilityLabel={t.label}
             >
-              {renderToolIcon(t.id, isActive)}
+              <ToolbarToolIcon id={t.id} isActive={isActive} />
               {isActive && (
                 <View
                   style={[
@@ -184,9 +155,21 @@ export const GoodnotesToolbar: React.FC<GoodnotesToolbarProps> = ({
           );
         })}
 
+        {/* Sticker Feature: Botón Híbrido (Tap / Drag-to-Drop) */}
+        {onOpenStickerPicker && (
+          <StickerToolbarButton
+            canvasScale={canvasScale}
+            canvasTranslateX={canvasTranslateX}
+            canvasTranslateY={canvasTranslateY}
+            dockSide={dockSide}
+            onOpenPicker={onOpenStickerPicker}
+            onDragChange={onStickerDragChange}
+          />
+        )}
+
         <View style={styles.horizontalDivider} />
 
-        {/* Paper Template Selector */}
+        {/* Plantilla de papel */}
         <TouchableOpacity
           style={[styles.templateButton, showTemplateMenu && styles.templateButtonActive]}
           onPress={() => {
@@ -202,7 +185,7 @@ export const GoodnotesToolbar: React.FC<GoodnotesToolbarProps> = ({
 
         <View style={styles.horizontalDivider} />
 
-        {/* Quick Color Selector Button */}
+        {/* Selector de color */}
         <TouchableOpacity
           style={[styles.colorButton, showColorMenu && styles.colorButtonActive]}
           onPress={() => {
@@ -216,7 +199,7 @@ export const GoodnotesToolbar: React.FC<GoodnotesToolbarProps> = ({
           <View style={[styles.colorButtonCircle, { backgroundColor: activeColor }]} />
         </TouchableOpacity>
 
-        {/* Quick Stroke Width Selector Button */}
+        {/* Selector de grosor */}
         <TouchableOpacity
           style={[styles.sizeButton, showSizeMenu && styles.sizeButtonActive]}
           onPress={() => {
@@ -242,7 +225,6 @@ export const GoodnotesToolbar: React.FC<GoodnotesToolbarProps> = ({
         </TouchableOpacity>
       </View>
 
-      {/* 2. Contextual Popover: Color Palette */}
       {showColorMenu && (
         <ColorPickerPopover
           activeColor={activeColor}
@@ -254,7 +236,6 @@ export const GoodnotesToolbar: React.FC<GoodnotesToolbarProps> = ({
         />
       )}
 
-      {/* 3. Contextual Popover: Stroke Width Selector */}
       {showSizeMenu && (
         <StrokeWidthPopover
           activeWidth={activeWidth}
@@ -265,7 +246,6 @@ export const GoodnotesToolbar: React.FC<GoodnotesToolbarProps> = ({
         />
       )}
 
-      {/* 4. Contextual Popover: Paper Template */}
       {showTemplateMenu && (
         <PaperTemplatePopover
           backgroundType={backgroundType}
@@ -277,7 +257,6 @@ export const GoodnotesToolbar: React.FC<GoodnotesToolbarProps> = ({
         />
       )}
 
-      {/* 5. Sub-Dock Contextual: Selector de Modo de Borrador */}
       {activeBrush === "eraser" && (
         <EraserModePill
           eraserMode={eraserMode}
@@ -288,137 +267,3 @@ export const GoodnotesToolbar: React.FC<GoodnotesToolbarProps> = ({
     </View>
   );
 };
-
-const styles = StyleSheet.create({
-  dockWrapper: {
-    position: "absolute",
-    top: 16,
-    zIndex: 90,
-  },
-  dockWrapperLeft: {
-    left: 14,
-  },
-  dockWrapperRight: {
-    right: 14,
-  },
-  dockPill: {
-    width: 48,
-    backgroundColor: "#0B1120",
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: "#1E293B",
-    paddingVertical: 8,
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.45,
-    shadowRadius: 10,
-    elevation: 12,
-  },
-  switchSideButton: {
-    width: 34,
-    height: 30,
-    justifyContent: "center",
-    alignItems: "center",
-    borderRadius: 8,
-    backgroundColor: "#1E293B",
-  },
-  switchSideIcon: {
-    color: "#94A3B8",
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  horizontalDivider: {
-    width: 28,
-    height: 1,
-    backgroundColor: "#1E293B",
-    marginVertical: 6,
-  },
-  toolButton: {
-    width: 40,
-    height: 40,
-    justifyContent: "center",
-    alignItems: "center",
-    borderRadius: 12,
-    marginVertical: 2,
-    position: "relative",
-  },
-  toolButtonActive: {
-    backgroundColor: "rgba(56, 189, 248, 0.16)",
-  },
-  toolIcon: {
-    fontSize: 18,
-  },
-  toolActiveIndicator: {
-    position: "absolute",
-    width: 3,
-    height: 18,
-    borderRadius: 2,
-    backgroundColor: "#38BDF8",
-  },
-  indicatorLeft: {
-    left: 0,
-  },
-  indicatorRight: {
-    right: 0,
-  },
-  templateButton: {
-    width: 38,
-    height: 38,
-    justifyContent: "center",
-    alignItems: "center",
-    borderRadius: 12,
-    backgroundColor: "#1E293B",
-  },
-  templateButtonActive: {
-    backgroundColor: "rgba(56, 189, 248, 0.2)",
-    borderWidth: 1,
-    borderColor: "#38BDF8",
-  },
-  templateIcon: {
-    color: "#94A3B8",
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  colorButton: {
-    width: 36,
-    height: 36,
-    justifyContent: "center",
-    alignItems: "center",
-    borderRadius: 18,
-    borderWidth: 2,
-    borderColor: "transparent",
-  },
-  colorButtonActive: {
-    borderColor: "#FFFFFF",
-  },
-  colorButtonCircle: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    borderWidth: 1.5,
-    borderColor: "#FFFFFF",
-  },
-  sizeButton: {
-    width: 38,
-    height: 38,
-    justifyContent: "center",
-    alignItems: "center",
-    borderRadius: 12,
-    marginVertical: 4,
-    backgroundColor: "#1E293B",
-  },
-  sizeButtonActive: {
-    backgroundColor: "rgba(56, 189, 248, 0.2)",
-    borderWidth: 1,
-    borderColor: "#38BDF8",
-  },
-  sizeIndicatorDot: {
-    marginBottom: 2,
-  },
-  sizeLabel: {
-    color: "#94A3B8",
-    fontSize: 9,
-    fontWeight: "700",
-  },
-});

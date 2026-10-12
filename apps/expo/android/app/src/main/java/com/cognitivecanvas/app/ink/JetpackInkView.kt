@@ -33,6 +33,9 @@ import com.cognitivecanvas.app.ink.tools.LassoSelectionManager
 import com.cognitivecanvas.app.ink.tools.ScratchOutDetector
 import com.cognitivecanvas.app.ink.tools.ShapeDetector
 import com.cognitivecanvas.app.ink.tools.StrokeEraser
+import com.cognitivecanvas.app.ink.rendering.StickerStrokeAnimator
+import com.cognitivecanvas.app.ink.tools.StickerPlacementManager
+import com.facebook.react.bridge.ReadableMap
 import com.cognitivecanvas.app.ink.transform.CanvasTransformManager
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Promise
@@ -126,6 +129,22 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
 
     private val strokeBoundsCache = IdentityHashMap<Stroke, RectF>()
     private val strokeColorMap = IdentityHashMap<Stroke, String>()
+
+    private val stickerAnimator = StickerStrokeAnimator(
+        hostView = this,
+        completedStrokes = completedStrokes,
+        spatialGrid = spatialGrid,
+        getStrokeBounds = { s -> getStrokeBounds(s) },
+        onStrokeCountChanged = { notifyStrokeCountChanged() }
+    )
+
+    private val stickerPlacementManager = StickerPlacementManager(
+        hostView = this,
+        lassoManager = lassoManager,
+        animator = stickerAnimator,
+        eventEmitter = eventEmitter,
+        strokeColorMap = strokeColorMap
+    )
 
     // ---------------------------------------------------------------------------------------------
     // Tool Settings & Properties
@@ -475,7 +494,7 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
         }
 
         // 4. Lasso Selection Tool
-        val isLassoActive = brushType == "lasso" || isMomentaryLassoActive
+        val isLassoActive = brushType == "lasso" || isMomentaryLassoActive || stickerPlacementManager.hasPendingSticker
         if (isLassoActive) {
             val density = context.resources.displayMetrics.density
             val worldX = (event.x - transformManager.canvasTranslateX) / (transformManager.canvasScale * density)
@@ -483,6 +502,10 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
 
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
+                    if (stickerPlacementManager.hasPendingSticker && !lassoManager.isHandlingSelection(worldX, worldY, transformManager.canvasScale)) {
+                        stickerPlacementManager.confirmPendingSticker()
+                        return true
+                    }
                     lassoManager.onTouchDown(worldX, worldY, transformManager.canvasScale)
                     postInvalidateOnAnimation()
                     return true
@@ -493,6 +516,11 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
                     return true
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    if (stickerPlacementManager.hasPendingSticker) {
+                        postInvalidateOnAnimation()
+                        eventEmitter.emitSelectionChanged(true, lassoManager.selectedStrokes.size, lassoManager.selectionBounds)
+                        return true
+                    }
                     val candidateStrokes = if (!lassoManager.isDraggingSelection && !lassoManager.isResizingSelection) {
                         val path = lassoManager.lassoPoints
                         var minX = Float.MAX_VALUE
@@ -704,6 +732,15 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
                 }
             }
             canvas.restore()
+        }
+
+        // Draw animated assembling sticker strokes (if animating)
+        stickerAnimator.animatedStrokes?.let { animList ->
+            viewStrokeRenderer.drawWithStrokes(canvas) { scope ->
+                for (s in animList) {
+                    scope.drawStroke(s)
+                }
+            }
         }
 
         // Handoff sincronizado: liberar trazos en progreso una vez garantizado su renderizado en completedStrokes
@@ -971,6 +1008,10 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
 
     fun deleteSelectedStrokes() {
         inProgressStrokesView.cancelUnfinishedStrokes()
+        if (stickerPlacementManager.hasPendingSticker) {
+            stickerPlacementManager.cancelPendingSticker()
+            return
+        }
         val removed = lassoManager.deleteSelected(completedStrokes)
         if (removed.isNotEmpty()) {
             for (r in removed) {
@@ -1009,9 +1050,25 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
     }
 
     fun clearSelection() {
+        if (stickerPlacementManager.hasPendingSticker) {
+            stickerPlacementManager.confirmPendingSticker()
+            return
+        }
         lassoManager.clearSelection()
         postInvalidateOnAnimation()
         eventEmitter.emitSelectionChanged(false, 0, null)
+    }
+
+    fun insertStickerInSelectionMode(stickerData: ReadableMap, worldX: Float, worldY: Float) {
+        val density = context.resources.displayMetrics.density
+        stickerPlacementManager.placeSticker(
+            stickerData = stickerData,
+            targetWorldX = worldX,
+            targetWorldY = worldY,
+            density = density,
+            colorInt = strokeColor,
+            baseWidth = strokeWidth
+        )
     }
 
     fun serializeStrokesFlat(): WritableArray {

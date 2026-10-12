@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { StyleSheet, View, SafeAreaView, StatusBar } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { useCanvasState } from "./src/hooks/useCanvasState";
 import { TopHeader } from "./src/components/header/TopHeader";
 import { GoodnotesToolbar } from "./src/components/toolbar/GoodnotesToolbar";
@@ -14,9 +15,14 @@ import { DocumentActionsModal } from "./src/components/modals/DocumentActionsMod
 import { GhostOverlay } from "./src/components/canvas/GhostOverlay";
 import { ContextualSelectionPill } from "./src/components/toolbar/popovers/ContextualToolPill";
 import { cognitiveLayerStore } from "./src/stores/useCognitiveLayerStore";
+import { StickerPickerModal } from "./src/features/stickers/StickerPickerModal";
+import { Sparkles } from "@sketchyicons/react-native";
 
 export default function App() {
   const [showDocumentMenu, setShowDocumentMenu] = useState(false);
+  const [stickerPickerVisible, setStickerPickerVisible] = useState(false);
+  const [stickerTargetWorld, setStickerTargetWorld] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [dragGhost, setDragGhost] = useState<{ screenX: number; screenY: number } | null>(null);
   const {
     mapTitle,
     setMapTitle,
@@ -121,8 +127,9 @@ export default function App() {
   } = useCanvasState();
 
   return (
-    <SafeAreaView style={styles.rootContainer}>
-      <StatusBar barStyle="light-content" backgroundColor="#0B1120" />
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaView style={styles.rootContainer}>
+        <StatusBar barStyle="light-content" backgroundColor="#0B1120" />
 
       {/* 1. Header Superior Minimalista (48dp) - Título editable, Auto-Save .cmn, Undo/Redo, Compilar */}
       <TopHeader
@@ -159,7 +166,35 @@ export default function App() {
           onUpdateFavoriteColor={updateFavoriteColor}
           dockSide={toolbarDockSide}
           onToggleDockSide={handleToggleDockSide}
+          canvasScale={canvasScale}
+          canvasTranslateX={canvasTranslateX}
+          canvasTranslateY={canvasTranslateY}
+          onOpenStickerPicker={(targetWorld) => {
+            setStickerTargetWorld(targetWorld);
+            setStickerPickerVisible(true);
+          }}
+          onStickerDragChange={(drag) => {
+            setDragGhost(drag ? { screenX: drag.screenX, screenY: drag.screenY } : null);
+          }}
         />
+
+        {/* Indicador fantasma flotante durante el arrastre de sticker */}
+        {dragGhost && (
+          <View
+            pointerEvents="none"
+            style={[
+              styles.dragGhostHalo,
+              {
+                left: dragGhost.screenX - 32,
+                top: dragGhost.screenY - 32,
+              },
+            ]}
+          >
+            <View style={styles.haloInner}>
+              <Sparkles size={24} color="#38BDF8" strokeWidth={2.2} />
+            </View>
+          </View>
+        )}
 
         {/* Pastilla Contextual Flotante de Selección por Lazo */}
         <ContextualSelectionPill
@@ -318,7 +353,15 @@ export default function App() {
         onRequestClear={handleRequestClear}
         onOpenCompiler={() => setIsDrawerOpen(true)}
       />
-    </SafeAreaView>
+
+      {/* 8. Selector de Stickers Cognitivos (Modal / Popover) */}
+      <StickerPickerModal
+        visible={stickerPickerVisible}
+        targetWorld={stickerTargetWorld}
+        onClose={() => setStickerPickerVisible(false)}
+      />
+      </SafeAreaView>
+    </GestureHandlerRootView>
   );
 }
 
@@ -331,5 +374,30 @@ const styles = StyleSheet.create({
     flex: 1,
     position: "relative",
     overflow: "hidden",
+  },
+  dragGhostHalo: {
+    position: "absolute",
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    zIndex: 9999,
+    elevation: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  haloInner: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: "rgba(15, 23, 42, 0.85)",
+    borderWidth: 2,
+    borderColor: "#38BDF8",
+    borderStyle: "dashed",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#38BDF8",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.6,
+    shadowRadius: 10,
   },
 });

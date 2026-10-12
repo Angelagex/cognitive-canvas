@@ -33,6 +33,14 @@ class JetpackInkModule(private val reactContext: ReactApplicationContext) :
     override fun getName(): String = "JetpackInkModule"
 
     @ReactMethod
+    fun insertStickerInSelectionMode(stickerData: ReadableMap, worldX: Double, worldY: Double) {
+        val inkView = JetpackInkView.activeInstance?.get() ?: return
+        Handler(Looper.getMainLooper()).post {
+            inkView.insertStickerInSelectionMode(stickerData, worldX.toFloat(), worldY.toFloat())
+        }
+    }
+
+    @ReactMethod
     fun initializeDigitalInk(options: ReadableMap?, promise: Promise) {
         val lang = if (options?.hasKey("language") == true) options.getString("language") ?: "es" else "es"
         DigitalInkModelManager.ensureModelReady(lang) { success ->

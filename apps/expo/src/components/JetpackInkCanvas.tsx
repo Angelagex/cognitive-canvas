@@ -69,6 +69,20 @@ export async function exportHighResPng(
 }
 
 /**
+ * Inserts a vector sticker at the specified World DP coordinates in active selection mode
+ */
+export function insertStickerInSelectionMode(
+  stickerData: any,
+  worldX: number,
+  worldY: number
+): void {
+  const { JetpackInkModule } = NativeModules;
+  if (JetpackInkModule?.insertStickerInSelectionMode) {
+    JetpackInkModule.insertStickerInSelectionMode(stickerData, worldX, worldY);
+  }
+}
+
+/**
  * Unpacks flat points array [x0, y0, p0, t0, x1, y1, p1, t1, ...] into point objects.
  */
 export function unpackStrokePoints(stroke: any): { x: number; y: number; p: number; t: number }[] {

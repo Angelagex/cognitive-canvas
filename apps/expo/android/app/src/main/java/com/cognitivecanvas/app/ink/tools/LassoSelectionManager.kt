@@ -399,6 +399,65 @@ class LassoSelectionManager {
         lassoPoints.clear()
     }
 
+    fun setSelection(strokes: List<Stroke>, density: Float = 1.0f) {
+        clearSelection()
+        if (strokes.isEmpty()) return
+        selectedStrokes.addAll(strokes)
+        selectedStrokesSet.addAll(strokes)
+
+        var minX = Float.MAX_VALUE
+        var maxX = -Float.MAX_VALUE
+        var minY = Float.MAX_VALUE
+        var maxY = -Float.MAX_VALUE
+        for (s in strokes) {
+            val inputs = s.inputs
+            for (i in 0 until inputs.size) {
+                val pt = inputs.get(i)
+                val strokePtX = pt.x / density
+                val strokePtY = pt.y / density
+                if (strokePtX < minX) minX = strokePtX
+                if (strokePtX > maxX) maxX = strokePtX
+                if (strokePtY < minY) minY = strokePtY
+                if (strokePtY > maxY) maxY = strokePtY
+            }
+        }
+        val padding = 12f
+        selectionBounds = RectF(minX - padding, minY - padding, maxX + padding, maxY + padding)
+        selectionMatrix.reset()
+    }
+
+    fun getTransformedStrokes(): List<Stroke> {
+        if (selectedStrokes.isEmpty()) return emptyList()
+        if (selectionMatrix.isIdentity) return ArrayList(selectedStrokes)
+
+        val transformedList = mutableListOf<Stroke>()
+        val pts = FloatArray(2)
+        for (stroke in selectedStrokes) {
+            val inputs = stroke.inputs
+            val count = inputs.size
+            val batch = MutableStrokeInputBatch()
+            for (i in 0 until count) {
+                val pt = inputs.get(i)
+                pts[0] = pt.x
+                pts[1] = pt.y
+                selectionMatrix.mapPoints(pts)
+                val transformed = StrokeInput.create(
+                    pts[0],
+                    pts[1],
+                    pt.elapsedTimeMillis,
+                    pt.toolType,
+                    pt.strokeUnitLengthCm,
+                    pt.pressure,
+                    pt.tiltRadians,
+                    pt.orientationRadians
+                )
+                batch.addOrIgnore(transformed)
+            }
+            transformedList.add(Stroke(stroke.brush, batch.asImmutable()))
+        }
+        return transformedList
+    }
+
     fun draw(canvas: Canvas, scale: Float) {
         // 1. Draw ongoing lasso loop
         if (lassoPoints.size >= 2) {
