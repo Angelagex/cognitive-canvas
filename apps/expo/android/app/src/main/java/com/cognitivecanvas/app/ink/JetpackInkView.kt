@@ -250,10 +250,11 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
                 val density = context.resources.displayMetrics.density
                 val shouldSnap = brushType == "shapes" || isStrokeSnapped
                 val finalStrokes = mutableListOf<Stroke>()
+                val finalStrokeIds = mutableListOf<InProgressStrokeId>()
 
-                for (stroke in strokes.values) {
-                    if (scratchOutDetector.isScratchOutStroke(stroke, density, transformManager.canvasScale)) {
-                        val deleted = scratchOutDetector.findStrokesToErase(stroke, spatialGrid) { s -> getStrokeBounds(s) }
+                for ((strokeId, stroke) in strokes) {
+                    if (scratchOutDetector.isScratchOutStroke(stroke, density)) {
+                        val deleted = scratchOutDetector.findStrokesToErase(stroke, spatialGrid, density) { s -> getStrokeBounds(s) }
                         if (deleted.isNotEmpty()) {
                             for (s in deleted) {
                                 val b = strokeBoundsCache.remove(s)
@@ -265,11 +266,12 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
                             try {
                                 performHapticFeedback(HapticFeedbackConstants.CONFIRM)
                             } catch (_: Exception) {}
-                            inProgressStrokesView.removeFinishedStrokes(strokes.keys)
                             strokeFinishDebounceHandler.removeCallbacks(strokeFinishDebounceRunnable)
                             notifyStrokeCountChanged()
-                            continue
                         }
+                        inProgressStrokesView.removeFinishedStrokes(setOf(strokeId))
+                        postInvalidateOnAnimation()
+                        continue
                     }
 
                     val snapped = if (shouldSnap) {
@@ -280,6 +282,7 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
                     val colorHex = String.format("#%06X", 0xFFFFFF and strokeColor)
                     strokeColorMap[snapped] = colorHex
                     finalStrokes.add(snapped)
+                    finalStrokeIds.add(strokeId)
                 }
 
                 if (finalStrokes.isNotEmpty()) {
@@ -292,7 +295,7 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
                     }
                     undoneStrokes.clear()
                     synchronized(strokesToHandOff) {
-                        strokesToHandOff.addAll(strokes.keys)
+                        strokesToHandOff.addAll(finalStrokeIds)
                     }
                     postInvalidateOnAnimation()
                     eventEmitter.emitStrokeStatsImmediate(completedStrokes.size, completedStrokes.isNotEmpty(), undoneStrokes.isNotEmpty())

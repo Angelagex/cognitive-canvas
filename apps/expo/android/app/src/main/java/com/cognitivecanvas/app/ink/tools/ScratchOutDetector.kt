@@ -6,8 +6,13 @@ import com.cognitivecanvas.app.ink.spatial.SpatialHashGrid
 
 class ScratchOutDetector {
 
-    fun isScratchOutStroke(stroke: Stroke, density: Float, canvasScale: Float): Boolean {
-        val scaleDensity = density * canvasScale.coerceAtLeast(0.1f)
+    /**
+     * Determines whether the given stroke represents a scratch-out gesture.
+     * Stroke inputs captured via inProgressStrokesView.startStroke are already transformed
+     * into infinite canvas world space by the inverse camera matrix.
+     * Coordinates are strictly normalized to World DP dividing by [density] to guarantee zoom invariance.
+     */
+    fun isScratchOutStroke(stroke: Stroke, density: Float, canvasScale: Float = 1f): Boolean {
         val inputs = stroke.inputs
         val count = inputs.size
         if (count < 8) return false
@@ -19,16 +24,14 @@ class ScratchOutDetector {
 
         var totalLengthWorldDp = 0f
         var xReversals = 0
-        var yReversals = 0
         var prevDx = 0f
-        var prevDy = 0f
 
-        val minDeltaWorldDp = 4f // 4dp movement threshold in world space to filter jitter invariant to zoom
+        val minDeltaWorldDp = 3.5f // Umbral en World DP para registrar reversión de dirección inmune al zoom
 
         for (i in 0 until count) {
             val pt = inputs.get(i)
-            val px = pt.x / scaleDensity
-            val py = pt.y / scaleDensity
+            val px = pt.x / density
+            val py = pt.y / density
             if (px < minX) minX = px
             if (px > maxX) maxX = px
             if (py < minY) minY = py
@@ -36,8 +39,8 @@ class ScratchOutDetector {
 
             if (i > 0) {
                 val prevPt = inputs.get(i - 1)
-                val dx = (pt.x - prevPt.x) / scaleDensity
-                val dy = (pt.y - prevPt.y) / scaleDensity
+                val dx = (pt.x - prevPt.x) / density
+                val dy = (pt.y - prevPt.y) / density
                 totalLengthWorldDp += kotlin.math.hypot(dx, dy)
 
                 if (kotlin.math.abs(dx) >= minDeltaWorldDp) {
@@ -46,40 +49,55 @@ class ScratchOutDetector {
                     }
                     prevDx = dx
                 }
-                if (kotlin.math.abs(dy) >= minDeltaWorldDp) {
-                    if (prevDy != 0f && (dy > 0) != (prevDy > 0)) {
-                        yReversals++
-                    }
-                    prevDy = dy
-                }
             }
         }
 
-        // Reversiones de dirección: mínimo 5 reversiones en X o en Y
-        if (xReversals < 5 && yReversals < 5) return false
+        // Reversiones horizontales: xReversals >= 4
+        if (xReversals < 4) return false
 
-        val widthWorldDp = maxX - minX
-        if (totalLengthWorldDp < 45f) return false
+        // Longitud acumulada total: totalLengthWorldDp >= 40f
+        if (totalLengthWorldDp < 40f) return false
 
-        // Filtro de Tortuosidad: totalLength / boxDiag >= 4.5f
+        // Ratio de tortuosidad: totalLengthWorldDp / boxDiag >= 3.8f
         val boxDiag = kotlin.math.hypot(maxX - minX, maxY - minY)
         if (boxDiag <= 0.001f) return false
         val tortuosity = totalLengthWorldDp / boxDiag
-        if (tortuosity < 4.5f) return false
-
-        // Filtro de Regresión Horizontal
-        if (widthWorldDp > totalLengthWorldDp * 0.28f) return false
+        if (tortuosity < 3.8f) return false
 
         return true
     }
 
+    /**
+     * Finds existing strokes covered by the scratch-out gesture and expands to the full word cluster.
+     * All spatial evaluations and the bounding box of the scratch are performed in World DP.
+     */
     fun findStrokesToErase(
         scratchStroke: Stroke,
         spatialGrid: SpatialHashGrid,
+        density: Float,
         getStrokeBounds: (Stroke) -> RectF?
     ): Set<Stroke> {
-        val scratchBounds = getStrokeBounds(scratchStroke) ?: return emptySet()
+        val inputs = scratchStroke.inputs
+        val count = inputs.size
+        if (count == 0) return emptySet()
 
+        // 1. scratchBounds generado estrictamente en World DP (px, py normalizados por density)
+        var minX = Float.MAX_VALUE
+        var maxX = -Float.MAX_VALUE
+        var minY = Float.MAX_VALUE
+        var maxY = -Float.MAX_VALUE
+        for (i in 0 until count) {
+            val pt = inputs.get(i)
+            val px = pt.x / density
+            val py = pt.y / density
+            if (px < minX) minX = px
+            if (px > maxX) maxX = px
+            if (py < minY) minY = py
+            if (py > maxY) maxY = py
+        }
+        val scratchBounds = RectF(minX, minY, maxX, maxY)
+
+        // 2. Consulta al SpatialHashGrid compartiendo el mismo espacio de referencia (World DP)
         val candidateStrokes = spatialGrid.query(scratchBounds)
         val hitStrokes = mutableListOf<Stroke>()
         for (stroke in candidateStrokes) {
@@ -90,17 +108,16 @@ class ScratchOutDetector {
             val interBottom = minOf(scratchBounds.bottom, b.bottom)
 
             if (interRight > interLeft && interBottom > interTop) {
-                val strokeW = b.right - b.left
-                val strokeH = b.bottom - b.top
+                val strokeW = b.width()
+                val strokeH = b.height()
                 val interW = interRight - interLeft
                 val interH = interBottom - interTop
 
-                val centerX = (b.left + b.right) / 2f
-                val centerY = (b.top + b.bottom) / 2f
-                val centerInScratch = centerX >= scratchBounds.left && centerX <= scratchBounds.right &&
-                        centerY >= scratchBounds.top && centerY <= scratchBounds.bottom
+                val centerX = b.centerX()
+                val centerY = b.centerY()
+                val centerInScratch = scratchBounds.contains(centerX, centerY)
 
-                if (centerInScratch || (interW >= strokeW * 0.3f && interH >= 10f) || interW >= 20f) {
+                if (centerInScratch || (interW >= strokeW * 0.25f) || interW >= 15f || (interW > 0 && interH > 0 && strokeW <= 20f)) {
                     hitStrokes.add(stroke)
                 }
             }
@@ -108,14 +125,13 @@ class ScratchOutDetector {
 
         if (hitStrokes.isEmpty()) return emptySet()
 
-        // Expand to the full cluster so the entire handwritten entity/word is erased
+        // 3. Expansión del clúster (borrado de la palabra completa)
         val strokesToDelete = mutableSetOf<Stroke>()
         strokesToDelete.addAll(hitStrokes)
 
         val queue = ArrayDeque<Stroke>()
         queue.addAll(hitStrokes)
-        val scratchHeight = scratchBounds.bottom - scratchBounds.top
-        val clusterProximity = minOf(15f, maxOf(6f, scratchHeight * 0.35f))
+        val clusterProximity = (scratchBounds.height() * 0.4f).coerceIn(8f, 24f)
 
         while (queue.isNotEmpty()) {
             val curr = queue.removeFirst()
@@ -136,6 +152,7 @@ class ScratchOutDetector {
                 val dx = maxOf(0f, maxOf(currBounds.left - otherBounds.right, otherBounds.left - currBounds.right))
                 val dy = maxOf(0f, maxOf(currBounds.top - otherBounds.bottom, otherBounds.top - currBounds.bottom))
 
+                // Solo absorbe trazos cuya distancia horizontal respete la cercanía de la palabra para no borrar términos adyacentes
                 if (dx <= clusterProximity && dy <= clusterProximity) {
                     strokesToDelete.add(other)
                     queue.add(other)
@@ -144,5 +161,22 @@ class ScratchOutDetector {
         }
 
         return strokesToDelete
+    }
+
+    fun findStrokesToErase(
+        scratchStroke: Stroke,
+        spatialGrid: SpatialHashGrid,
+        getStrokeBounds: (Stroke) -> RectF?
+    ): Set<Stroke> {
+        val scratchBounds = getStrokeBounds(scratchStroke) ?: return emptySet()
+        val candidateStrokes = spatialGrid.query(scratchBounds)
+        val hitStrokes = mutableListOf<Stroke>()
+        for (stroke in candidateStrokes) {
+            val b = getStrokeBounds(stroke) ?: continue
+            if (RectF.intersects(scratchBounds, b)) {
+                hitStrokes.add(stroke)
+            }
+        }
+        return hitStrokes.toSet()
     }
 }
