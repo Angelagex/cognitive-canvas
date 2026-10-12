@@ -517,6 +517,23 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                     if (stickerPlacementManager.hasPendingSticker) {
+                        if (lassoManager.isDraggingSelection || lassoManager.isResizingSelection) {
+                            lassoManager.onTouchUp(
+                                completedStrokes = completedStrokes,
+                                candidateStrokes = null,
+                                density = density,
+                                onStrokesTransformed = { oldList, newList, dx, dy ->
+                                    for (i in oldList.indices) {
+                                        val oldS = oldList[i]
+                                        val newS = newList[i]
+                                        strokeColorMap.remove(oldS)?.let { col ->
+                                            strokeColorMap[newS] = col
+                                        }
+                                    }
+                                    eventEmitter.emitStrokesTransformed(dx, dy, newList.size)
+                                }
+                            )
+                        }
                         postInvalidateOnAnimation()
                         eventEmitter.emitSelectionChanged(true, lassoManager.selectedStrokes.size, lassoManager.selectionBounds)
                         return true
@@ -726,9 +743,20 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
             }
             canvas.save()
             canvas.concat(lassoManager.selectionMatrix)
-            viewStrokeRenderer.drawWithStrokes(canvas) { scope ->
-                for (stroke in lassoManager.selectedStrokes) {
-                    scope.drawStroke(stroke)
+            if (stickerPlacementManager.hasPendingSticker) {
+                // Modo Blueprint: tinta fantasma con opacidad reducida (~37% / alpha = 95)
+                canvas.saveLayerAlpha(null, 95)
+                viewStrokeRenderer.drawWithStrokes(canvas) { scope ->
+                    for (stroke in lassoManager.selectedStrokes) {
+                        scope.drawStroke(stroke)
+                    }
+                }
+                canvas.restore()
+            } else {
+                viewStrokeRenderer.drawWithStrokes(canvas) { scope ->
+                    for (stroke in lassoManager.selectedStrokes) {
+                        scope.drawStroke(stroke)
+                    }
                 }
             }
             canvas.restore()
