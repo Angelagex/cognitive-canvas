@@ -18,7 +18,6 @@ import androidx.ink.authoring.InProgressStrokesView
 import androidx.ink.brush.Brush
 import androidx.ink.brush.StockBrushes
 import androidx.ink.rendering.android.canvas.CanvasStrokeRenderer
-import androidx.ink.rendering.android.view.ViewStrokeRenderer
 import androidx.ink.strokes.Stroke
 import com.cognitivecanvas.app.ink.events.InkEventEmitter
 import com.cognitivecanvas.app.ink.hover.AirViewHoverManager
@@ -125,7 +124,6 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
     private val strokesToHandOff = mutableSetOf<InProgressStrokeId>()
 
     private val strokeRenderer = CanvasStrokeRenderer.create()
-    private val viewStrokeRenderer = ViewStrokeRenderer(strokeRenderer, this)
 
     private val strokeBoundsCache = IdentityHashMap<Stroke, RectF>()
     private val strokeColorMap = IdentityHashMap<Stroke, String>()
@@ -250,6 +248,8 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
 
     init {
         setWillNotDraw(false)
+        setLayerType(LAYER_TYPE_NONE, null)
+        inProgressStrokesView.setLayerType(LAYER_TYPE_NONE, null)
         inProgressStrokesView.eagerInit()
 
         addView(
@@ -724,39 +724,35 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
         )
 
         val density = context.resources.displayMetrics.density
+        val currentScale = transformManager.canvasScale
 
         // 2. Draw completed strokes (with Lasso Matrix transform decoupling)
         if (lassoManager.selectedStrokes.isEmpty()) {
-            viewStrokeRenderer.drawWithStrokes(canvas) { scope ->
-                for (stroke in completedStrokes) {
-                    scope.drawStroke(stroke)
-                }
+            for (stroke in completedStrokes) {
+                strokeRenderer.draw(canvas, stroke, renderMatrix, currentScale)
             }
         } else {
             val selectedSet = lassoManager.selectedStrokesSet
-            viewStrokeRenderer.drawWithStrokes(canvas) { scope ->
-                for (stroke in completedStrokes) {
-                    if (!selectedSet.contains(stroke)) {
-                        scope.drawStroke(stroke)
-                    }
+            for (stroke in completedStrokes) {
+                if (!selectedSet.contains(stroke)) {
+                    strokeRenderer.draw(canvas, stroke, renderMatrix, currentScale)
                 }
             }
             canvas.save()
             canvas.concat(lassoManager.selectionMatrix)
+            val selectedMatrix = Matrix(renderMatrix).apply {
+                preConcat(lassoManager.selectionMatrix)
+            }
             if (stickerPlacementManager.hasPendingSticker) {
                 // Modo Blueprint: tinta fantasma con opacidad reducida (~37% / alpha = 95)
                 canvas.saveLayerAlpha(null, 95)
-                viewStrokeRenderer.drawWithStrokes(canvas) { scope ->
-                    for (stroke in lassoManager.selectedStrokes) {
-                        scope.drawStroke(stroke)
-                    }
+                for (stroke in lassoManager.selectedStrokes) {
+                    strokeRenderer.draw(canvas, stroke, selectedMatrix, currentScale)
                 }
                 canvas.restore()
             } else {
-                viewStrokeRenderer.drawWithStrokes(canvas) { scope ->
-                    for (stroke in lassoManager.selectedStrokes) {
-                        scope.drawStroke(stroke)
-                    }
+                for (stroke in lassoManager.selectedStrokes) {
+                    strokeRenderer.draw(canvas, stroke, selectedMatrix, currentScale)
                 }
             }
             canvas.restore()
@@ -764,10 +760,8 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
 
         // Draw animated assembling sticker strokes (if animating)
         stickerAnimator.animatedStrokes?.let { animList ->
-            viewStrokeRenderer.drawWithStrokes(canvas) { scope ->
-                for (s in animList) {
-                    scope.drawStroke(s)
-                }
+            for (s in animList) {
+                strokeRenderer.draw(canvas, s, renderMatrix, currentScale)
             }
         }
 
@@ -784,8 +778,9 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
         // 3. Draw Ephemeral Laser Strokes & Laser Pointer Head
         laserPointerManager.draw(
             canvas = canvas,
-            viewStrokeRenderer = viewStrokeRenderer,
-            canvasScale = transformManager.canvasScale,
+            strokeRenderer = strokeRenderer,
+            renderMatrix = renderMatrix,
+            canvasScale = currentScale,
             onRequestRedraw = { postInvalidateOnAnimation() }
         )
 
@@ -1159,7 +1154,7 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
             viewHeight = height,
             backgroundColor = canvasBackgroundColor,
             transformManager = transformManager,
-            viewStrokeRenderer = viewStrokeRenderer,
+            strokeRenderer = strokeRenderer,
             backgroundRenderer = backgroundRenderer,
             backgroundType = backgroundType,
             getStrokeBounds = { stroke -> getStrokeBounds(stroke) }

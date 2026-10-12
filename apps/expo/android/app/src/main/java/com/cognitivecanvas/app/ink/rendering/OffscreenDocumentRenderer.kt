@@ -4,7 +4,7 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Matrix
 import android.graphics.RectF
-import androidx.ink.rendering.android.view.ViewStrokeRenderer
+import androidx.ink.rendering.android.canvas.CanvasStrokeRenderer
 import androidx.ink.strokes.Stroke
 import com.cognitivecanvas.app.ink.transform.CanvasTransformManager
 
@@ -18,7 +18,7 @@ object OffscreenDocumentRenderer {
         viewHeight: Int,
         backgroundColor: Int,
         transformManager: CanvasTransformManager,
-        viewStrokeRenderer: ViewStrokeRenderer,
+        strokeRenderer: CanvasStrokeRenderer,
         backgroundRenderer: CanvasBackgroundRenderer,
         backgroundType: String,
         getStrokeBounds: (Stroke) -> RectF?
@@ -29,6 +29,7 @@ object OffscreenDocumentRenderer {
         val targetW = (viewW * scaleMultiplier).toInt().coerceAtLeast(1)
         val targetH = (viewH * scaleMultiplier).toInt().coerceAtLeast(1)
 
+        var fitScale = 0f
         val renderMatrix: Matrix = if (fullDocument && completedStrokes.isNotEmpty()) {
             var minX = Float.MAX_VALUE
             var maxX = -Float.MAX_VALUE
@@ -52,13 +53,14 @@ object OffscreenDocumentRenderer {
                 val contentW = (contentRight - contentLeft).coerceAtLeast(50f)
                 val contentH = (contentBottom - contentTop).coerceAtLeast(50f)
 
-                val fitScale = minOf(viewW / contentW, viewH / contentH)
-                val offsetX = (viewW - contentW * fitScale) / 2f
-                val offsetY = (viewH - contentH * fitScale) / 2f
+                val calculatedFit = minOf(viewW / contentW, viewH / contentH)
+                fitScale = calculatedFit
+                val offsetX = (viewW - contentW * calculatedFit) / 2f
+                val offsetY = (viewH - contentH * calculatedFit) / 2f
 
                 Matrix().apply {
                     postTranslate(-contentLeft, -contentTop)
-                    postScale(fitScale, fitScale)
+                    postScale(calculatedFit, calculatedFit)
                     postTranslate(offsetX, offsetY)
                 }
             } else {
@@ -67,6 +69,11 @@ object OffscreenDocumentRenderer {
         } else {
             transformManager.getRenderMatrix()
         }
+
+        val exportMatrix = Matrix(renderMatrix).apply {
+            postScale(scaleMultiplier, scaleMultiplier)
+        }
+        val exportScale = (if (fitScale > 0f) fitScale else transformManager.canvasScale) * scaleMultiplier
 
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
             try {
@@ -87,10 +94,8 @@ object OffscreenDocumentRenderer {
                     transformManager.canvasTranslateY,
                     backgroundType
                 )
-                viewStrokeRenderer.drawWithStrokes(canvas) { scope ->
-                    for (stroke in completedStrokes) {
-                        scope.drawStroke(stroke)
-                    }
+                for (stroke in completedStrokes) {
+                    strokeRenderer.draw(canvas, stroke, exportMatrix, exportScale)
                 }
                 canvas.restore()
                 renderNode.endRecording()
@@ -149,10 +154,8 @@ object OffscreenDocumentRenderer {
             transformManager.canvasTranslateY,
             backgroundType
         )
-        viewStrokeRenderer.drawWithStrokes(canvas) { scope ->
-            for (stroke in completedStrokes) {
-                scope.drawStroke(stroke)
-            }
+        for (stroke in completedStrokes) {
+            strokeRenderer.draw(canvas, stroke, exportMatrix, exportScale)
         }
         canvas.restore()
         return fallbackBitmap

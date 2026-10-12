@@ -2,9 +2,10 @@ package com.cognitivecanvas.app.ink.tools
 
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Matrix
 import android.graphics.Paint
 import android.os.SystemClock
-import androidx.ink.rendering.android.view.ViewStrokeRenderer
+import androidx.ink.rendering.android.canvas.CanvasStrokeRenderer
 import androidx.ink.strokes.Stroke
 import java.util.concurrent.CopyOnWriteArrayList
 
@@ -48,7 +49,8 @@ class LaserPointerManager {
 
     fun draw(
         canvas: Canvas,
-        viewStrokeRenderer: ViewStrokeRenderer,
+        strokeRenderer: CanvasStrokeRenderer,
+        renderMatrix: Matrix,
         canvasScale: Float,
         onRequestRedraw: () -> Unit
     ) {
@@ -64,9 +66,7 @@ class LaserPointerManager {
                 val alpha = ((1f - fraction) * 255).toInt().coerceIn(0, 255)
                 if (alpha > 0) {
                     canvas.saveLayerAlpha(null, alpha)
-                    viewStrokeRenderer.drawWithStrokes(canvas) { scope ->
-                        scope.drawStroke(laser.stroke)
-                    }
+                    strokeRenderer.draw(canvas, laser.stroke, renderMatrix, canvasScale)
                     canvas.restore()
                 }
             }
