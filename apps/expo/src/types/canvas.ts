@@ -7,7 +7,6 @@ export type BrushType =
   | "eraser"
   | "pan"
   | "lasso"
-  | "shapes"
   | "laser";
 
 export interface HighResPngExportResult {

@@ -20,7 +20,7 @@ class ShapeDetector {
      * - Rectangle / Square (Q <= 0.84, 4 dominant RDP vertices with ~90 deg corners)
      * - Triangle (Q <= 0.84, 3 dominant RDP vertices)
      */
-    fun detectAndSnap(stroke: Stroke): Stroke? {
+    fun detectAndSnap(stroke: Stroke, density: Float = 1f): Stroke? {
         val inputs = stroke.inputs
         val count = inputs.size
         if (count < 6) return null
@@ -58,96 +58,97 @@ class ShapeDetector {
         val start = points.first()
         val end = points.last()
         val directDist = hypot(end.x - start.x, end.y - start.y)
+        val directDistDp = if (density > 0f) directDist / density else directDist
         val boxWidth = maxX - minX
         val boxHeight = maxY - minY
         val boxDiag = hypot(boxWidth, boxHeight)
 
-        // A stroke is considered closed if endpoints meet within 25% of length or 28% of box diagonal
-        val isClosed = (directDist / totalLength) <= 0.25f || (directDist < boxDiag * 0.28f && points.size > 14)
+        // Trazo cerrado: distance(start, end) < 30f dp
+        val isClosed = (directDistDp < 30f) || (directDist / totalLength <= 0.20f)
 
         // -------------------------------------------------------------
-        // 1. OPEN STROKES: Lines vs. Arrows
+        // 1. TRAZOS ABIERTOS: Rectas vs Flechas vs Arcos Curvos
         // -------------------------------------------------------------
         if (!isClosed) {
-            // First check if the user drew an Arrow: shaft + acute fold at the end
-            val arrowStroke = trySnapArrow(stroke, points, totalLength)
-            if (arrowStroke != null) return arrowStroke
+            // Distancia perpendicular máxima de cualquier punto respecto a la cuerda (start -> end)
+            var dMax = 0f
+            var apex = start
+            for (p in points) {
+                val d = perpendicularDistance(p, start, end)
+                if (d > dMax) {
+                    dMax = d
+                    apex = p
+                }
+            }
+            val sagittaRatio = if (directDist > 0.001f) dMax / directDist else 0f
 
-            // Check if the entire stroke is a Straight Line (direct chord >= 88% of travel)
-            if (directDist > 30f && (directDist / totalLength) >= 0.88f) {
+            // 1A. Flechas: eje + punta aguda (rectas o curvas)
+            val arrowStroke = trySnapArrow(stroke, points, totalLength)
+            if (arrowStroke != null) {
+                return arrowStroke
+            }
+
+            // 1B. Si sagittaRatio < 0.12: La línea es intencionalmente recta
+            if (sagittaRatio < 0.12f && directDist > 25f) {
                 return snapToStraightLine(stroke, start, end, directDist)
             }
+
+            // 1C. Si sagittaRatio >= 0.12: El usuario dibujó intencionalmente un ARCO CURVO
+            if (sagittaRatio >= 0.12f && directDist > 25f && dMax > 6f) {
+                return snapToArcCurve(stroke, start, apex, end)
+            }
+
             return null
         }
 
         // -------------------------------------------------------------
-        // 2. CLOSED STROKES: Circle, Ellipse, Triangle, Rectangle/Square
+        // 2. TRAZOS CERRADOS: Círculo / Elipse vs Rectángulo / Triángulo
         // -------------------------------------------------------------
-        if (boxWidth < 25f || boxHeight < 25f) return null
+        if (boxWidth < 20f || boxHeight < 20f) return null
 
-        // Calculate centroid and isoperimetric quotient Q = 4 * PI * Area / Perimeter^2
-        // Circle: Q ~ 0.88 - 1.0
-        // Square: Q ~ 0.75 - 0.81 (Theoretical max for square is PI/4 = 0.785)
-        // Rectangle: Q ~ 0.60 - 0.75
-        // Triangle: Q ~ 0.48 - 0.65
-        val polygonArea = computeShoelaceArea(points)
-        val perimeter = totalLength
-        val isoperimetricQuotient = if (perimeter > 0f) {
-            (4.0 * Math.PI * polygonArea) / (perimeter * perimeter)
-        } else 0.0
+        val cx = (minX + maxX) / 2f
+        val cy = (minY + maxY) / 2f
+        val rx = boxWidth / 2f
+        val ry = boxHeight / 2f
+        val ar = min(boxWidth, boxHeight) / max(boxWidth, boxHeight)
 
-        var sumX = 0f
-        var sumY = 0f
-        for (pt in points) {
-            sumX += pt.x
-            sumY += pt.y
+        // Evalúa la desviación radial respecto a una elipse
+        var sumDeltaR = 0.0
+        for (p in points) {
+            val normX = (p.x - cx) / rx
+            val normY = (p.y - cy) / ry
+            val distNorm = sqrt((normX * normX + normY * normY).toDouble())
+            sumDeltaR += abs(distNorm - 1.0)
         }
-        val cx = sumX / points.size
-        val cy = sumY / points.size
+        val meanDeltaR = sumDeltaR / points.size
 
-        val aspect = abs(boxWidth - boxHeight) / max(boxWidth, boxHeight)
-
-        // A. CIRCLE & ELLIPSE (High circularity: Q > 0.84)
-        if (isoperimetricQuotient > 0.84) {
-            // Check radial distance variance from centroid
-            var sumR = 0f
-            val radii = FloatArray(points.size)
-            for (i in points.indices) {
-                val r = hypot(points[i].x - cx, points[i].y - cy)
-                radii[i] = r
-                sumR += r
-            }
-            val meanR = sumR / points.size
-
-            if (aspect < 0.22f) {
-                return snapToCircle(stroke, cx, cy, meanR)
-            } else {
-                return snapToEllipse(stroke, cx, cy, boxWidth / 2f, boxHeight / 2f)
-            }
+        // Si el error medio < 0.20: Es un CÍRCULO o ELIPSE
+        if (meanDeltaR < 0.20) {
+            val isCircle = ar >= 0.82f
+            val finalRx = if (isCircle) (rx + ry) / 2f else rx
+            val finalRy = if (isCircle) (rx + ry) / 2f else ry
+            return snapToCubicBezierEllipse(stroke, cx, cy, finalRx, finalRy)
         }
 
-        // B. POLYGONS: Triangle, Rectangle, Square (Q <= 0.84)
-        // Find dominant corner vertices using RDP on the closed perimeter
+        // Si meanDeltaR >= 0.20: Es un RECTÁNGULO / CUADRADO o TRIÁNGULO
         val rdpEpsilon = max(boxDiag * 0.08f, 12f)
         val corners = extractClosedCorners(points, rdpEpsilon)
+        val simplifiedCorners = mergeCloseCorners(corners, 20f)
+        val cornerCount = simplifiedCorners.size
 
-        // 3 Corners -> TRIANGLE
-        if (corners.size == 3) {
-            val v1 = corners[0]
-            val v2 = corners[1]
-            val v3 = corners[2]
-            return snapToPolygon(stroke, listOf(v1, v2, v3, v1))
+        // Triángulo
+        if (cornerCount == 3) {
+            return snapToPolygon(stroke, simplifiedCorners + simplifiedCorners.first())
         }
 
-        // 4 Corners -> RECTANGLE or SQUARE
-        if (corners.size == 4) {
-            val v0 = corners[0]
-            val v1 = corners[1]
-            val v2 = corners[2]
-            val v3 = corners[3]
+        val polygonArea = computeShoelaceArea(points)
+        val boxArea = boxWidth * boxHeight
+        val areaRatio = if (boxArea > 0f) (polygonArea / boxArea).toFloat() else 0f
 
-            // If aspect ratio is close to 1:1, snap to perfect Square
-            if (aspect < 0.18f) {
+        // Rectángulo o Cuadrado
+        if (cornerCount in 3..6 || areaRatio in 0.60f..1.15f) {
+            if (ar >= 0.85f) {
+                // Cuadrado
                 val side = (boxWidth + boxHeight) / 2f
                 val sqMinX = cx - side / 2f
                 val sqMaxX = cx + side / 2f
@@ -163,28 +164,8 @@ class ShapeDetector {
                         Point(sqMinX, sqMinY)
                     )
                 )
-            }
-
-            // Snap to Axis-Aligned Rectangle
-            return snapToPolygon(
-                stroke,
-                listOf(
-                    Point(minX, minY),
-                    Point(maxX, minY),
-                    Point(maxX, maxY),
-                    Point(minX, maxY),
-                    Point(minX, minY)
-                )
-            )
-        }
-
-        // Fallback for rough polygons: if corners ~ 3 or 4 after merging
-        if (corners.size in 3..5) {
-            val simplifiedCorners = mergeCloseCorners(corners, 20f)
-            if (simplifiedCorners.size == 3) {
-                return snapToPolygon(stroke, simplifiedCorners + simplifiedCorners.first())
-            }
-            if (simplifiedCorners.size == 4) {
+            } else {
+                // Rectángulo
                 return snapToPolygon(
                     stroke,
                     listOf(
@@ -196,11 +177,6 @@ class ShapeDetector {
                     )
                 )
             }
-        }
-
-        // If stroke is elongated and relatively smooth, snap to ellipse
-        if (aspect >= 0.35f && isoperimetricQuotient > 0.65) {
-            return snapToEllipse(stroke, cx, cy, boxWidth / 2f, boxHeight / 2f)
         }
 
         return null
@@ -244,8 +220,9 @@ class ShapeDetector {
     }
 
     /**
-     * Recognizes single-stroke arrows: a straight shaft followed by an acute fold (arrowhead).
-     * If the user just drew a straight line without folding back, returns null!
+     * Recognizes single-stroke arrows: a straight or curved shaft followed by an acute fold (arrowhead).
+     * If the shaft has sagittaRatio < 0.12: regularizes to a straight shaft.
+     * If sagittaRatio >= 0.12: regularizes to a smooth quadratic Bézier arc aligned with the arrowhead.
      */
     private fun trySnapArrow(stroke: Stroke, points: List<Point>, totalLength: Float): Stroke? {
         val count = points.size
@@ -277,19 +254,28 @@ class ShapeDetector {
 
             if (tipLen < 8f || tipLen > shaftLen * 0.55f) continue
 
-            // Angle between shaft vector and tip vector:
-            // A fold backwards has angle > 75 degrees
+            // Angle between incoming shaft direction and tip fold:
             val dot = (shaftDx * tipDx + shaftDy * tipDy) / (shaftLen * tipLen)
             val clampedDot = dot.coerceIn(-1.0f, 1.0f)
-            val angleDeg = Math.toDegrees(acos(clampedDot.toDouble()))
+            val chordAngleDeg = Math.toDegrees(acos(clampedDot.toDouble()))
 
-            if (angleDeg > 75.0 && angleDeg > bestTipAngle) {
+            // Tangent direction entering tip
+            val inDx = pTip.x - points[max(0, i - 3)].x
+            val inDy = pTip.y - points[max(0, i - 3)].y
+            val inLen = hypot(inDx, inDy)
+            val localDot = if (inLen > 0.001f) (inDx * tipDx + inDy * tipDy) / (inLen * tipLen) else dot
+            val clampedLocalDot = localDot.coerceIn(-1.0f, 1.0f)
+            val localAngleDeg = Math.toDegrees(acos(clampedLocalDot.toDouble()))
+
+            val effectiveAngle = max(chordAngleDeg, localAngleDeg)
+
+            if (effectiveAngle > 70.0 && effectiveAngle > bestTipAngle) {
                 var travel = 0f
                 for (k in 1..i) {
                     travel += hypot(points[k].x - points[k - 1].x, points[k].y - points[k - 1].y)
                 }
-                if (shaftLen / travel >= 0.78f) {
-                    bestTipAngle = angleDeg
+                if (travel > 0f && shaftLen / travel >= 0.55f) {
+                    bestTipAngle = effectiveAngle
                     bestTipIndex = i
                 }
             }
@@ -303,24 +289,56 @@ class ShapeDetector {
         val shaftLen = hypot(shaftDx, shaftDy)
         val shaftAngle = atan2(shaftDy, shaftDx)
 
+        // Evalúa la sagita del cuerpo (shaft) de la flecha
+        var dMaxShaft = 0f
+        var shaftApex = pStart
+        for (k in 0..bestTipIndex) {
+            val p = points[k]
+            val d = perpendicularDistance(p, pStart, pTip)
+            if (d > dMaxShaft) {
+                dMaxShaft = d
+                shaftApex = p
+            }
+        }
+        val shaftSagittaRatio = if (shaftLen > 0.001f) dMaxShaft / shaftLen else 0f
+
+        val resultPoints = ArrayList<Point>()
+        val tipAngle: Float
+
+        if (shaftSagittaRatio < 0.12f) {
+            // Cuerpo recto
+            tipAngle = shaftAngle
+            val shaftSteps = 24
+            for (s in 0..shaftSteps) {
+                val t = s.toFloat() / shaftSteps
+                resultPoints.add(Point(pStart.x + t * shaftDx, pStart.y + t * shaftDy))
+            }
+        } else {
+            // Cuerpo curvo de Bézier cuadrático regularizado que pasa por shaftApex en t = 0.5
+            val pcX = 2f * shaftApex.x - 0.5f * (pStart.x + pTip.x)
+            val pcY = 2f * shaftApex.y - 0.5f * (pStart.y + pTip.y)
+            tipAngle = atan2(pTip.y - pcY, pTip.x - pcX)
+
+            val shaftSteps = 24
+            for (s in 0..shaftSteps) {
+                val t = s.toFloat() / shaftSteps
+                val u = 1f - t
+                val x = u * u * pStart.x + 2f * u * t * pcX + t * t * pTip.x
+                val y = u * u * pStart.y + 2f * u * t * pcY + t * t * pTip.y
+                resultPoints.add(Point(x, y))
+            }
+        }
+
         val headLength = min(max(shaftLen * 0.25f, 55f), 95f)
         val wingAngle = Math.toRadians(30.0).toFloat()
 
         // Wing 1 (top wing)
-        val w1x = pTip.x - headLength * cos(shaftAngle - wingAngle)
-        val w1y = pTip.y - headLength * sin(shaftAngle - wingAngle)
+        val w1x = pTip.x - headLength * cos(tipAngle - wingAngle)
+        val w1y = pTip.y - headLength * sin(tipAngle - wingAngle)
 
         // Wing 2 (bottom wing)
-        val w2x = pTip.x - headLength * cos(shaftAngle + wingAngle)
-        val w2y = pTip.y - headLength * sin(shaftAngle + wingAngle)
-
-        val resultPoints = ArrayList<Point>()
-        // 1. Shaft: pStart -> pTip
-        val shaftSteps = 24
-        for (s in 0..shaftSteps) {
-            val t = s.toFloat() / shaftSteps
-            resultPoints.add(Point(pStart.x + t * shaftDx, pStart.y + t * shaftDy))
-        }
+        val w2x = pTip.x - headLength * cos(tipAngle + wingAngle)
+        val w2y = pTip.y - headLength * sin(tipAngle + wingAngle)
 
         // 2. Wing 1: pTip -> w1
         val wingSteps = 8
@@ -345,26 +363,70 @@ class ShapeDetector {
         return buildStrokeFromPoints(stroke, resultPoints)
     }
 
-    private fun snapToCircle(stroke: Stroke, cx: Float, cy: Float, radius: Float): Stroke? {
-        val steps = 54
-        val resultPoints = ArrayList<Point>(steps + 1)
-        for (i in 0..steps) {
-            val angle = (2.0 * Math.PI * i / steps).toFloat()
-            val x = cx + radius * cos(angle)
-            val y = cy + radius * sin(angle)
-            resultPoints.add(Point(x, y))
+    private fun snapToCubicBezierEllipse(stroke: Stroke, cx: Float, cy: Float, rx: Float, ry: Float): Stroke? {
+        if (rx <= 5f || ry <= 5f) return null
+        val kappa = 0.55228475f
+        val kx = kappa * rx
+        val ky = kappa * ry
+
+        // 4 curvas cúbicas de Bézier que forman una elipse o círculo cerrado perfecto:
+        // Cuadrante 1 (Derecha -> Superior): (cx+rx, cy) -> (cx, cy-ry)
+        // Cuadrante 2 (Superior -> Izquierda): (cx, cy-ry) -> (cx-rx, cy)
+        // Cuadrante 3 (Izquierda -> Inferior): (cx-rx, cy) -> (cx, cy+ry)
+        // Cuadrante 4 (Inferior -> Derecha): (cx, cy+ry) -> (cx+rx, cy)
+
+        val p0 = Point(cx + rx, cy)
+        val c0a = Point(cx + rx, cy - ky)
+        val c0b = Point(cx + kx, cy - ry)
+        val p1 = Point(cx, cy - ry)
+
+        val c1a = Point(cx - kx, cy - ry)
+        val c1b = Point(cx - rx, cy - ky)
+        val p2 = Point(cx - rx, cy)
+
+        val c2a = Point(cx - rx, cy + ky)
+        val c2b = Point(cx - kx, cy + ry)
+        val p3 = Point(cx, cy + ry)
+
+        val c3a = Point(cx + kx, cy + ry)
+        val c3b = Point(cx + rx, cy + ky)
+
+        val resultPoints = ArrayList<Point>(65)
+        val stepsPerQuadrant = 16
+
+        fun sampleCubic(pStart: Point, c1: Point, c2: Point, pEnd: Point, includeFirst: Boolean) {
+            val startIdx = if (includeFirst) 0 else 1
+            for (s in startIdx..stepsPerQuadrant) {
+                val t = s.toFloat() / stepsPerQuadrant
+                val u = 1f - t
+                val x = u * u * u * pStart.x + 3f * u * u * t * c1.x + 3f * u * t * t * c2.x + t * t * t * pEnd.x
+                val y = u * u * u * pStart.y + 3f * u * u * t * c1.y + 3f * u * t * t * c2.y + t * t * t * pEnd.y
+                resultPoints.add(Point(x, y))
+            }
         }
+
+        sampleCubic(p0, c0a, c0b, p1, true)
+        sampleCubic(p1, c1a, c1b, p2, false)
+        sampleCubic(p2, c2a, c2b, p3, false)
+        sampleCubic(p3, c3a, c3b, p0, false)
+
         return buildStrokeFromPoints(stroke, resultPoints)
     }
 
-    private fun snapToEllipse(stroke: Stroke, cx: Float, cy: Float, rx: Float, ry: Float): Stroke? {
-        if (rx <= 5f || ry <= 5f) return null
-        val steps = 54
+    private fun snapToArcCurve(stroke: Stroke, start: Point, apex: Point, end: Point): Stroke? {
+        // Punto de control Pc para que la curva cuadrática pase exactamente por el vértice apex en t = 0.5:
+        // Pc = 2 * apex - (start + end) / 2
+        val pcX = 2f * apex.x - 0.5f * (start.x + end.x)
+        val pcY = 2f * apex.y - 0.5f * (start.y + end.y)
+        val pc = Point(pcX, pcY)
+
+        val steps = 36
         val resultPoints = ArrayList<Point>(steps + 1)
         for (i in 0..steps) {
-            val angle = (2.0 * Math.PI * i / steps).toFloat()
-            val x = cx + rx * cos(angle)
-            val y = cy + ry * sin(angle)
+            val t = i.toFloat() / steps
+            val u = 1f - t
+            val x = u * u * start.x + 2f * u * t * pc.x + t * t * end.x
+            val y = u * u * start.y + 2f * u * t * pc.y + t * t * end.y
             resultPoints.add(Point(x, y))
         }
         return buildStrokeFromPoints(stroke, resultPoints)

@@ -1,137 +1,190 @@
 package com.cognitivecanvas.app.ink.tools
 
 import android.graphics.RectF
+import android.util.Log
 import androidx.ink.strokes.Stroke
 import com.cognitivecanvas.app.ink.spatial.SpatialHashGrid
+import kotlin.math.abs
+import kotlin.math.hypot
 
 class ScratchOutDetector {
 
     /**
-     * Determines whether the given stroke represents a scratch-out gesture.
-     * Stroke inputs captured via inProgressStrokesView.startStroke are already transformed
-     * into infinite canvas world space by the inverse camera matrix.
-     * Coordinates are strictly normalized to World DP dividing by [density] to guarantee zoom invariance.
+     * Evalúa la cinemática del tachado (scratch-out) en SCREEN DP.
+     * Dado que el movimiento de la mano sobre el cristal de la pantalla física es constante,
+     * las coordenadas del trazo se proyectan al espacio de pantalla divididas por [density].
+     *
+     * Umbrales calibrados en Screen DP:
+     * - Inversiones: [dominantReversals] >= 2 o [totalReversals] >= 3 con paso mínimo [minDelta] >= 4.0f dp
+     * - Longitud física acumulada >= 20f dp
+     * - Ratio de tortuosidad >= 1.8f
      */
-    fun isScratchOutStroke(stroke: Stroke, density: Float, canvasScale: Float = 1f): Boolean {
+    fun isScratchOutStroke(
+        stroke: Stroke,
+        density: Float,
+        canvasScale: Float = 1.0f,
+        canvasTranslateX: Float = 0f,
+        canvasTranslateY: Float = 0f
+    ): Boolean {
         val inputs = stroke.inputs
         val count = inputs.size
-        if (count < 8) return false
-
-        var minX = Float.MAX_VALUE
-        var maxX = -Float.MAX_VALUE
-        var minY = Float.MAX_VALUE
-        var maxY = -Float.MAX_VALUE
-
-        var totalLengthWorldDp = 0f
-        var xReversals = 0
-        var prevDx = 0f
-
-        val minDeltaWorldDp = 3.5f // Umbral en World DP para registrar reversión de dirección inmune al zoom
-
-        for (i in 0 until count) {
-            val pt = inputs.get(i)
-            val px = pt.x / density
-            val py = pt.y / density
-            if (px < minX) minX = px
-            if (px > maxX) maxX = px
-            if (py < minY) minY = py
-            if (py > maxY) maxY = py
-
-            if (i > 0) {
-                val prevPt = inputs.get(i - 1)
-                val dx = (pt.x - prevPt.x) / density
-                val dy = (pt.y - prevPt.y) / density
-                totalLengthWorldDp += kotlin.math.hypot(dx, dy)
-
-                if (kotlin.math.abs(dx) >= minDeltaWorldDp) {
-                    if (prevDx != 0f && (dx > 0) != (prevDx > 0)) {
-                        xReversals++
-                    }
-                    prevDx = dx
-                }
-            }
+        if (count < 6) {
+            Log.d("ScratchOut", "FAIL count: count=$count (< 6)")
+            return false
         }
 
-        // Reversiones horizontales: xReversals >= 4
-        if (xReversals < 4) return false
+        val scale = if (canvasScale > 0.001f) canvasScale else 1.0f
+        val firstPt = inputs.get(0)
+        var prevSx = (firstPt.x * scale + canvasTranslateX) / density
+        var prevSy = (firstPt.y * scale + canvasTranslateY) / density
+        var minSx = prevSx
+        var maxSx = prevSx
+        var minSy = prevSy
+        var maxSy = prevSy
 
-        // Longitud acumulada total: totalLengthWorldDp >= 40f
-        if (totalLengthWorldDp < 40f) return false
+        var totalLengthScreenDp = 0f
+        var xReversals = 0
+        var yReversals = 0
+        var prevDx = 0f
+        var prevDy = 0f
+        val minDelta = 4.0f // Screen DP: permite detectar oscilaciones cortas sobre una sola palabra
 
-        // Ratio de tortuosidad: totalLengthWorldDp / boxDiag >= 3.8f
-        val boxDiag = kotlin.math.hypot(maxX - minX, maxY - minY)
-        if (boxDiag <= 0.001f) return false
-        val tortuosity = totalLengthWorldDp / boxDiag
-        if (tortuosity < 3.8f) return false
+        for (i in 1 until count) {
+            val pt = inputs.get(i)
+            val sx = (pt.x * scale + canvasTranslateX) / density
+            val sy = (pt.y * scale + canvasTranslateY) / density
 
+            if (sx < minSx) minSx = sx
+            if (sx > maxSx) maxSx = sx
+            if (sy < minSy) minSy = sy
+            if (sy > maxSy) maxSy = sy
+
+            val dx = sx - prevSx
+            val dy = sy - prevSy
+            totalLengthScreenDp += hypot(dx, dy)
+
+            if (abs(dx) >= minDelta) {
+                if (prevDx != 0f && (dx > 0) != (prevDx > 0)) {
+                    xReversals++
+                }
+                prevDx = dx
+            }
+
+            if (abs(dy) >= minDelta) {
+                if (prevDy != 0f && (dy > 0) != (prevDy > 0)) {
+                    yReversals++
+                }
+                prevDy = dy
+            }
+
+            prevSx = sx
+            prevSy = sy
+        }
+
+        val boxDiagScreenDp = hypot(maxSx - minSx, maxSy - minSy)
+        val tortuosity = if (boxDiagScreenDp > 0.001f) totalLengthScreenDp / boxDiagScreenDp else 0f
+        val dominantReversals = maxOf(xReversals, yReversals)
+        val totalReversals = xReversals + yReversals
+
+        Log.d("ScratchOut", "EVAL: count=$count, pt0=(${firstPt.x}, ${firstPt.y}), xRev=$xReversals, yRev=$yReversals, domRev=$dominantReversals, totRev=$totalReversals, lenScreenDp=$totalLengthScreenDp, diag=$boxDiagScreenDp, tortuosity=$tortuosity (scale=$scale, tx=$canvasTranslateX, ty=$canvasTranslateY, density=$density)")
+
+        // 1. Reversiones omnidireccionales físicas (2 inversiones completas ya denotan intención de tachado)
+        if (dominantReversals < 2 && totalReversals < 3) {
+            Log.d("ScratchOut", "FAIL reversals: count=$count, xRev=$xReversals, yRev=$yReversals, domRev=$dominantReversals (<2), totRev=$totalReversals (<3)")
+            return false
+        }
+
+        // 2. Longitud acumulada total en pantalla física (>= 20 dp)
+        if (totalLengthScreenDp < 20f) {
+            Log.d("ScratchOut", "FAIL totalLength: count=$count, lenScreenDp=$totalLengthScreenDp (< 20dp)")
+            return false
+        }
+
+        // 3. Ratio de tortuosidad en pantalla (>= 1.8f)
+        if (tortuosity < 1.8f) {
+            Log.d("ScratchOut", "FAIL tortuosity: count=$count, lenScreenDp=$totalLengthScreenDp, diag=$boxDiagScreenDp, tortuosity=$tortuosity (< 1.8f)")
+            return false
+        }
+
+        Log.d("ScratchOut", "SUCCESS: ScratchOut detectado! count=$count, xRev=$xReversals, yRev=$yReversals, lenScreenDp=$totalLengthScreenDp, tortuosity=$tortuosity")
         return true
     }
 
     /**
-     * Finds existing strokes covered by the scratch-out gesture and expands to the full word cluster.
-     * All spatial evaluations and the bounding box of the scratch are performed in World DP.
+     * Calcula el Bounding Box de borrado en World DP usando las coordenadas
+     * de [stroke.inputs] divididas por [density] (coherente con getStrokeBounds en JetpackInkView)
+     * con un padding de dilatación configurable (default = 24.0f World DP).
      */
-    fun findStrokesToErase(
-        scratchStroke: Stroke,
-        spatialGrid: SpatialHashGrid,
+    fun getScratchBoundsWorld(
+        stroke: Stroke,
         density: Float,
-        getStrokeBounds: (Stroke) -> RectF?
-    ): Set<Stroke> {
-        val inputs = scratchStroke.inputs
+        padding: Float = 24.0f
+    ): RectF {
+        val inputs = stroke.inputs
         val count = inputs.size
-        if (count == 0) return emptySet()
+        if (count == 0) return RectF()
 
-        // 1. scratchBounds generado estrictamente en World DP (px, py normalizados por density)
         var minX = Float.MAX_VALUE
         var maxX = -Float.MAX_VALUE
         var minY = Float.MAX_VALUE
         var maxY = -Float.MAX_VALUE
+
+        val dens = if (density > 0.001f) density else 1f
+
         for (i in 0 until count) {
             val pt = inputs.get(i)
-            val px = pt.x / density
-            val py = pt.y / density
+            val px = pt.x / dens
+            val py = pt.y / dens
             if (px < minX) minX = px
             if (px > maxX) maxX = px
             if (py < minY) minY = py
             if (py > maxY) maxY = py
         }
-        val scratchBounds = RectF(minX, minY, maxX, maxY)
 
-        // 2. Consulta al SpatialHashGrid compartiendo el mismo espacio de referencia (World DP)
-        val candidateStrokes = spatialGrid.query(scratchBounds)
+        val bounds = RectF(minX - padding, minY - padding, maxX + padding, maxY + padding)
+        Log.d("ScratchOut", "getScratchBoundsWorld: count=$count, bounds=$bounds (dens=$dens, padding=$padding)")
+        return bounds
+    }
+
+    fun getScratchBoundsWorld(
+        stroke: Stroke,
+        padding: Float = 24.0f
+    ): RectF = getScratchBoundsWorld(stroke, 1f, padding)
+
+    /**
+     * Localiza los trazos a eliminar consultando el SpatialHashGrid en World DP
+     * y expande el clúster a la palabra completa.
+     */
+    fun findStrokesToErase(
+        scratchBoundsWorld: RectF,
+        spatialGrid: SpatialHashGrid,
+        getStrokeBounds: (Stroke) -> RectF?
+    ): Set<Stroke> {
+        val candidateStrokes = spatialGrid.query(scratchBoundsWorld)
+        Log.d("ScratchOut", "Scratch DETECTADO. boundsWorld=$scratchBoundsWorld. Candidatos en spatialGrid=${candidateStrokes.size}")
+
         val hitStrokes = mutableListOf<Stroke>()
         for (stroke in candidateStrokes) {
             val b = getStrokeBounds(stroke) ?: continue
-            val interLeft = maxOf(scratchBounds.left, b.left)
-            val interRight = minOf(scratchBounds.right, b.right)
-            val interTop = maxOf(scratchBounds.top, b.top)
-            val interBottom = minOf(scratchBounds.bottom, b.bottom)
-
-            if (interRight > interLeft && interBottom > interTop) {
-                val strokeW = b.width()
-                val strokeH = b.height()
-                val interW = interRight - interLeft
-                val interH = interBottom - interTop
-
-                val centerX = b.centerX()
-                val centerY = b.centerY()
-                val centerInScratch = scratchBounds.contains(centerX, centerY)
-
-                if (centerInScratch || (interW >= strokeW * 0.25f) || interW >= 15f || (interW > 0 && interH > 0 && strokeW <= 20f)) {
-                    hitStrokes.add(stroke)
-                }
+            val dx = maxOf(0f, maxOf(scratchBoundsWorld.left - b.right, b.left - scratchBoundsWorld.right))
+            val dy = maxOf(0f, maxOf(scratchBoundsWorld.top - b.bottom, b.top - scratchBoundsWorld.bottom))
+            val isHit = RectF.intersects(scratchBoundsWorld, b) || (dx <= 14f && dy <= 14f)
+            Log.d("ScratchOut", "Candidato bounds=$b, isHit=$isHit (dx=$dx, dy=$dy)")
+            if (isHit) {
+                hitStrokes.add(stroke)
             }
         }
 
+        Log.d("ScratchOut", "Hit strokes count=${hitStrokes.size}")
         if (hitStrokes.isEmpty()) return emptySet()
 
-        // 3. Expansión del clúster (borrado de la palabra completa)
+        // Expansión del clúster (borrado de la palabra completa)
         val strokesToDelete = mutableSetOf<Stroke>()
         strokesToDelete.addAll(hitStrokes)
 
         val queue = ArrayDeque<Stroke>()
         queue.addAll(hitStrokes)
-        val clusterProximity = (scratchBounds.height() * 0.4f).coerceIn(8f, 24f)
+        val clusterProximity = (scratchBoundsWorld.height() * 0.45f).coerceIn(24f, 38f)
 
         while (queue.isNotEmpty()) {
             val curr = queue.removeFirst()
@@ -152,7 +205,6 @@ class ScratchOutDetector {
                 val dx = maxOf(0f, maxOf(currBounds.left - otherBounds.right, otherBounds.left - currBounds.right))
                 val dy = maxOf(0f, maxOf(currBounds.top - otherBounds.bottom, otherBounds.top - currBounds.bottom))
 
-                // Solo absorbe trazos cuya distancia horizontal respete la cercanía de la palabra para no borrar términos adyacentes
                 if (dx <= clusterProximity && dy <= clusterProximity) {
                     strokesToDelete.add(other)
                     queue.add(other)
@@ -166,17 +218,10 @@ class ScratchOutDetector {
     fun findStrokesToErase(
         scratchStroke: Stroke,
         spatialGrid: SpatialHashGrid,
+        density: Float,
         getStrokeBounds: (Stroke) -> RectF?
     ): Set<Stroke> {
-        val scratchBounds = getStrokeBounds(scratchStroke) ?: return emptySet()
-        val candidateStrokes = spatialGrid.query(scratchBounds)
-        val hitStrokes = mutableListOf<Stroke>()
-        for (stroke in candidateStrokes) {
-            val b = getStrokeBounds(stroke) ?: continue
-            if (RectF.intersects(scratchBounds, b)) {
-                hitStrokes.add(stroke)
-            }
-        }
-        return hitStrokes.toSet()
+        val scratchBoundsWorld = getScratchBoundsWorld(scratchStroke, density, 12f)
+        return findStrokesToErase(scratchBoundsWorld, spatialGrid, getStrokeBounds)
     }
 }

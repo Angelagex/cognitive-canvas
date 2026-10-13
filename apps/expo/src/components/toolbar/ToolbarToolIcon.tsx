@@ -3,7 +3,6 @@ import {
   Pen,
   Highlighter,
   Eraser,
-  Shapes,
   Lasso,
   Sparkles,
   Hand,
@@ -26,8 +25,6 @@ export const ToolbarToolIcon: React.FC<ToolbarToolIconProps> = ({ id, isActive }
       return <Highlighter size={size} color={iconColor} strokeWidth={2.0} />;
     case "eraser":
       return <Eraser size={size} color={iconColor} strokeWidth={2.0} />;
-    case "shapes":
-      return <Shapes size={size} color={iconColor} strokeWidth={2.0} />;
     case "lasso":
       return <Lasso size={size} color={iconColor} strokeWidth={2.0} />;
     case "laser":

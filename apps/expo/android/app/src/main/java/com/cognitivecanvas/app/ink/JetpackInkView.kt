@@ -31,6 +31,7 @@ import com.cognitivecanvas.app.ink.tools.LaserPointerManager
 import com.cognitivecanvas.app.ink.tools.LassoSelectionManager
 import com.cognitivecanvas.app.ink.tools.ScratchOutDetector
 import com.cognitivecanvas.app.ink.tools.ShapeDetector
+import com.cognitivecanvas.app.ink.tools.ShapeHoldDetector
 import com.cognitivecanvas.app.ink.tools.StrokeEraser
 import com.cognitivecanvas.app.ink.rendering.StickerStrokeAnimator
 import com.cognitivecanvas.app.ink.tools.StickerPlacementManager
@@ -77,6 +78,27 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
     private val strokeEraser = StrokeEraser()
     private val lassoManager = LassoSelectionManager()
     private val spatialGrid = SpatialHashGrid(cellSize = 64f)
+
+    private val shapeHoldDetector = ShapeHoldDetector { ptrId, anchorX, anchorY ->
+        if (brushType == "pen" && activeStrokeIds.containsKey(ptrId)) {
+            val strokeId = activeStrokeIds.remove(ptrId) ?: return@ShapeHoldDetector
+            isStrokeSnapped = true
+            try {
+                performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+            } catch (_: Exception) {}
+
+            val finishEvent = MotionEvent.obtain(
+                SystemClock.uptimeMillis(),
+                SystemClock.uptimeMillis(),
+                MotionEvent.ACTION_UP,
+                anchorX,
+                anchorY,
+                0
+            )
+            inProgressStrokesView.finishStroke(finishEvent, ptrId, strokeId)
+            finishEvent.recycle()
+        }
+    }
 
     private val transformManager = CanvasTransformManager(context) { scale, tx, ty ->
         postInvalidateOnAnimation()
@@ -225,16 +247,8 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
     private var fingerDownY = 0f
     private var fingerDownTime = 0L
 
-    // Draw-and-Hold Shape Detection Dwell
-    private val dwellHandler = Handler(Looper.getMainLooper())
-    private var dwellAnchorX = 0f
-    private var dwellAnchorY = 0f
-    private var dwellPointerId = -1
+    // Draw-and-Hold Shape Detection Snapping State
     private var isStrokeSnapped = false
-
-    private val dwellRunnable = Runnable {
-        triggerDrawAndHold()
-    }
 
     // Stroke Finish Notification Debounce
     private val strokeFinishDebounceHandler = Handler(Looper.getMainLooper())
@@ -267,14 +281,21 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
                 }
 
                 val density = context.resources.displayMetrics.density
-                val shouldSnap = brushType == "shapes" || isStrokeSnapped
+                val shouldSnap = isStrokeSnapped
                 val finalStrokes = mutableListOf<Stroke>()
                 val finalStrokeIds = mutableListOf<InProgressStrokeId>()
 
+                val scale = transformManager.canvasScale
+                val tx = transformManager.canvasTranslateX
+                val ty = transformManager.canvasTranslateY
+
                 for ((strokeId, stroke) in strokes) {
-                    if (scratchOutDetector.isScratchOutStroke(stroke, density)) {
-                        val deleted = scratchOutDetector.findStrokesToErase(stroke, spatialGrid, density) { s -> getStrokeBounds(s) }
+                    if (scratchOutDetector.isScratchOutStroke(stroke, density, scale, tx, ty)) {
+                        android.util.Log.d("ScratchOut", "isScratchOutStroke=true! Ejecutando borrado...")
+                        val boundsWorld = scratchOutDetector.getScratchBoundsWorld(stroke, density, 24f)
+                        val deleted = scratchOutDetector.findStrokesToErase(boundsWorld, spatialGrid) { s -> getStrokeBounds(s) }
                         if (deleted.isNotEmpty()) {
+                            android.util.Log.d("ScratchOut", "Borrando ${deleted.size} trazos impactados...")
                             for (s in deleted) {
                                 val b = strokeBoundsCache.remove(s)
                                 if (b != null) spatialGrid.remove(s, b)
@@ -283,18 +304,21 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
                             undoneStrokes.addAll(deleted)
                             eventEmitter.emitScratchOut(deleted.size, completedStrokes.size)
                             try {
-                                performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+                                performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                             } catch (_: Exception) {}
                             strokeFinishDebounceHandler.removeCallbacks(strokeFinishDebounceRunnable)
                             notifyStrokeCountChanged()
+                        } else {
+                            android.util.Log.d("ScratchOut", "ScratchOut no intersectó ningún trazo existente en boundsWorld=$boundsWorld")
                         }
+                        // SIEMPRE descartar el trazo del scratch-out (no se agrega a finalStrokes ni completedStrokes)
                         inProgressStrokesView.removeFinishedStrokes(setOf(strokeId))
                         postInvalidateOnAnimation()
                         continue
                     }
 
                     val snapped = if (shouldSnap) {
-                        shapeDetector.detectAndSnap(stroke) ?: stroke
+                        shapeDetector.detectAndSnap(stroke, density) ?: stroke
                     } else {
                         stroke
                     }
@@ -367,7 +391,7 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
                 inProgressStrokesView.cancelUnfinishedStrokes()
                 activeStrokeIds.clear()
             }
-            dwellHandler.removeCallbacks(dwellRunnable)
+            shapeHoldDetector.cancel()
             if (isMomentaryLassoActive) {
                 isMomentaryLassoActive = false
             }
@@ -605,7 +629,7 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
             }
         }
 
-        // 7. Regular Stroke Drawing (Pen / Marker / Highlighter / Shapes / Laser)
+        // 7. Regular Stroke Drawing (Pen / Marker / Highlighter / Laser)
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 if (!stylusHandler.shouldAcceptDrawingTouch(event, 0)) {
@@ -622,11 +646,9 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
                 )
                 activeStrokeIds[pointerId] = strokeId
 
-                dwellAnchorX = event.x
-                dwellAnchorY = event.y
-                dwellPointerId = pointerId
-                dwellHandler.removeCallbacks(dwellRunnable)
-                dwellHandler.postDelayed(dwellRunnable, 450L)
+                if (brushType == "pen") {
+                    shapeHoldDetector.onTouchDown(event, pointerId)
+                }
                 return true
             }
 
@@ -634,10 +656,8 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
                 val pointerId = event.getPointerId(0)
                 val strokeId = activeStrokeIds[pointerId]
 
-                val distFromDwellAnchor = hypot(event.x - dwellAnchorX, event.y - dwellAnchorY)
-                if (distFromDwellAnchor > 12f * context.resources.displayMetrics.density) {
-                    dwellHandler.removeCallbacks(dwellRunnable)
-                    dwellPointerId = -1
+                if (brushType == "pen") {
+                    shapeHoldDetector.onTouchMove(event, pointerId, context.resources.displayMetrics.density)
                 }
 
                 if (strokeId != null) {
@@ -649,10 +669,9 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
             }
 
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                dwellHandler.removeCallbacks(dwellRunnable)
-                dwellPointerId = -1
-
                 val pointerId = event.getPointerId(0)
+                shapeHoldDetector.onTouchUpOrCancel(pointerId)
+
                 val strokeId = activeStrokeIds.remove(pointerId)
                 if (strokeId != null) {
                     try {
@@ -921,29 +940,6 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
             cachedBrush = brush
         }
         return brush
-    }
-
-    private fun triggerDrawAndHold() {
-        val ptrId = dwellPointerId
-        if (ptrId >= 0 && activeStrokeIds.containsKey(ptrId)) {
-            val strokeId = activeStrokeIds[ptrId] ?: return
-            isStrokeSnapped = true
-            try {
-                performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-            } catch (_: Exception) {}
-
-            val finishEvent = MotionEvent.obtain(
-                SystemClock.uptimeMillis(),
-                SystemClock.uptimeMillis(),
-                MotionEvent.ACTION_UP,
-                dwellAnchorX,
-                dwellAnchorY,
-                0
-            )
-            activeStrokeIds.remove(ptrId)
-            inProgressStrokesView.finishStroke(finishEvent, ptrId, strokeId)
-            finishEvent.recycle()
-        }
     }
 
     private fun notifyStrokeCountChanged() {
