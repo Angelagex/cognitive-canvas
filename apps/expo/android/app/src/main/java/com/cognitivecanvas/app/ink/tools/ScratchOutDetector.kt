@@ -16,8 +16,8 @@ class ScratchOutDetector {
      *
      * Umbrales calibrados en Screen DP:
      * - Inversiones: [dominantReversals] >= 2 o [totalReversals] >= 3 con paso mínimo [minDelta] >= 4.0f dp
-     * - Longitud física acumulada >= 20f dp
-     * - Ratio de tortuosidad >= 1.8f
+     * - Longitud física acumulada >= 22f dp
+     * - Ratio de tortuosidad >= 1.6f
      */
     fun isScratchOutStroke(
         stroke: Stroke,
@@ -47,7 +47,7 @@ class ScratchOutDetector {
         var yReversals = 0
         var prevDx = 0f
         var prevDy = 0f
-        val minDelta = 4.0f // Screen DP: permite detectar oscilaciones cortas sobre una sola palabra
+        val minDelta = 3.5f // Screen DP: permite detectar oscilaciones cortas sobre texto minúsculo
 
         for (i in 1 until count) {
             val pt = inputs.get(i)
@@ -94,15 +94,15 @@ class ScratchOutDetector {
             return false
         }
 
-        // 2. Longitud acumulada total en pantalla física (>= 20 dp)
-        if (totalLengthScreenDp < 20f) {
-            Log.d("ScratchOut", "FAIL totalLength: count=$count, lenScreenDp=$totalLengthScreenDp (< 20dp)")
+        // 2. Longitud acumulada total en pantalla física (>= 22 dp)
+        if (totalLengthScreenDp < 22f) {
+            Log.d("ScratchOut", "FAIL totalLength: count=$count, lenScreenDp=$totalLengthScreenDp (< 22dp)")
             return false
         }
 
-        // 3. Ratio de tortuosidad en pantalla (>= 1.8f)
-        if (tortuosity < 1.8f) {
-            Log.d("ScratchOut", "FAIL tortuosity: count=$count, lenScreenDp=$totalLengthScreenDp, diag=$boxDiagScreenDp, tortuosity=$tortuosity (< 1.8f)")
+        // 3. Ratio de tortuosidad en pantalla (>= 1.6f)
+        if (tortuosity < 1.6f) {
+            Log.d("ScratchOut", "FAIL tortuosity: count=$count, lenScreenDp=$totalLengthScreenDp, diag=$boxDiagScreenDp, tortuosity=$tortuosity (< 1.6f)")
             return false
         }
 
@@ -113,12 +113,12 @@ class ScratchOutDetector {
     /**
      * Calcula el Bounding Box de borrado en World DP usando las coordenadas
      * de [stroke.inputs] divididas por [density] (coherente con getStrokeBounds en JetpackInkView)
-     * con un padding de dilatación configurable (default = 24.0f World DP).
+     * con un padding de dilatación configurable (default = 8.0f World DP).
      */
     fun getScratchBoundsWorld(
         stroke: Stroke,
         density: Float,
-        padding: Float = 24.0f
+        padding: Float = 8.0f
     ): RectF {
         val inputs = stroke.inputs
         val count = inputs.size
@@ -148,12 +148,13 @@ class ScratchOutDetector {
 
     fun getScratchBoundsWorld(
         stroke: Stroke,
-        padding: Float = 24.0f
+        padding: Float = 8.0f
     ): RectF = getScratchBoundsWorld(stroke, 1f, padding)
 
     /**
-     * Localiza los trazos a eliminar consultando el SpatialHashGrid en World DP
-     * y expande el clúster a la palabra completa.
+     * Localiza los trazos a eliminar consultando el SpatialHashGrid en World DP.
+     * Solo elimina los trazos que intersectan directamente el Bounding Box del tachado,
+     * garantizando cero borrado de palabras o trazos adyacentes por simpatía.
      */
     fun findStrokesToErase(
         scratchBoundsWorld: RectF,
@@ -163,56 +164,17 @@ class ScratchOutDetector {
         val candidateStrokes = spatialGrid.query(scratchBoundsWorld)
         Log.d("ScratchOut", "Scratch DETECTADO. boundsWorld=$scratchBoundsWorld. Candidatos en spatialGrid=${candidateStrokes.size}")
 
-        val hitStrokes = mutableListOf<Stroke>()
+        val hitStrokes = mutableSetOf<Stroke>()
         for (stroke in candidateStrokes) {
             val b = getStrokeBounds(stroke) ?: continue
-            val dx = maxOf(0f, maxOf(scratchBoundsWorld.left - b.right, b.left - scratchBoundsWorld.right))
-            val dy = maxOf(0f, maxOf(scratchBoundsWorld.top - b.bottom, b.top - scratchBoundsWorld.bottom))
-            val isHit = RectF.intersects(scratchBoundsWorld, b) || (dx <= 14f && dy <= 14f)
-            Log.d("ScratchOut", "Candidato bounds=$b, isHit=$isHit (dx=$dx, dy=$dy)")
-            if (isHit) {
+            if (RectF.intersects(scratchBoundsWorld, b)) {
+                Log.d("ScratchOut", "Hit stroke bounds=$b")
                 hitStrokes.add(stroke)
             }
         }
 
         Log.d("ScratchOut", "Hit strokes count=${hitStrokes.size}")
-        if (hitStrokes.isEmpty()) return emptySet()
-
-        // Expansión del clúster (borrado de la palabra completa)
-        val strokesToDelete = mutableSetOf<Stroke>()
-        strokesToDelete.addAll(hitStrokes)
-
-        val queue = ArrayDeque<Stroke>()
-        queue.addAll(hitStrokes)
-        val clusterProximity = (scratchBoundsWorld.height() * 0.45f).coerceIn(24f, 38f)
-
-        while (queue.isNotEmpty()) {
-            val curr = queue.removeFirst()
-            val currBounds = getStrokeBounds(curr) ?: continue
-
-            val queryBox = RectF(
-                currBounds.left - clusterProximity,
-                currBounds.top - clusterProximity,
-                currBounds.right + clusterProximity,
-                currBounds.bottom + clusterProximity
-            )
-            val nearby = spatialGrid.query(queryBox)
-
-            for (other in nearby) {
-                if (strokesToDelete.contains(other)) continue
-                val otherBounds = getStrokeBounds(other) ?: continue
-
-                val dx = maxOf(0f, maxOf(currBounds.left - otherBounds.right, otherBounds.left - currBounds.right))
-                val dy = maxOf(0f, maxOf(currBounds.top - otherBounds.bottom, otherBounds.top - currBounds.bottom))
-
-                if (dx <= clusterProximity && dy <= clusterProximity) {
-                    strokesToDelete.add(other)
-                    queue.add(other)
-                }
-            }
-        }
-
-        return strokesToDelete
+        return hitStrokes
     }
 
     fun findStrokesToErase(
@@ -221,7 +183,7 @@ class ScratchOutDetector {
         density: Float,
         getStrokeBounds: (Stroke) -> RectF?
     ): Set<Stroke> {
-        val scratchBoundsWorld = getScratchBoundsWorld(scratchStroke, density, 12f)
+        val scratchBoundsWorld = getScratchBoundsWorld(scratchStroke, density, 8.0f)
         return findStrokesToErase(scratchBoundsWorld, spatialGrid, getStrokeBounds)
     }
 }

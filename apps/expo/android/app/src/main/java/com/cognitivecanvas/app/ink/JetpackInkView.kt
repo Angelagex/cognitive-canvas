@@ -315,7 +315,7 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
                 for ((strokeId, stroke) in strokes) {
                     if (scratchOutDetector.isScratchOutStroke(stroke, density, scale, tx, ty)) {
                         android.util.Log.d("ScratchOut", "isScratchOutStroke=true! Ejecutando borrado...")
-                        val boundsWorld = scratchOutDetector.getScratchBoundsWorld(stroke, density, 24f)
+                        val boundsWorld = scratchOutDetector.getScratchBoundsWorld(stroke, density, 8f)
                         val deleted = scratchOutDetector.findStrokesToErase(boundsWorld, spatialGrid) { s -> getStrokeBounds(s) }
                         if (deleted.isNotEmpty()) {
                             android.util.Log.d("ScratchOut", "Borrando ${deleted.size} trazos impactados...")
