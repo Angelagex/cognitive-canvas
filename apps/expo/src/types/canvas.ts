@@ -19,6 +19,8 @@ export interface HighResPngExportResult {
 
 export type PassiveAttributeType = "ANALOGY" | "CAUSAL_MECHANISM" | "EVIDENCE";
 
+export type ToolbarDockEdge = "left" | "right" | "top" | "bottom";
+
 export type CanvasBackgroundType = "dot_grid" | "graph_grid" | "ruled" | "blank";
 
 export type CanvasThemePreset = "dark_slate" | "charcoal_dark" | "warm_ivory" | "pure_white";

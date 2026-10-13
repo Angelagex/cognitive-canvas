@@ -30,7 +30,7 @@ export const EraserModePill: React.FC<EraserModePillProps> = ({
         onStartShouldSetResponder={() => true}
         onTouchEnd={(e) => e.stopPropagation()}
         pointerEvents="auto"
-        style={[styles.contextualPill, styles.eraserPill, positionStyle, { top: 115 }]}
+        style={[styles.contextualPill, styles.eraserPill, positionStyle]}
       >
         <TouchableOpacity
           style={[

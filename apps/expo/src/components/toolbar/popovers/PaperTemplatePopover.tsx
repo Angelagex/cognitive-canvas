@@ -51,7 +51,7 @@ export const PaperTemplatePopover: React.FC<PaperTemplatePopoverProps> = ({
         onStartShouldSetResponder={() => true}
         onTouchEnd={(e) => e.stopPropagation()}
         pointerEvents="auto"
-        style={[styles.popoverCard, positionStyle, { top: 170, width: 200 }]}
+        style={[styles.popoverCard, { width: 200 }, positionStyle]}
       >
       <Text style={styles.popoverHeader}>TIPO DE PAPEL</Text>
       {PAPER_TEMPLATES.map((tmpl) => {

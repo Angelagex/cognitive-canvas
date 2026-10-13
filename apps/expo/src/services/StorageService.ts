@@ -5,7 +5,7 @@ import {
   VisualASTLayer,
   CompiledCognitiveLayer,
 } from "@cognitive-canvas/core";
-import { PlacedAttribute } from "../types/canvas";
+import { PlacedAttribute, ToolbarDockEdge } from "../types/canvas";
 
 export interface ExtendedDocumentMetadata {
   title: string;
@@ -176,21 +176,31 @@ export async function setLastActiveMapId(mapId: string): Promise<void> {
 const USER_PREFS_FILE = `${FileSystem.documentDirectory}user_preferences.json`;
 
 export interface UserPreferences {
-  toolbar_dock_side: "left" | "right";
+  toolbar_dock_side?: "left" | "right";
+  toolbar_dock_edge?: ToolbarDockEdge;
 }
 
 export async function getUserPreferences(): Promise<UserPreferences> {
   try {
     const fileInfo = await FileSystem.getInfoAsync(USER_PREFS_FILE);
     if (!fileInfo.exists) {
-      return { toolbar_dock_side: "left" };
+      return { toolbar_dock_side: "left", toolbar_dock_edge: "left" };
     }
     const content = await FileSystem.readAsStringAsync(USER_PREFS_FILE, {
       encoding: FileSystem.EncodingType.UTF8,
     });
-    return JSON.parse(content);
+    const parsed = JSON.parse(content);
+    const edge: ToolbarDockEdge =
+      parsed.toolbar_dock_edge ||
+      (parsed.toolbar_dock_side === "right" ? "right" : "left");
+
+    return {
+      ...parsed,
+      toolbar_dock_side: edge === "right" ? "right" : "left",
+      toolbar_dock_edge: edge,
+    };
   } catch {
-    return { toolbar_dock_side: "left" };
+    return { toolbar_dock_side: "left", toolbar_dock_edge: "left" };
   }
 }
 

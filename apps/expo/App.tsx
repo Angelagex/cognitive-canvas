@@ -1,403 +1,211 @@
-import React, { useState } from "react";
-import { StyleSheet, View, SafeAreaView, StatusBar } from "react-native";
+import React, { useState, useRef, useEffect } from "react";
+import { View, SafeAreaView, StatusBar, Animated, TouchableOpacity, StyleSheet } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { Sparkles, Minimize2 } from "@sketchyicons/react-native";
 import { useCanvasState } from "./src/hooks/useCanvasState";
 import { TopHeader } from "./src/components/header/TopHeader";
 import { GoodnotesToolbar } from "./src/components/toolbar/GoodnotesToolbar";
 import { JetpackInkCanvas } from "./src/components/JetpackInkCanvas";
 import { FloatingFooter } from "./src/components/footer/FloatingFooter";
 import { CompilerDrawer } from "./src/components/drawer/CompilerDrawer";
-import { PlacedAttributeBadges } from "./src/components/canvas/PlacedAttributeBadges";
-import { SemanticAnchorTooltip } from "./src/components/canvas/SemanticAnchorTooltip";
-import { PacerOverlayLayer } from "./src/components/canvas/PacerOverlayLayer";
-import { ClearCanvasConfirmModal } from "./src/components/modals/ClearCanvasConfirmModal";
-import { DocumentActionsModal } from "./src/components/modals/DocumentActionsModal";
-import { GhostOverlay } from "./src/components/canvas/GhostOverlay";
-import { ContextualSelectionPill } from "./src/components/toolbar/popovers/ContextualToolPill";
+import { CanvasOverlays } from "./src/components/canvas/CanvasOverlays";
+import { AppModals } from "./src/components/modals/AppModals";
 import { cognitiveLayerStore } from "./src/stores/useCognitiveLayerStore";
-import { StickerPickerModal } from "./src/features/stickers/StickerPickerModal";
-import { Sparkles } from "@sketchyicons/react-native";
+import { styles } from "./src/styles/App.styles";
 
 export default function App() {
   const [showDocumentMenu, setShowDocumentMenu] = useState(false);
   const [stickerPickerVisible, setStickerPickerVisible] = useState(false);
   const [stickerTargetWorld, setStickerTargetWorld] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [dragGhost, setDragGhost] = useState<{ screenX: number; screenY: number } | null>(null);
-  const {
-    mapTitle,
-    setMapTitle,
-    activeBrush,
-    setActiveBrush,
-    activeColor,
-    setActiveColor,
-    activeWidth,
-    setActiveWidth,
-    eraserMode,
-    setEraserMode,
-    backgroundType,
-    setBackgroundType,
-    canvasTheme,
-    setCanvasTheme,
-    canvasBackgroundColor,
-    canvasGridColor,
-    favoriteColors,
-    updateFavoriteColor,
-    stylusOnly,
-    canUndo,
-    canRedo,
-    strokeCount,
-    displayZoom,
-    zoomInTrigger,
-    zoomOutTrigger,
-    resetZoomTrigger,
-    undoTrigger,
-    redoTrigger,
-    clearTrigger,
-    loadedStrokesJson,
-    loadStrokesTrigger,
-    isDrawerOpen,
-    setIsDrawerOpen,
-    isCompiling,
-    compilation,
-    hasSelection,
-    selectedCount,
-    selectionBounds,
-    deleteSelectionTrigger,
-    duplicateSelectionTrigger,
-    clearSelectionTrigger,
-    handleSelectionChanged,
-    handleDeleteSelection,
-    handleDuplicateSelection,
-    handleClearSelection,
-    handleAssignAttributeToLasso,
-    handleOpenAttributeModalFromLasso,
-    handleStrokesTransformed,
-    placedAttributes,
-    handleAddAttribute,
-    handleDeleteAttribute,
-    hoveredAttribute,
-    activeAnchorEntity,
-    hoveredEntityBounds,
-    hoveredEntity,
-    unclusteredStrokesInEntity,
-    activeEntityBounds,
-    handleAnchorModalOpen,
-    hoverScreenX,
-    hoverScreenY,
-    handleHover,
-    handleBadgeHover,
-    anchorTooltip,
-    handleHoverTimeout,
-    handleFingerTap,
-    handleCloseAnchorTooltip,
-    handleSaveAnchorTooltip,
-    canvasScale,
-    canvasTranslateX,
-    canvasTranslateY,
-    handleStrokeEnd,
-    handleTransform,
-    handleBarrelButton,
-    handleUndo,
-    handleRedo,
-    handleZoomIn,
-    handleZoomOut,
-    handleResetZoom,
-    handleToggleStylusOnly,
-    handleCompile,
-    isSaving,
-    lastSavedAt,
-    handleTitleChange,
-    handleNewMap,
-    handleSaveMap,
-    currentMapId,
-    savedMaps,
-    handleLoadMap,
-    showClearConfirmModal,
-    handleRequestClear,
-    handleConfirmClear,
-    handleCancelClear,
-    handleDeleteMap,
-    visualAST,
-    toolbarDockSide,
-    handleToggleDockSide,
-    pacerFilter,
-    setPacerFilter,
-    showPacerOverlay,
-    handleTogglePacerOverlay,
-  } = useCanvasState();
+  const [isZenMode, setIsZenMode] = useState(false);
+  const zenAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.timing(zenAnim, {
+      toValue: isZenMode ? 1 : 0,
+      duration: 200,
+      useNativeDriver: true,
+    }).start();
+  }, [isZenMode]);
+
+  const canvas = useCanvasState();
+
+  const headerAnimStyle = {
+    opacity: zenAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }),
+    transform: [
+      {
+        translateY: zenAnim.interpolate({ inputRange: [0, 1], outputRange: [0, -50] }),
+      },
+    ],
+  };
+
+  const footerAnimStyle = {
+    opacity: zenAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }),
+    transform: [
+      {
+        translateY: zenAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 60] }),
+      },
+    ],
+  };
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaView style={styles.rootContainer}>
         <StatusBar barStyle="light-content" backgroundColor="#0B1120" />
 
-      {/* 1. Header Superior Minimalista (48dp) - Título editable, Auto-Save .cmn, Undo/Redo, Compilar */}
-      <TopHeader
-        mapTitle={mapTitle}
-        onTitleChange={handleTitleChange}
-        canUndo={canUndo}
-        canRedo={canRedo}
-        onUndo={handleUndo}
-        onRedo={handleRedo}
-        onRequestClear={handleRequestClear}
-        onOpenCompiler={() => setIsDrawerOpen(true)}
-        onOpenDocumentMenu={() => setShowDocumentMenu(true)}
-        isSaving={isSaving}
-        lastSavedAt={lastSavedAt}
-      />
-
-      {/* 2. Lienzo Infinito 100% Despejado con Dock Lateral Flotante */}
-      <View style={styles.canvasWrapper}>
-        <JetpackInkCanvas
-          style={StyleSheet.absoluteFill}
-          strokeColor={activeColor}
-          strokeWidth={activeWidth}
-          brushType={activeBrush}
-          eraserMode={eraserMode}
-          backgroundType={backgroundType}
-          canvasBackgroundColor={canvasBackgroundColor}
-          gridColor={canvasGridColor}
-          stylusOnly={stylusOnly}
-          zoomInTrigger={zoomInTrigger}
-          zoomOutTrigger={zoomOutTrigger}
-          resetZoomTrigger={resetZoomTrigger}
-          clearTrigger={clearTrigger}
-          undoTrigger={undoTrigger}
-          redoTrigger={redoTrigger}
-          deleteSelectionTrigger={deleteSelectionTrigger}
-          duplicateSelectionTrigger={duplicateSelectionTrigger}
-          clearSelectionTrigger={clearSelectionTrigger}
-          loadedStrokesJson={loadedStrokesJson}
-          loadStrokesTrigger={loadStrokesTrigger}
-          onStrokeEnd={(e) => {
-            handleStrokeEnd(e);
-            cognitiveLayerStore.markAsDirty();
-          }}
-          onTransform={handleTransform}
-          onBarrelButton={handleBarrelButton}
-          onSelectionChanged={handleSelectionChanged}
-          onHover={handleHover}
-          onHoverTimeout={handleHoverTimeout}
-          onFingerTap={handleFingerTap}
-          onStrokesTransformed={handleStrokesTransformed}
-        />
-
-        {/* Capa Fantasma Semántica HUD (Ghost Overlay - Macro-Islas y Puentes) */}
-        <GhostOverlay
-          visualAST={visualAST}
-          canvasScale={canvasScale}
-          canvasTranslateX={canvasTranslateX}
-          canvasTranslateY={canvasTranslateY}
-        />
-
-        {/* Capa de Superposición PACER (Retrocompatibilidad) */}
-        {compilation?.nodes && (
-          <PacerOverlayLayer
-            nodes={compilation.nodes}
-            visualAST={visualAST}
-            canvasScale={canvasScale}
-            canvasTranslateX={canvasTranslateX}
-            canvasTranslateY={canvasTranslateY}
-            activeFilter={pacerFilter}
-            visible={showPacerOverlay}
+        {/* 1. Header Superior con Modo Zen */}
+        <Animated.View style={headerAnimStyle} pointerEvents={isZenMode ? "none" : "auto"}>
+          <TopHeader
+            mapTitle={canvas.mapTitle}
+            onTitleChange={canvas.handleTitleChange}
+            canUndo={canvas.canUndo}
+            canRedo={canvas.canRedo}
+            onUndo={canvas.handleUndo}
+            onRedo={canvas.handleRedo}
+            onOpenCompiler={() => canvas.setIsDrawerOpen(true)}
+            onOpenDocumentMenu={() => setShowDocumentMenu(true)}
+            isSaving={canvas.isSaving}
+            lastSavedAt={canvas.lastSavedAt}
+            isZenMode={isZenMode}
+            onToggleZenMode={() => setIsZenMode((prev) => !prev)}
           />
-        )}
+        </Animated.View>
 
-        {/* Badges de Atributos Cognitivos anclados al lienzo con soporte Air View y Halo Perimetral */}
-        <PlacedAttributeBadges
-          attributes={placedAttributes}
-          canvasScale={canvasScale}
-          canvasTranslateX={canvasTranslateX}
-          canvasTranslateY={canvasTranslateY}
-          hoveredAttribute={hoveredAttribute}
-          activeAnchorEntityId={activeAnchorEntity?.id}
-          hoveredEntityBounds={hoveredEntityBounds}
-          activeEntityBounds={activeEntityBounds}
-          hoveredEntity={hoveredEntity}
-          unclusteredStrokesInEntity={unclusteredStrokesInEntity}
-          anchorTooltip={anchorTooltip}
-          hoverScreenX={hoverScreenX}
-          hoverScreenY={hoverScreenY}
-          onDeleteAttribute={handleDeleteAttribute}
-          onOpenCompiler={() => setIsDrawerOpen(true)}
-          onBadgeHover={handleBadgeHover}
-        />
-
-        {/* Tooltip flotante contextual de Anclaje Semántico */}
-        {anchorTooltip?.visible && (
-          <SemanticAnchorTooltip
-            visible={anchorTooltip.visible}
-            screenX={anchorTooltip.screenX}
-            screenY={anchorTooltip.screenY}
-            worldX={anchorTooltip.worldX}
-            worldY={anchorTooltip.worldY}
-            initialStage={anchorTooltip.initialStage}
-            entityBounds={activeEntityBounds}
-            strokeIds={anchorTooltip.strokeIds}
-            canvasScale={canvasScale}
-            canvasTranslateX={canvasTranslateX}
-            canvasTranslateY={canvasTranslateY}
-            onModalOpen={handleAnchorModalOpen}
-            onSave={handleSaveAnchorTooltip}
-            onClose={handleCloseAnchorTooltip}
+        {/* 2. Lienzo Infinito */}
+        <View style={styles.canvasWrapper}>
+          <JetpackInkCanvas
+            style={StyleSheet.absoluteFill}
+            strokeColor={canvas.activeColor}
+            strokeWidth={canvas.activeWidth}
+            brushType={canvas.activeBrush}
+            eraserMode={canvas.eraserMode}
+            backgroundType={canvas.backgroundType}
+            canvasBackgroundColor={canvas.canvasBackgroundColor}
+            gridColor={canvas.canvasGridColor}
+            stylusOnly={canvas.stylusOnly}
+            zoomInTrigger={canvas.zoomInTrigger}
+            zoomOutTrigger={canvas.zoomOutTrigger}
+            resetZoomTrigger={canvas.resetZoomTrigger}
+            clearTrigger={canvas.clearTrigger}
+            undoTrigger={canvas.undoTrigger}
+            redoTrigger={canvas.redoTrigger}
+            deleteSelectionTrigger={canvas.deleteSelectionTrigger}
+            duplicateSelectionTrigger={canvas.duplicateSelectionTrigger}
+            clearSelectionTrigger={canvas.clearSelectionTrigger}
+            loadedStrokesJson={canvas.loadedStrokesJson}
+            loadStrokesTrigger={canvas.loadStrokesTrigger}
+            onStrokeEnd={(e) => {
+              canvas.handleStrokeEnd(e);
+              cognitiveLayerStore.markAsDirty();
+            }}
+            onTransform={canvas.handleTransform}
+            onBarrelButton={canvas.handleBarrelButton}
+            onSelectionChanged={canvas.handleSelectionChanged}
+            onHover={canvas.handleHover}
+            onHoverTimeout={canvas.handleHoverTimeout}
+            onFingerTap={canvas.handleFingerTap}
+            onStrokesTransformed={canvas.handleStrokesTransformed}
           />
-        )}
 
-        {/* Pastilla Contextual Flotante de Selección por Lazo */}
-        <ContextualSelectionPill
-          hasSelection={hasSelection}
-          selectedCount={selectedCount}
-          selectionBounds={selectionBounds}
-          canvasScale={canvasScale}
-          canvasTranslateX={canvasTranslateX}
-          canvasTranslateY={canvasTranslateY}
-          onOpenAttributeModal={handleOpenAttributeModalFromLasso}
-          onDuplicateSelection={handleDuplicateSelection}
-          onDeleteSelection={handleDeleteSelection}
-          onClearSelection={handleClearSelection}
-        />
+          <CanvasOverlays canvas={canvas} />
 
-        {/* Dock Vertical Flotante (Pill) - Cambiable entre lateral Izquierdo y Derecho con persistencia */}
-        <GoodnotesToolbar
-          activeBrush={activeBrush}
-          onSelectBrush={setActiveBrush}
-          activeColor={activeColor}
-          onSelectColor={setActiveColor}
-          activeWidth={activeWidth}
-          onSelectWidth={setActiveWidth}
-          eraserMode={eraserMode}
-          onSelectEraserMode={setEraserMode}
-          backgroundType={backgroundType}
-          onSelectBackgroundType={setBackgroundType}
-          canvasTheme={canvasTheme}
-          onSelectCanvasTheme={setCanvasTheme}
-          favoriteColors={favoriteColors}
-          onUpdateFavoriteColor={updateFavoriteColor}
-          dockSide={toolbarDockSide}
-          onToggleDockSide={handleToggleDockSide}
-          canvasScale={canvasScale}
-          canvasTranslateX={canvasTranslateX}
-          canvasTranslateY={canvasTranslateY}
-          onOpenStickerPicker={(targetWorld) => {
-            setStickerTargetWorld(targetWorld);
-            setStickerPickerVisible(true);
-          }}
-          onStickerDragChange={(drag) => {
-            setDragGhost(drag ? { screenX: drag.screenX, screenY: drag.screenY } : null);
-          }}
-        />
+          {/* Barra Flotante con Drag & Snap a 4 Bordes */}
+          <GoodnotesToolbar
+            activeBrush={canvas.activeBrush}
+            onSelectBrush={canvas.setActiveBrush}
+            activeColor={canvas.activeColor}
+            onSelectColor={canvas.setActiveColor}
+            activeWidth={canvas.activeWidth}
+            onSelectWidth={canvas.setActiveWidth}
+            eraserMode={canvas.eraserMode}
+            onSelectEraserMode={canvas.setEraserMode}
+            backgroundType={canvas.backgroundType}
+            onSelectBackgroundType={canvas.setBackgroundType}
+            canvasTheme={canvas.canvasTheme}
+            onSelectCanvasTheme={canvas.setCanvasTheme}
+            favoriteColors={canvas.favoriteColors}
+            onUpdateFavoriteColor={canvas.updateFavoriteColor}
+            dockEdge={canvas.toolbarDockEdge}
+            onDockEdgeChange={canvas.handleChangeDockEdge}
+            canvasScale={canvas.canvasScale}
+            canvasTranslateX={canvas.canvasTranslateX}
+            canvasTranslateY={canvas.canvasTranslateY}
+            onOpenStickerPicker={(targetWorld) => {
+              setStickerTargetWorld(targetWorld);
+              setStickerPickerVisible(true);
+            }}
+            onStickerDragChange={(drag) => {
+              setDragGhost(drag ? { screenX: drag.screenX, screenY: drag.screenY } : null);
+            }}
+          />
 
-        {/* Indicador fantasma flotante durante el arrastre de sticker */}
-        {dragGhost && (
-          <View
-            pointerEvents="none"
-            style={[
-              styles.dragGhostHalo,
-              {
-                left: dragGhost.screenX - 32,
-                top: dragGhost.screenY - 32,
-              },
-            ]}
-          >
-            <View style={styles.haloInner}>
-              <Sparkles size={24} color="#38BDF8" strokeWidth={2.2} />
+          {dragGhost && (
+            <View
+              pointerEvents="none"
+              style={[
+                styles.dragGhostHalo,
+                {
+                  left: dragGhost.screenX - 32,
+                  top: dragGhost.screenY - 32,
+                },
+              ]}
+            >
+              <View style={styles.haloInner}>
+                <Sparkles size={24} color="#38BDF8" strokeWidth={2.2} />
+              </View>
             </View>
-          </View>
-        )}
+          )}
 
-        {/* 4. Barra Inferior Flotante (Solo Stylus & Zoom 100%) */}
-        <FloatingFooter
-          stylusOnly={stylusOnly}
-          onToggleStylusOnly={handleToggleStylusOnly}
-          displayZoom={displayZoom}
-          onZoomIn={handleZoomIn}
-          onZoomOut={handleZoomOut}
-          onResetZoom={handleResetZoom}
+          {/* Micro-botón flotante para salir de Modo Zen */}
+          {isZenMode && (
+            <Animated.View style={[styles.exitZenButtonWrapper, { opacity: zenAnim }]}>
+              <TouchableOpacity
+                style={styles.exitZenButton}
+                onPress={() => setIsZenMode(false)}
+                activeOpacity={0.7}
+                accessibilityLabel="Salir del Modo Enfoque"
+              >
+                <Minimize2 size={18} color="#38BDF8" strokeWidth={2.0} />
+              </TouchableOpacity>
+            </Animated.View>
+          )}
+
+          {/* 3. Footer Flotante con transición Zen */}
+          <Animated.View style={footerAnimStyle} pointerEvents={isZenMode ? "none" : "auto"}>
+            <FloatingFooter
+              stylusOnly={canvas.stylusOnly}
+              onToggleStylusOnly={canvas.handleToggleStylusOnly}
+              displayZoom={canvas.displayZoom}
+              onZoomIn={canvas.handleZoomIn}
+              onZoomOut={canvas.handleZoomOut}
+              onResetZoom={canvas.handleResetZoom}
+            />
+          </Animated.View>
+        </View>
+
+        <CompilerDrawer
+          isOpen={canvas.isDrawerOpen}
+          onClose={() => canvas.setIsDrawerOpen(false)}
+          compilation={canvas.compilation}
+          onCompile={canvas.handleCompile}
+          isCompiling={canvas.isCompiling}
+          strokeCount={canvas.strokeCount}
+          pacerFilter={canvas.pacerFilter}
+          onPacerFilterChange={canvas.setPacerFilter}
+          showPacerOverlay={canvas.showPacerOverlay}
+          onTogglePacerOverlay={canvas.handleTogglePacerOverlay}
         />
-      </View>
 
-      {/* 5. Panel Lateral de Compilación (380dp) con Auditoría GRINDE, PACER y Práctica Deliberada */}
-      <CompilerDrawer
-        isOpen={isDrawerOpen}
-        onClose={() => setIsDrawerOpen(false)}
-        compilation={compilation}
-        onCompile={handleCompile}
-        isCompiling={isCompiling}
-        strokeCount={strokeCount}
-        pacerFilter={pacerFilter}
-        onPacerFilterChange={setPacerFilter}
-        showPacerOverlay={showPacerOverlay}
-        onTogglePacerOverlay={handleTogglePacerOverlay}
-      />
-
-      {/* 6. Modal de Confirmación de Borrado Seguro de Lienzo */}
-      <ClearCanvasConfirmModal
-        visible={showClearConfirmModal}
-        onConfirm={handleConfirmClear}
-        onCancel={handleCancelClear}
-      />
-
-      {/* 7. Modal Unificado de Documento (Bóveda Integrada, Exportación, Acciones) */}
-      <DocumentActionsModal
-        visible={showDocumentMenu}
-        onClose={() => setShowDocumentMenu(false)}
-        mapTitle={mapTitle}
-        strokeCount={strokeCount}
-        entityCount={visualAST.entities.length}
-        lastSavedAt={lastSavedAt}
-        savedMaps={savedMaps}
-        currentMapId={currentMapId}
-        onSelectMap={handleLoadMap}
-        onNewMap={handleNewMap}
-        onDeleteMap={handleDeleteMap}
-        onRequestClear={handleRequestClear}
-        onOpenCompiler={() => setIsDrawerOpen(true)}
-      />
-
-      {/* 8. Selector de Stickers Cognitivos (Modal / Popover) */}
-      <StickerPickerModal
-        visible={stickerPickerVisible}
-        targetWorld={stickerTargetWorld}
-        onClose={() => setStickerPickerVisible(false)}
-      />
+        <AppModals
+          canvas={canvas}
+          showDocumentMenu={showDocumentMenu}
+          onCloseDocumentMenu={() => setShowDocumentMenu(false)}
+          stickerPickerVisible={stickerPickerVisible}
+          stickerTargetWorld={stickerTargetWorld}
+          onCloseStickerPicker={() => setStickerPickerVisible(false)}
+        />
       </SafeAreaView>
     </GestureHandlerRootView>
   );
 }
-
-const styles = StyleSheet.create({
-  rootContainer: {
-    flex: 1,
-    backgroundColor: "#090D16",
-  },
-  canvasWrapper: {
-    flex: 1,
-    position: "relative",
-    overflow: "hidden",
-  },
-  dragGhostHalo: {
-    position: "absolute",
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    zIndex: 9999,
-    elevation: 14,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  haloInner: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: "rgba(15, 23, 42, 0.85)",
-    borderWidth: 2,
-    borderColor: "#38BDF8",
-    borderStyle: "dashed",
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: "#38BDF8",
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.6,
-    shadowRadius: 10,
-  },
-});

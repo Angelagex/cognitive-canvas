@@ -5,6 +5,7 @@ import {
   CanvasThemePreset,
   CANVAS_THEMES,
   EraserMode,
+  ToolbarDockEdge,
 } from "../../types/canvas";
 import { getUserPreferences, saveUserPreferences } from "../../services/StorageService";
 
@@ -31,7 +32,8 @@ export const useCanvasTools = () => {
     ...CANVAS_THEMES.dark_slate.favoriteColors,
   ]);
   const [stylusOnly, setStylusOnly] = useState<boolean>(true); // S-Pen palm rejection by default
-  const [toolbarDockSide, setToolbarDockSide] = useState<"left" | "right">("left");
+  const [toolbarDockEdge, setToolbarDockEdge] = useState<ToolbarDockEdge>("left");
+  const toolbarDockSide: "left" | "right" = toolbarDockEdge === "right" ? "right" : "left";
 
   // Ballpoint Pen (bolígrafo uniforme) standard size: 4.5 dp
   const handleSelectBrush = useCallback((brush: BrushType) => {
@@ -104,16 +106,24 @@ export const useCanvasTools = () => {
   }, []);
 
   const handleToggleDockSide = useCallback(() => {
-    setToolbarDockSide((prev) => {
+    setToolbarDockEdge((prev) => {
       const next = prev === "left" ? "right" : "left";
-      saveUserPreferences({ toolbar_dock_side: next });
+      saveUserPreferences({ toolbar_dock_edge: next, toolbar_dock_side: next });
       return next;
     });
   }, []);
 
   const handleChangeDockSide = useCallback((side: "left" | "right") => {
-    setToolbarDockSide(side);
-    saveUserPreferences({ toolbar_dock_side: side });
+    setToolbarDockEdge(side);
+    saveUserPreferences({ toolbar_dock_edge: side, toolbar_dock_side: side });
+  }, []);
+
+  const handleChangeDockEdge = useCallback((edge: ToolbarDockEdge) => {
+    setToolbarDockEdge(edge);
+    saveUserPreferences({
+      toolbar_dock_edge: edge,
+      toolbar_dock_side: edge === "right" ? "right" : "left",
+    });
   }, []);
 
   const canvasBackgroundColor = CANVAS_THEMES[canvasTheme].backgroundColor;
@@ -141,8 +151,10 @@ export const useCanvasTools = () => {
     setStylusOnly,
     handleToggleStylusOnly,
     toolbarDockSide,
-    setToolbarDockSide,
+    toolbarDockEdge,
+    setToolbarDockEdge,
     handleToggleDockSide,
     handleChangeDockSide,
+    handleChangeDockEdge,
   };
 };

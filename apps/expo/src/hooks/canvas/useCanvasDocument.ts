@@ -11,7 +11,7 @@ import {
   MapDocumentSummary,
   getUserPreferences,
 } from "../../services/StorageService";
-import { PlacedAttribute, EntityBoundingBox, PassiveAttributeType, SelectionBounds } from "../../types/canvas";
+import { PlacedAttribute, EntityBoundingBox, PassiveAttributeType, SelectionBounds, ToolbarDockEdge } from "../../types/canvas";
 import { VisualASTLayer, RawInkStroke } from "@cognitive-canvas/core";
 import { getCanvasStrokes } from "../../components/JetpackInkCanvas";
 
@@ -37,6 +37,7 @@ interface UseCanvasDocumentProps {
   compilation: any;
   setCompilation: (comp: any) => void;
   setToolbarDockSide: (side: "left" | "right") => void;
+  setToolbarDockEdge?: (edge: ToolbarDockEdge) => void;
 }
 
 export const useCanvasDocument = ({
@@ -61,6 +62,7 @@ export const useCanvasDocument = ({
   compilation,
   setCompilation,
   setToolbarDockSide,
+  setToolbarDockEdge,
 }: UseCanvasDocumentProps) => {
   const [currentMapId, setCurrentMapId] = useState<string>(() => `map_${Date.now()}`);
   const [mapTitle, setMapTitle] = useState<string>("Mapa Mental - Redes Neuronales");
@@ -307,8 +309,14 @@ export const useCanvasDocument = ({
         if (isMounted) setSavedMaps(list);
 
         const prefs = await getUserPreferences();
-        if (isMounted && prefs?.toolbar_dock_side) {
-          setToolbarDockSide(prefs.toolbar_dock_side);
+        if (isMounted) {
+          if (prefs?.toolbar_dock_edge) {
+            setToolbarDockEdge?.(prefs.toolbar_dock_edge);
+            setToolbarDockSide(prefs.toolbar_dock_edge === "right" ? "right" : "left");
+          } else if (prefs?.toolbar_dock_side) {
+            setToolbarDockSide(prefs.toolbar_dock_side);
+            setToolbarDockEdge?.(prefs.toolbar_dock_side);
+          }
         }
       } catch (e) {
         console.warn("[useCanvasDocument] Could not restore previous document:", e);

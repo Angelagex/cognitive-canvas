@@ -47,7 +47,7 @@ export const StrokeWidthPopover: React.FC<StrokeWidthPopoverProps> = ({
         onStartShouldSetResponder={() => true}
         onTouchEnd={(e) => e.stopPropagation()}
         pointerEvents="auto"
-        style={[styles.popoverCard, positionStyle, { top: 370, width: 200 }]}
+        style={[styles.popoverCard, { width: 200 }, positionStyle]}
       >
       <Text style={styles.popoverHeader}>GROSOR DE TRAZO</Text>
       {TIP_SIZES.map((s) => {

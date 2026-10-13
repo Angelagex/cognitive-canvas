@@ -66,7 +66,8 @@ export const useCanvasState = () => {
     setVisualAST: ast.setVisualAST,
     compilation: compiler.compilation,
     setCompilation: compiler.setCompilation,
-    setToolbarDockSide: tools.setToolbarDockSide,
+    setToolbarDockSide: tools.handleChangeDockSide,
+    setToolbarDockEdge: tools.setToolbarDockEdge,
   });
 
   getVisualASTFn = () => ast.ensureVisualAST();
@@ -180,8 +181,10 @@ export const useCanvasState = () => {
     stylusOnly: tools.stylusOnly,
     handleToggleStylusOnly: tools.handleToggleStylusOnly,
     toolbarDockSide: tools.toolbarDockSide,
+    toolbarDockEdge: tools.toolbarDockEdge,
     handleToggleDockSide: tools.handleToggleDockSide,
     handleChangeDockSide: tools.handleChangeDockSide,
+    handleChangeDockEdge: tools.handleChangeDockEdge,
 
     // Viewport
     displayZoom: viewport.displayZoom,
