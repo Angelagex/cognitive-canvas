@@ -85,6 +85,7 @@ export const GoodnotesToolbar: React.FC<GoodnotesToolbarProps> = ({
   const [showTemplateMenu, setShowTemplateMenu] = useState(false);
   const [showSizeMenu, setShowSizeMenu] = useState(false);
   const [showColorMenu, setShowColorMenu] = useState(false);
+  const [showEraserMenu, setShowEraserMenu] = useState(false);
 
   const tools: { id: BrushType; label: string }[] = [
     { id: "pen", label: "Bolígrafo" },
@@ -108,13 +109,14 @@ export const GoodnotesToolbar: React.FC<GoodnotesToolbarProps> = ({
   const popoverPositionStyle = dockSide === "left" ? { left: 70 } : { right: 70 };
 
   return (
-    <View
-      style={[
-        styles.dockWrapper,
-        dockSide === "left" ? styles.dockWrapperLeft : styles.dockWrapperRight,
-      ]}
-    >
-      <View style={styles.dockPill}>
+    <View pointerEvents="box-none" style={styles.dockWrapper}>
+      <View
+        pointerEvents="auto"
+        style={[
+          styles.dockPill,
+          dockSide === "left" ? styles.dockPillLeft : styles.dockPillRight,
+        ]}
+      >
         <TouchableOpacity
           style={styles.switchSideButton}
           onPress={handleToggleSide}
@@ -133,7 +135,17 @@ export const GoodnotesToolbar: React.FC<GoodnotesToolbarProps> = ({
               key={t.id}
               style={[styles.toolButton, isActive && styles.toolButtonActive]}
               onPress={() => {
-                onSelectBrush(t.id);
+                if (t.id === "eraser") {
+                  if (activeBrush !== "eraser") {
+                    onSelectBrush("eraser");
+                    setShowEraserMenu(true);
+                  } else {
+                    setShowEraserMenu(!showEraserMenu);
+                  }
+                } else {
+                  onSelectBrush(t.id);
+                  setShowEraserMenu(false);
+                }
                 setShowTemplateMenu(false);
                 setShowSizeMenu(false);
                 setShowColorMenu(false);
@@ -161,7 +173,13 @@ export const GoodnotesToolbar: React.FC<GoodnotesToolbarProps> = ({
             canvasTranslateX={canvasTranslateX}
             canvasTranslateY={canvasTranslateY}
             dockSide={dockSide}
-            onOpenPicker={onOpenStickerPicker}
+            onOpenPicker={(centerWorld, anchorScreen) => {
+              setShowEraserMenu(false);
+              setShowColorMenu(false);
+              setShowSizeMenu(false);
+              setShowTemplateMenu(false);
+              onOpenStickerPicker(centerWorld, anchorScreen);
+            }}
             onDragChange={onStickerDragChange}
           />
         )}
@@ -175,6 +193,7 @@ export const GoodnotesToolbar: React.FC<GoodnotesToolbarProps> = ({
             setShowTemplateMenu(!showTemplateMenu);
             setShowSizeMenu(false);
             setShowColorMenu(false);
+            setShowEraserMenu(false);
           }}
           activeOpacity={0.7}
           accessibilityLabel="Plantilla de papel"
@@ -191,6 +210,7 @@ export const GoodnotesToolbar: React.FC<GoodnotesToolbarProps> = ({
             setShowColorMenu(!showColorMenu);
             setShowSizeMenu(false);
             setShowTemplateMenu(false);
+            setShowEraserMenu(false);
           }}
           activeOpacity={0.7}
           accessibilityLabel="Paleta de colores"
@@ -205,6 +225,7 @@ export const GoodnotesToolbar: React.FC<GoodnotesToolbarProps> = ({
             setShowSizeMenu(!showSizeMenu);
             setShowColorMenu(false);
             setShowTemplateMenu(false);
+            setShowEraserMenu(false);
           }}
           activeOpacity={0.7}
           accessibilityLabel={`Grosor de trazo actual: ${activeWidth}px`}
@@ -226,6 +247,7 @@ export const GoodnotesToolbar: React.FC<GoodnotesToolbarProps> = ({
 
       {showColorMenu && (
         <ColorPickerPopover
+          visible={showColorMenu}
           activeColor={activeColor}
           onSelectColor={onSelectColor}
           favoriteColors={favoriteColors}
@@ -237,6 +259,7 @@ export const GoodnotesToolbar: React.FC<GoodnotesToolbarProps> = ({
 
       {showSizeMenu && (
         <StrokeWidthPopover
+          visible={showSizeMenu}
           activeWidth={activeWidth}
           activeColor={activeColor}
           onSelectWidth={onSelectWidth}
@@ -247,6 +270,7 @@ export const GoodnotesToolbar: React.FC<GoodnotesToolbarProps> = ({
 
       {showTemplateMenu && (
         <PaperTemplatePopover
+          visible={showTemplateMenu}
           backgroundType={backgroundType}
           onSelectBackgroundType={onSelectBackgroundType}
           canvasTheme={canvasTheme}
@@ -256,10 +280,15 @@ export const GoodnotesToolbar: React.FC<GoodnotesToolbarProps> = ({
         />
       )}
 
-      {activeBrush === "eraser" && (
+      {showEraserMenu && (
         <EraserModePill
+          visible={showEraserMenu}
           eraserMode={eraserMode}
-          onSelectEraserMode={onSelectEraserMode}
+          onSelectEraserMode={(mode) => {
+            onSelectEraserMode(mode);
+            setShowEraserMenu(false);
+          }}
+          onClose={() => setShowEraserMenu(false)}
           positionStyle={popoverPositionStyle}
         />
       )}

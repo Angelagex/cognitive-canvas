@@ -148,68 +148,6 @@ export default function App() {
 
       {/* 2. Lienzo Infinito 100% Despejado con Dock Lateral Flotante */}
       <View style={styles.canvasWrapper}>
-        {/* Dock Vertical Flotante (Pill) - Cambiable entre lateral Izquierdo y Derecho con persistencia */}
-        <GoodnotesToolbar
-          activeBrush={activeBrush}
-          onSelectBrush={setActiveBrush}
-          activeColor={activeColor}
-          onSelectColor={setActiveColor}
-          activeWidth={activeWidth}
-          onSelectWidth={setActiveWidth}
-          eraserMode={eraserMode}
-          onSelectEraserMode={setEraserMode}
-          backgroundType={backgroundType}
-          onSelectBackgroundType={setBackgroundType}
-          canvasTheme={canvasTheme}
-          onSelectCanvasTheme={setCanvasTheme}
-          favoriteColors={favoriteColors}
-          onUpdateFavoriteColor={updateFavoriteColor}
-          dockSide={toolbarDockSide}
-          onToggleDockSide={handleToggleDockSide}
-          canvasScale={canvasScale}
-          canvasTranslateX={canvasTranslateX}
-          canvasTranslateY={canvasTranslateY}
-          onOpenStickerPicker={(targetWorld) => {
-            setStickerTargetWorld(targetWorld);
-            setStickerPickerVisible(true);
-          }}
-          onStickerDragChange={(drag) => {
-            setDragGhost(drag ? { screenX: drag.screenX, screenY: drag.screenY } : null);
-          }}
-        />
-
-        {/* Indicador fantasma flotante durante el arrastre de sticker */}
-        {dragGhost && (
-          <View
-            pointerEvents="none"
-            style={[
-              styles.dragGhostHalo,
-              {
-                left: dragGhost.screenX - 32,
-                top: dragGhost.screenY - 32,
-              },
-            ]}
-          >
-            <View style={styles.haloInner}>
-              <Sparkles size={24} color="#38BDF8" strokeWidth={2.2} />
-            </View>
-          </View>
-        )}
-
-        {/* Pastilla Contextual Flotante de Selección por Lazo */}
-        <ContextualSelectionPill
-          hasSelection={hasSelection}
-          selectedCount={selectedCount}
-          selectionBounds={selectionBounds}
-          canvasScale={canvasScale}
-          canvasTranslateX={canvasTranslateX}
-          canvasTranslateY={canvasTranslateY}
-          onOpenAttributeModal={handleOpenAttributeModalFromLasso}
-          onDuplicateSelection={handleDuplicateSelection}
-          onDeleteSelection={handleDeleteSelection}
-          onClearSelection={handleClearSelection}
-        />
-
         <JetpackInkCanvas
           style={StyleSheet.absoluteFill}
           strokeColor={activeColor}
@@ -303,6 +241,68 @@ export default function App() {
             onSave={handleSaveAnchorTooltip}
             onClose={handleCloseAnchorTooltip}
           />
+        )}
+
+        {/* Pastilla Contextual Flotante de Selección por Lazo */}
+        <ContextualSelectionPill
+          hasSelection={hasSelection}
+          selectedCount={selectedCount}
+          selectionBounds={selectionBounds}
+          canvasScale={canvasScale}
+          canvasTranslateX={canvasTranslateX}
+          canvasTranslateY={canvasTranslateY}
+          onOpenAttributeModal={handleOpenAttributeModalFromLasso}
+          onDuplicateSelection={handleDuplicateSelection}
+          onDeleteSelection={handleDeleteSelection}
+          onClearSelection={handleClearSelection}
+        />
+
+        {/* Dock Vertical Flotante (Pill) - Cambiable entre lateral Izquierdo y Derecho con persistencia */}
+        <GoodnotesToolbar
+          activeBrush={activeBrush}
+          onSelectBrush={setActiveBrush}
+          activeColor={activeColor}
+          onSelectColor={setActiveColor}
+          activeWidth={activeWidth}
+          onSelectWidth={setActiveWidth}
+          eraserMode={eraserMode}
+          onSelectEraserMode={setEraserMode}
+          backgroundType={backgroundType}
+          onSelectBackgroundType={setBackgroundType}
+          canvasTheme={canvasTheme}
+          onSelectCanvasTheme={setCanvasTheme}
+          favoriteColors={favoriteColors}
+          onUpdateFavoriteColor={updateFavoriteColor}
+          dockSide={toolbarDockSide}
+          onToggleDockSide={handleToggleDockSide}
+          canvasScale={canvasScale}
+          canvasTranslateX={canvasTranslateX}
+          canvasTranslateY={canvasTranslateY}
+          onOpenStickerPicker={(targetWorld) => {
+            setStickerTargetWorld(targetWorld);
+            setStickerPickerVisible(true);
+          }}
+          onStickerDragChange={(drag) => {
+            setDragGhost(drag ? { screenX: drag.screenX, screenY: drag.screenY } : null);
+          }}
+        />
+
+        {/* Indicador fantasma flotante durante el arrastre de sticker */}
+        {dragGhost && (
+          <View
+            pointerEvents="none"
+            style={[
+              styles.dragGhostHalo,
+              {
+                left: dragGhost.screenX - 32,
+                top: dragGhost.screenY - 32,
+              },
+            ]}
+          >
+            <View style={styles.haloInner}>
+              <Sparkles size={24} color="#38BDF8" strokeWidth={2.2} />
+            </View>
+          </View>
         )}
 
         {/* 4. Barra Inferior Flotante (Solo Stylus & Zoom 100%) */}

@@ -69,8 +69,10 @@ export const VaultsModal: React.FC<VaultsModalProps> = ({
   return (
     <Modal
       visible={visible}
-      transparent
+      transparent={true}
       animationType="fade"
+      statusBarTranslucent={true}
+      navigationBarTranslucent={true}
       onRequestClose={onClose}
     >
       <TouchableWithoutFeedback onPress={onClose}>

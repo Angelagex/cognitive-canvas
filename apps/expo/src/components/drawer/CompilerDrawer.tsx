@@ -34,6 +34,8 @@ export const CompilerDrawer: React.FC<CompilerDrawerProps> = ({
       visible={isOpen}
       animationType="slide"
       transparent={true}
+      statusBarTranslucent={true}
+      navigationBarTranslucent={true}
       onRequestClose={onClose}
     >
       <View style={styles.modalOverlay}>

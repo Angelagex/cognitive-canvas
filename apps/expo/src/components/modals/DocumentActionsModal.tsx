@@ -116,8 +116,10 @@ export const DocumentActionsModal: React.FC<DocumentActionsModalProps> = ({
   return (
     <Modal
       visible={visible}
-      transparent
+      transparent={true}
       animationType="fade"
+      statusBarTranslucent={true}
+      navigationBarTranslucent={true}
       onRequestClose={handleClose}
     >
       <TouchableWithoutFeedback onPress={handleClose}>

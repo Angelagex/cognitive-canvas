@@ -5,6 +5,7 @@ import {
   Modal,
   TextInput,
   TouchableOpacity,
+  Pressable,
   FlatList,
 } from "react-native";
 import Svg, { Polyline } from "react-native-svg";
@@ -95,9 +96,20 @@ export const StickerPickerModal: React.FC<StickerPickerModalProps> = ({
   );
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <View style={styles.modalBackdrop}>
-        <View style={styles.popoverWindow}>
+    <Modal
+      visible={visible}
+      transparent={true}
+      animationType="fade"
+      statusBarTranslucent={true}
+      navigationBarTranslucent={true}
+      onRequestClose={onClose}
+    >
+      <Pressable style={styles.modalBackdrop} onPress={onClose}>
+        <View
+          style={styles.popoverWindow}
+          onStartShouldSetResponder={() => true}
+          onTouchEnd={(e) => e.stopPropagation()}
+        >
           {/* Header con Buscador y Botón Cerrar */}
           <View style={styles.headerRow}>
             <View style={styles.searchBar}>
@@ -156,7 +168,7 @@ export const StickerPickerModal: React.FC<StickerPickerModalProps> = ({
             }
           />
         </View>
-      </View>
+      </Pressable>
     </Modal>
   );
 };

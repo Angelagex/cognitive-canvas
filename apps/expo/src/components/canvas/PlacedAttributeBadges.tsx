@@ -246,8 +246,10 @@ export const PlacedAttributeBadges: React.FC<PlacedAttributeBadgesProps> = ({
       {/* Detail / Quick Inspection Modal */}
       <Modal
         visible={selectedAttr !== null}
-        transparent
+        transparent={true}
         animationType="fade"
+        statusBarTranslucent={true}
+        navigationBarTranslucent={true}
         onRequestClose={() => setSelectedAttr(null)}
       >
         <TouchableWithoutFeedback onPress={() => setSelectedAttr(null)}>

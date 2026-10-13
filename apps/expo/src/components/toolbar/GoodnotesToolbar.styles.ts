@@ -2,17 +2,14 @@ import { StyleSheet } from "react-native";
 
 export const styles = StyleSheet.create({
   dockWrapper: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 9999,
+  },
+  dockWrapperLeft: {},
+  dockWrapperRight: {},
+  dockPill: {
     position: "absolute",
     top: 16,
-    zIndex: 90,
-  },
-  dockWrapperLeft: {
-    left: 14,
-  },
-  dockWrapperRight: {
-    right: 14,
-  },
-  dockPill: {
     width: 48,
     backgroundColor: "#0B1120",
     borderRadius: 24,
@@ -25,6 +22,12 @@ export const styles = StyleSheet.create({
     shadowOpacity: 0.45,
     shadowRadius: 10,
     elevation: 12,
+  },
+  dockPillLeft: {
+    left: 14,
+  },
+  dockPillRight: {
+    right: 14,
   },
   switchSideButton: {
     width: 34,

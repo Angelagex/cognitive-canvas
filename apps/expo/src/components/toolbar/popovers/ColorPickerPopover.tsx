@@ -4,9 +4,9 @@ import {
   View,
   Text,
   TouchableOpacity,
-  Modal,
   TextInput,
   TouchableWithoutFeedback,
+  Pressable,
   ViewStyle,
 } from "react-native";
 import { Palette, X } from "@sketchyicons/react-native";
@@ -21,6 +21,7 @@ export const GOODNOTES_PRESETS = [
 ];
 
 interface ColorPickerPopoverProps {
+  visible?: boolean;
   activeColor: string;
   onSelectColor: (color: string) => void;
   favoriteColors: string[];
@@ -30,6 +31,7 @@ interface ColorPickerPopoverProps {
 }
 
 export const ColorPickerPopover: React.FC<ColorPickerPopoverProps> = ({
+  visible = true,
   activeColor,
   onSelectColor,
   favoriteColors,
@@ -52,9 +54,20 @@ export const ColorPickerPopover: React.FC<ColorPickerPopoverProps> = ({
     setShowColorCustomizer(false);
   };
 
+  if (!visible) return null;
+
   return (
-    <>
-      <View style={[styles.popoverCard, positionStyle, { top: 320 }]}>
+    <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
+      {/* 1. Backdrop invisible que captura toques en el resto de la pantalla y cierra el popover */}
+      <Pressable onPress={onClose} pointerEvents="auto" style={StyleSheet.absoluteFill} />
+
+      {/* 2. Tarjeta del Popover (absorbe eventos para evitar clics pasantes al canvas) */}
+      <View
+        style={[styles.popoverCard, positionStyle, { top: 320 }]}
+        onStartShouldSetResponder={() => true}
+        onTouchEnd={(e) => e.stopPropagation()}
+        pointerEvents="auto"
+      >
         <Text style={styles.popoverHeader}>FAVORITOS</Text>
         <View style={styles.favoriteRow}>
           {favoriteColors.map((c, index) => {
@@ -112,69 +125,71 @@ export const ColorPickerPopover: React.FC<ColorPickerPopoverProps> = ({
         </View>
       </View>
 
-      {/* Color Customizer Modal */}
-      <Modal
-        visible={showColorCustomizer}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowColorCustomizer(false)}
-      >
-        <TouchableWithoutFeedback onPress={() => setShowColorCustomizer(false)}>
-          <View style={styles.modalOverlay}>
-            <TouchableWithoutFeedback>
-              <View style={styles.customizerCard}>
-                <View style={styles.customizerHeader}>
-                  <Text style={styles.customizerTitle}>
-                    Personalizar Color {editingSlot + 1}
-                  </Text>
-                  <TouchableOpacity
-                    onPress={() => setShowColorCustomizer(false)}
-                    style={styles.closeBtn}
-                  >
-                    <X size={15} color="#94A3B8" strokeWidth={2.0} />
-                  </TouchableOpacity>
-                </View>
-
-                {/* Palette Grid */}
-                <Text style={styles.customizerSectionTitle}>PALETA DE COLORES</Text>
-                <View style={styles.customizerGrid}>
-                  {GOODNOTES_PRESETS.map((color) => (
-                    <TouchableOpacity
-                      key={color}
-                      style={[styles.paletteColorTile, { backgroundColor: color }]}
-                      onPress={() => handleApplyColor(color)}
-                      activeOpacity={0.8}
-                    />
-                  ))}
-                </View>
-
-                {/* Custom HEX Code */}
-                <View style={styles.hexInputRow}>
-                  <Text style={styles.hexLabel}>HEX:</Text>
-                  <TextInput
-                    style={styles.hexInput}
-                    value={customHexInput}
-                    onChangeText={setCustomHexInput}
-                    placeholder="#38BDF8"
-                    placeholderTextColor="#64748B"
-                    maxLength={7}
-                    autoCapitalize="characters"
-                  />
-                  <View style={[styles.hexPreview, { backgroundColor: customHexInput }]} />
-                  <TouchableOpacity
-                    style={styles.hexApplyBtn}
-                    onPress={() => handleApplyColor(customHexInput)}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={styles.hexApplyBtnText}>Usar</Text>
-                  </TouchableOpacity>
-                </View>
+      {/* Color Customizer Modal - Overlay sin Modal nativo */}
+      {showColorCustomizer && (
+        <View pointerEvents="box-none" style={[StyleSheet.absoluteFill, { zIndex: 10000 }]}>
+          <Pressable
+            style={styles.modalOverlay}
+            pointerEvents="auto"
+            onPress={() => setShowColorCustomizer(false)}
+          >
+            <View
+              style={styles.customizerCard}
+              onStartShouldSetResponder={() => true}
+              onTouchEnd={(e) => e.stopPropagation()}
+              pointerEvents="auto"
+            >
+              <View style={styles.customizerHeader}>
+                <Text style={styles.customizerTitle}>
+                  Personalizar Color {editingSlot + 1}
+                </Text>
+                <TouchableOpacity
+                  onPress={() => setShowColorCustomizer(false)}
+                  style={styles.closeBtn}
+                >
+                  <X size={15} color="#94A3B8" strokeWidth={2.0} />
+                </TouchableOpacity>
               </View>
-            </TouchableWithoutFeedback>
-          </View>
-        </TouchableWithoutFeedback>
-      </Modal>
-    </>
+
+              {/* Palette Grid */}
+              <Text style={styles.customizerSectionTitle}>PALETA DE COLORES</Text>
+              <View style={styles.customizerGrid}>
+                {GOODNOTES_PRESETS.map((color) => (
+                  <TouchableOpacity
+                    key={color}
+                    style={[styles.paletteColorTile, { backgroundColor: color }]}
+                    onPress={() => handleApplyColor(color)}
+                    activeOpacity={0.8}
+                  />
+                ))}
+              </View>
+
+              {/* Custom HEX Code */}
+              <View style={styles.hexInputRow}>
+                <Text style={styles.hexLabel}>HEX:</Text>
+                <TextInput
+                  style={styles.hexInput}
+                  value={customHexInput}
+                  onChangeText={setCustomHexInput}
+                  placeholder="#38BDF8"
+                  placeholderTextColor="#64748B"
+                  maxLength={7}
+                  autoCapitalize="characters"
+                />
+                <View style={[styles.hexPreview, { backgroundColor: customHexInput }]} />
+                <TouchableOpacity
+                  style={styles.hexApplyBtn}
+                  onPress={() => handleApplyColor(customHexInput)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.hexApplyBtnText}>Usar</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </Pressable>
+        </View>
+      )}
+    </View>
   );
 };
 
@@ -190,7 +205,8 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.5,
     shadowRadius: 14,
-    elevation: 16,
+    elevation: 20,
+    zIndex: 9999,
   },
   popoverHeader: {
     color: "#64748B",

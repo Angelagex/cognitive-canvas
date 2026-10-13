@@ -282,9 +282,11 @@ export const GhostOverlay: React.FC<GhostOverlayProps> = ({
       {/* Micro-Popover Socrático Flotante al presionar [ ? ] */}
       {activeQuestionPopover?.visible && (
         <Modal
-          transparent
-          animationType="fade"
           visible={activeQuestionPopover.visible}
+          transparent={true}
+          animationType="fade"
+          statusBarTranslucent={true}
+          navigationBarTranslucent={true}
           onRequestClose={() => setActiveQuestionPopover(null)}
         >
           <TouchableOpacity

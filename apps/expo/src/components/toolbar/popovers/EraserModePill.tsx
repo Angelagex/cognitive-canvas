@@ -1,65 +1,82 @@
 import React from "react";
-import { StyleSheet, View, Text, TouchableOpacity, ViewStyle } from "react-native";
+import { StyleSheet, View, Text, TouchableOpacity, Pressable, ViewStyle } from "react-native";
 import { Eraser, Scissors } from "@sketchyicons/react-native";
 import { EraserMode } from "../../../types/canvas";
 
 interface EraserModePillProps {
+  visible?: boolean;
   eraserMode: EraserMode;
   onSelectEraserMode: (mode: EraserMode) => void;
+  onClose?: () => void;
   positionStyle: ViewStyle;
 }
 
 export const EraserModePill: React.FC<EraserModePillProps> = ({
+  visible = true,
   eraserMode,
   onSelectEraserMode,
+  onClose,
   positionStyle,
 }) => {
+  if (!visible) return null;
+
   return (
-    <View style={[styles.contextualPill, styles.eraserPill, positionStyle, { top: 115 }]}>
-      <TouchableOpacity
-        style={[
-          styles.contextualOption,
-          eraserMode === "stroke" && styles.contextualOptionActive,
-        ]}
-        onPress={() => onSelectEraserMode("stroke")}
-        activeOpacity={0.8}
+    <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
+      {/* 1. Backdrop invisible que captura toques en el resto de la pantalla y cierra el popover */}
+      <Pressable onPress={onClose} pointerEvents="auto" style={StyleSheet.absoluteFill} />
+
+      {/* 2. Tarjeta del Popover (absorbe eventos para evitar clics pasantes al canvas) */}
+      <View
+        onStartShouldSetResponder={() => true}
+        onTouchEnd={(e) => e.stopPropagation()}
+        pointerEvents="auto"
+        style={[styles.contextualPill, styles.eraserPill, positionStyle, { top: 115 }]}
       >
-        <Eraser
-          size={13}
-          color={eraserMode === "stroke" ? "#38BDF8" : "#94A3B8"}
-          strokeWidth={1.8}
-        />
-        <Text
+        <TouchableOpacity
           style={[
-            styles.contextualOptionText,
-            eraserMode === "stroke" && styles.contextualOptionTextActive,
+            styles.contextualOption,
+            eraserMode === "stroke" && styles.contextualOptionActive,
           ]}
+          onPress={() => onSelectEraserMode("stroke")}
+          activeOpacity={0.8}
         >
-          Trazo
-        </Text>
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={[
-          styles.contextualOption,
-          eraserMode === "precision" && styles.contextualOptionActive,
-        ]}
-        onPress={() => onSelectEraserMode("precision")}
-        activeOpacity={0.8}
-      >
-        <Scissors
-          size={13}
-          color={eraserMode === "precision" ? "#38BDF8" : "#94A3B8"}
-          strokeWidth={1.8}
-        />
-        <Text
+          <Eraser
+            size={13}
+            color={eraserMode === "stroke" ? "#38BDF8" : "#94A3B8"}
+            strokeWidth={1.8}
+          />
+          <Text
+            style={[
+              styles.contextualOptionText,
+              eraserMode === "stroke" && styles.contextualOptionTextActive,
+            ]}
+          >
+            Trazo
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
           style={[
-            styles.contextualOptionText,
-            eraserMode === "precision" && styles.contextualOptionTextActive,
+            styles.contextualOption,
+            eraserMode === "precision" && styles.contextualOptionActive,
           ]}
+          onPress={() => onSelectEraserMode("precision")}
+          activeOpacity={0.8}
         >
-          Píxel
-        </Text>
-      </TouchableOpacity>
+          <Scissors
+            size={13}
+            color={eraserMode === "precision" ? "#38BDF8" : "#94A3B8"}
+            strokeWidth={1.8}
+          />
+          <Text
+            style={[
+              styles.contextualOptionText,
+              eraserMode === "precision" && styles.contextualOptionTextActive,
+            ]}
+          >
+            Píxel
+          </Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 };
@@ -83,7 +100,8 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.45,
     shadowRadius: 10,
-    elevation: 12,
+    elevation: 20,
+    zIndex: 9999,
   },
   eraserPill: {
     minWidth: 168,

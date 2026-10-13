@@ -1,5 +1,5 @@
 import React from "react";
-import { StyleSheet, View, Text, TouchableOpacity, ViewStyle } from "react-native";
+import { StyleSheet, View, Text, TouchableOpacity, Pressable, ViewStyle } from "react-native";
 import { Check, FileText } from "@sketchyicons/react-native";
 import {
   CanvasBackgroundType,
@@ -21,6 +21,7 @@ export const PAPER_TEMPLATES: PaperTemplateItem[] = [
 ];
 
 interface PaperTemplatePopoverProps {
+  visible?: boolean;
   backgroundType: CanvasBackgroundType;
   onSelectBackgroundType: (type: CanvasBackgroundType) => void;
   canvasTheme?: CanvasThemePreset;
@@ -30,6 +31,7 @@ interface PaperTemplatePopoverProps {
 }
 
 export const PaperTemplatePopover: React.FC<PaperTemplatePopoverProps> = ({
+  visible = true,
   backgroundType,
   onSelectBackgroundType,
   canvasTheme = "dark_slate",
@@ -37,8 +39,20 @@ export const PaperTemplatePopover: React.FC<PaperTemplatePopoverProps> = ({
   onClose,
   positionStyle,
 }) => {
+  if (!visible) return null;
+
   return (
-    <View style={[styles.popoverCard, positionStyle, { top: 170, width: 200 }]}>
+    <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
+      {/* 1. Backdrop invisible que captura toques en el resto de la pantalla y cierra el popover */}
+      <Pressable onPress={onClose} pointerEvents="auto" style={StyleSheet.absoluteFill} />
+
+      {/* 2. Tarjeta del Popover (absorbe eventos para evitar clics pasantes al canvas) */}
+      <View
+        onStartShouldSetResponder={() => true}
+        onTouchEnd={(e) => e.stopPropagation()}
+        pointerEvents="auto"
+        style={[styles.popoverCard, positionStyle, { top: 170, width: 200 }]}
+      >
       <Text style={styles.popoverHeader}>TIPO DE PAPEL</Text>
       {PAPER_TEMPLATES.map((tmpl) => {
         const isSelected = backgroundType === tmpl.id;
@@ -104,6 +118,7 @@ export const PaperTemplatePopover: React.FC<PaperTemplatePopoverProps> = ({
           })}
         </>
       )}
+        </View>
     </View>
   );
 };
@@ -120,7 +135,8 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.5,
     shadowRadius: 14,
-    elevation: 16,
+    elevation: 20,
+    zIndex: 9999,
   },
   popoverHeader: {
     color: "#64748B",

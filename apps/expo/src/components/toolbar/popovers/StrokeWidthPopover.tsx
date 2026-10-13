@@ -1,5 +1,5 @@
 import React from "react";
-import { StyleSheet, View, Text, TouchableOpacity, ViewStyle } from "react-native";
+import { StyleSheet, View, Text, TouchableOpacity, Pressable, ViewStyle } from "react-native";
 import { Check } from "@sketchyicons/react-native";
 
 export interface TipSizeItem {
@@ -19,6 +19,7 @@ export const TIP_SIZES: TipSizeItem[] = [
 ];
 
 interface StrokeWidthPopoverProps {
+  visible?: boolean;
   activeWidth: number;
   activeColor: string;
   onSelectWidth: (width: number) => void;
@@ -27,14 +28,27 @@ interface StrokeWidthPopoverProps {
 }
 
 export const StrokeWidthPopover: React.FC<StrokeWidthPopoverProps> = ({
+  visible = true,
   activeWidth,
   activeColor,
   onSelectWidth,
   onClose,
   positionStyle,
 }) => {
+  if (!visible) return null;
+
   return (
-    <View style={[styles.popoverCard, positionStyle, { top: 370, width: 200 }]}>
+    <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
+      {/* 1. Backdrop invisible que captura toques en el resto de la pantalla y cierra el popover */}
+      <Pressable onPress={onClose} pointerEvents="auto" style={StyleSheet.absoluteFill} />
+
+      {/* 2. Tarjeta del Popover (absorbe eventos para evitar clics pasantes al canvas) */}
+      <View
+        onStartShouldSetResponder={() => true}
+        onTouchEnd={(e) => e.stopPropagation()}
+        pointerEvents="auto"
+        style={[styles.popoverCard, positionStyle, { top: 370, width: 200 }]}
+      >
       <Text style={styles.popoverHeader}>GROSOR DE TRAZO</Text>
       {TIP_SIZES.map((s) => {
         const isSelected = activeWidth === s.value;
@@ -70,6 +84,7 @@ export const StrokeWidthPopover: React.FC<StrokeWidthPopoverProps> = ({
           </TouchableOpacity>
         );
       })}
+        </View>
     </View>
   );
 };
@@ -86,7 +101,8 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.5,
     shadowRadius: 14,
-    elevation: 16,
+    elevation: 20,
+    zIndex: 9999,
   },
   popoverHeader: {
     color: "#64748B",

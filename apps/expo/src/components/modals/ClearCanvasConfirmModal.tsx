@@ -16,8 +16,10 @@ export const ClearCanvasConfirmModal: React.FC<ClearCanvasConfirmModalProps> = (
   return (
     <Modal
       visible={visible}
-      transparent
+      transparent={true}
       animationType="fade"
+      statusBarTranslucent={true}
+      navigationBarTranslucent={true}
       onRequestClose={onCancel}
     >
       <TouchableWithoutFeedback onPress={onCancel}>

@@ -198,6 +198,10 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
                     eventEmitter.emitSelectionChanged(false, 0, null)
                     postInvalidateOnAnimation()
                 }
+                if (field == "eraser" && value != "eraser") {
+                    showEraserIndicator = false
+                    postInvalidateOnAnimation()
+                }
                 field = value
                 cachedBrush = null
             }
@@ -246,6 +250,25 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
     private var fingerDownX = 0f
     private var fingerDownY = 0f
     private var fingerDownTime = 0L
+
+    // Eraser Diameter Visual Indicator
+    private var eraserIndicatorX: Float = 0f
+    private var eraserIndicatorY: Float = 0f
+    private var showEraserIndicator: Boolean = false
+    private var isHardwareEraser: Boolean = false
+
+    private val eraserGuidePaint = android.graphics.Paint().apply {
+        style = android.graphics.Paint.Style.STROKE
+        strokeWidth = 2f
+        color = android.graphics.Color.parseColor("#38BDF8")
+        pathEffect = android.graphics.DashPathEffect(floatArrayOf(10f, 10f), 0f)
+        isAntiAlias = true
+    }
+    private val eraserFillPaint = android.graphics.Paint().apply {
+        style = android.graphics.Paint.Style.FILL
+        color = android.graphics.Color.parseColor("#1A38BDF8") // ~10% de opacidad
+        isAntiAlias = true
+    }
 
     // Draw-and-Hold Shape Detection Snapping State
     private var isStrokeSnapped = false
@@ -368,6 +391,11 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                 isUserTouching = false
+                if (showEraserIndicator) {
+                    showEraserIndicator = false
+                    this.isHardwareEraser = false
+                    postInvalidateOnAnimation()
+                }
             }
             MotionEvent.ACTION_POINTER_UP -> {
                 if (event.pointerCount <= 2) {
@@ -492,6 +520,12 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
 
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE -> {
+                    eraserIndicatorX = event.x
+                    eraserIndicatorY = event.y
+                    showEraserIndicator = true
+                    this.isHardwareEraser = isHardwareEraser
+                    postInvalidateOnAnimation()
+
                     val density = context.resources.displayMetrics.density
                     strokeEraser.eraseAt(
                         event.x, event.y,
@@ -511,6 +545,12 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
                         postInvalidateOnAnimation()
                         notifyStrokeCountChanged()
                     }
+                    return true
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    showEraserIndicator = false
+                    this.isHardwareEraser = false
+                    postInvalidateOnAnimation()
                     return true
                 }
             }
@@ -693,6 +733,42 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
         val location = IntArray(2)
         getLocationOnScreen(location)
         val density = context.resources.displayMetrics.density
+
+        val isHardwareEraser = stylusHandler.isStylusEraser(event)
+        val isEraserActive = brushType == "eraser" || isHardwareEraser
+
+        if (isEraserActive) {
+            val localX = event.rawX - location[0]
+            val localY = event.rawY - location[1]
+            val isInside = localX >= 0 && localX <= width && localY >= 0 && localY <= height
+            when (event.actionMasked) {
+                MotionEvent.ACTION_HOVER_MOVE, MotionEvent.ACTION_HOVER_ENTER -> {
+                    if (isInside) {
+                        eraserIndicatorX = localX
+                        eraserIndicatorY = localY
+                        showEraserIndicator = true
+                        this.isHardwareEraser = isHardwareEraser
+                        postInvalidateOnAnimation()
+                    } else if (showEraserIndicator) {
+                        showEraserIndicator = false
+                        this.isHardwareEraser = false
+                        postInvalidateOnAnimation()
+                    }
+                }
+                MotionEvent.ACTION_HOVER_EXIT -> {
+                    if (showEraserIndicator) {
+                        showEraserIndicator = false
+                        this.isHardwareEraser = false
+                        postInvalidateOnAnimation()
+                    }
+                }
+            }
+        } else if (showEraserIndicator) {
+            showEraserIndicator = false
+            this.isHardwareEraser = false
+            postInvalidateOnAnimation()
+        }
+
         hoverManager.handleStylusHover(
             event = event,
             viewWidth = width,
@@ -810,6 +886,13 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
         canvas.restore()
 
         canvas.restore()
+
+        if (showEraserIndicator && (brushType == "eraser" || isHardwareEraser)) {
+            val radiusPx = (strokeWidth * currentScale * density) / 2f
+            canvas.drawCircle(eraserIndicatorX, eraserIndicatorY, radiusPx, eraserFillPaint)
+            canvas.drawCircle(eraserIndicatorX, eraserIndicatorY, radiusPx, eraserGuidePaint)
+        }
+
         super.dispatchDraw(canvas)
     }
 
