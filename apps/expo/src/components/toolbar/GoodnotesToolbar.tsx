@@ -9,7 +9,7 @@ import { ColorPickerPopover } from "./popovers/ColorPickerPopover";
 import { EraserModePill } from "./popovers/EraserModePill";
 import { ToolbarToolIcon } from "./ToolbarToolIcon";
 import { StickerToolbarButton } from "../../features/stickers/StickerToolbarButton";
-import { calculatePopoverPosition, POPOVER_SIZES, PopoverSize } from "./popovers/popoverPlacement";
+import { computePopoverPosition, POPOVER_SIZES, PopoverSize, STANDARD_GAP } from "./popovers/popoverPlacement";
 import { saveUserPreferences } from "../../services/StorageService";
 import { GoodnotesToolbarProps, TOOLBAR_TOOLS } from "./GoodnotesToolbar.types";
 import { styles } from "./GoodnotesToolbar.styles";
@@ -40,6 +40,7 @@ export const GoodnotesToolbar: React.FC<GoodnotesToolbarProps> = ({
   canvasTranslateY = 0,
   onOpenStickerPicker,
   onStickerDragChange,
+  isZenMode = false,
 }) => {
   const [internalDockEdge, setInternalDockEdge] = useState<ToolbarDockEdge>(
     dockEdgeProp || (dockSide as ToolbarDockEdge) || initialDockEdge
@@ -47,13 +48,16 @@ export const GoodnotesToolbar: React.FC<GoodnotesToolbarProps> = ({
   const dockEdge = dockEdgeProp || internalDockEdge;
   const isVertical = dockEdge === "left" || dockEdge === "right";
 
+  const [toolbarHeight, setToolbarHeight] = useState(440);
+  const { height: screenHeight } = Dimensions.get("window");
+
   const [showTemplateMenu, setShowTemplateMenu] = useState(false);
   const [showSizeMenu, setShowSizeMenu] = useState(false);
   const [showColorMenu, setShowColorMenu] = useState(false);
   const [showEraserMenu, setShowEraserMenu] = useState(false);
   const [popoverPos, setPopoverPos] = useState({ left: 70, top: 120 });
 
-  const eraserRef = useRef<View>(null);
+  const eraserButtonRef = useRef<View>(null);
   const templateRef = useRef<View>(null);
   const colorRef = useRef<View>(null);
   const sizeRef = useRef<View>(null);
@@ -66,9 +70,18 @@ export const GoodnotesToolbar: React.FC<GoodnotesToolbarProps> = ({
     setShowEraserMenu(false);
   };
 
-  const openPopover = (ref: React.RefObject<View>, size: PopoverSize, setter: (v: boolean) => void) => {
+  const openPopover = (
+    ref: React.RefObject<View>,
+    size: PopoverSize,
+    setter: (v: boolean) => void,
+    isEraser = false
+  ) => {
     ref.current?.measureInWindow((x, y, width, height) => {
-      const pos = calculatePopoverPosition({ x, y, width, height }, size, dockEdge, Dimensions.get("window"));
+      const { width: sw, height: sh } = Dimensions.get("window");
+      const pos = computePopoverPosition({ x, y, width, height }, size, dockEdge, sw, sh, STANDARD_GAP);
+      if (isEraser && isVertical) {
+        pos.top += 4;
+      }
       setPopoverPos(pos);
       closeAllMenus();
       setter(true);
@@ -94,14 +107,26 @@ export const GoodnotesToolbar: React.FC<GoodnotesToolbarProps> = ({
       saveUserPreferences({ toolbar_dock_edge: next, toolbar_dock_side: next === "right" ? "right" : "left" });
     });
 
+  const verticalCenterTop = Math.max(isZenMode ? 16 : 60, (screenHeight - toolbarHeight) / 2);
+  const topEdgeTop = isZenMode ? 14 : 56;
+
   const edgeKey = (dockEdge.charAt(0).toUpperCase() + dockEdge.slice(1)) as "Left" | "Right" | "Top" | "Bottom";
-  const dockEdgeStyle = styles[`dockPill${edgeKey}`];
   const indicatorPosStyle = styles[`indicator${edgeKey}`];
+
+  const dockEdgeStyle =
+    dockEdge === "left" ? [styles.dockPillLeft, { top: verticalCenterTop }] :
+    dockEdge === "right" ? [styles.dockPillRight, { top: verticalCenterTop }] :
+    dockEdge === "top" ? [styles.dockPillTop, { top: topEdgeTop }] :
+    [styles.dockPillBottom, { bottom: 18 }];
 
   return (
     <View pointerEvents="box-none" style={styles.dockWrapper}>
       <Animated.View
         pointerEvents="auto"
+        onLayout={(e) => {
+          const h = e.nativeEvent.layout.height;
+          if (h > 0) setToolbarHeight(h);
+        }}
         style={[
           styles.dockPill,
           isVertical ? styles.dockPillVertical : styles.dockPillHorizontal,
@@ -125,13 +150,14 @@ export const GoodnotesToolbar: React.FC<GoodnotesToolbarProps> = ({
           const isActive = activeBrush === t.id;
           const isEraser = t.id === "eraser";
           return (
-            <View key={t.id} ref={isEraser ? eraserRef : undefined} collapsable={false}>
+            <View key={t.id} ref={isEraser ? eraserButtonRef : undefined} collapsable={false}>
               <TouchableOpacity
                 style={[styles.toolButton, isActive && styles.toolButtonActive]}
                 onPress={() => {
                   if (isEraser) {
-                    if (activeBrush !== "eraser") onSelectBrush("eraser");
-                    showEraserMenu ? closeAllMenus() : openPopover(eraserRef, POPOVER_SIZES.eraserMode, setShowEraserMenu);
+                    onSelectBrush("eraser");
+                    if (showEraserMenu) closeAllMenus();
+                    else openPopover(eraserButtonRef, POPOVER_SIZES.eraser, setShowEraserMenu, true);
                   } else {
                     onSelectBrush(t.id);
                     closeAllMenus();
@@ -169,7 +195,7 @@ export const GoodnotesToolbar: React.FC<GoodnotesToolbarProps> = ({
             style={[styles.templateButton, showTemplateMenu && styles.templateButtonActive]}
             onPress={() => {
               if (showTemplateMenu) closeAllMenus();
-              else openPopover(templateRef, POPOVER_SIZES.paperTemplate, setShowTemplateMenu);
+              else openPopover(templateRef, POPOVER_SIZES.template, setShowTemplateMenu);
             }}
             activeOpacity={0.7}
             accessibilityLabel="Plantilla de papel"
@@ -186,7 +212,7 @@ export const GoodnotesToolbar: React.FC<GoodnotesToolbarProps> = ({
             style={[styles.colorButton, showColorMenu && styles.colorButtonActive]}
             onPress={() => {
               if (showColorMenu) closeAllMenus();
-              else openPopover(colorRef, POPOVER_SIZES.colorPicker, setShowColorMenu);
+              else openPopover(colorRef, POPOVER_SIZES.color, setShowColorMenu);
             }}
             activeOpacity={0.7}
             accessibilityLabel="Paleta de colores"
@@ -201,7 +227,7 @@ export const GoodnotesToolbar: React.FC<GoodnotesToolbarProps> = ({
             style={[styles.sizeButton, showSizeMenu && styles.sizeButtonActive]}
             onPress={() => {
               if (showSizeMenu) closeAllMenus();
-              else openPopover(sizeRef, POPOVER_SIZES.strokeWidth, setShowSizeMenu);
+              else openPopover(sizeRef, POPOVER_SIZES.stroke, setShowSizeMenu);
             }}
             activeOpacity={0.7}
             accessibilityLabel={`Grosor de trazo: ${activeWidth}px`}
@@ -209,12 +235,7 @@ export const GoodnotesToolbar: React.FC<GoodnotesToolbarProps> = ({
             <View
               style={[
                 styles.sizeIndicatorDot,
-                {
-                  width: Math.min(Math.max(activeWidth / 2, 4), 14),
-                  height: Math.min(Math.max(activeWidth / 2, 4), 14),
-                  borderRadius: Math.min(Math.max(activeWidth / 2, 4), 14) / 2,
-                  backgroundColor: activeColor,
-                },
+                { width: Math.min(Math.max(activeWidth / 2, 4), 14), height: Math.min(Math.max(activeWidth / 2, 4), 14), borderRadius: 7, backgroundColor: activeColor },
               ]}
             />
             <Text style={styles.sizeLabel}>{activeWidth}</Text>
@@ -224,49 +245,32 @@ export const GoodnotesToolbar: React.FC<GoodnotesToolbarProps> = ({
 
       {showColorMenu && (
         <ColorPickerPopover
-          visible={showColorMenu}
-          activeColor={activeColor}
-          onSelectColor={onSelectColor}
-          favoriteColors={favoriteColors}
-          onUpdateFavoriteColor={onUpdateFavoriteColor}
-          onClose={() => setShowColorMenu(false)}
-          positionStyle={popoverPos}
+          visible={showColorMenu} activeColor={activeColor} onSelectColor={onSelectColor}
+          favoriteColors={favoriteColors} onUpdateFavoriteColor={onUpdateFavoriteColor}
+          onClose={() => setShowColorMenu(false)} positionStyle={popoverPos}
         />
       )}
 
       {showSizeMenu && (
         <StrokeWidthPopover
-          visible={showSizeMenu}
-          activeWidth={activeWidth}
-          activeColor={activeColor}
-          onSelectWidth={onSelectWidth}
-          onClose={() => setShowSizeMenu(false)}
-          positionStyle={popoverPos}
+          visible={showSizeMenu} activeWidth={activeWidth} activeColor={activeColor}
+          onSelectWidth={onSelectWidth} onClose={() => setShowSizeMenu(false)} positionStyle={popoverPos}
         />
       )}
 
       {showTemplateMenu && (
         <PaperTemplatePopover
-          visible={showTemplateMenu}
-          backgroundType={backgroundType}
-          onSelectBackgroundType={onSelectBackgroundType}
-          canvasTheme={canvasTheme}
-          onSelectCanvasTheme={onSelectCanvasTheme}
-          onClose={() => setShowTemplateMenu(false)}
-          positionStyle={popoverPos}
+          visible={showTemplateMenu} backgroundType={backgroundType} onSelectBackgroundType={onSelectBackgroundType}
+          canvasTheme={canvasTheme} onSelectCanvasTheme={onSelectCanvasTheme}
+          onClose={() => setShowTemplateMenu(false)} positionStyle={popoverPos}
         />
       )}
 
       {showEraserMenu && (
         <EraserModePill
-          visible={showEraserMenu}
-          eraserMode={eraserMode}
-          onSelectEraserMode={(mode) => {
-            onSelectEraserMode(mode);
-            setShowEraserMenu(false);
-          }}
-          onClose={() => setShowEraserMenu(false)}
-          positionStyle={popoverPos}
+          visible={showEraserMenu} eraserMode={eraserMode}
+          onSelectEraserMode={(m) => { onSelectEraserMode(m); setShowEraserMenu(false); }}
+          onClose={() => setShowEraserMenu(false)} positionStyle={popoverPos}
         />
       )}
     </View>

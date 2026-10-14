@@ -23,7 +23,6 @@ export const styles = StyleSheet.create({
     width: 48,
     flexDirection: "column",
     paddingVertical: 6,
-    top: 16,
   },
   dockPillHorizontal: {
     height: 48,
@@ -38,10 +37,11 @@ export const styles = StyleSheet.create({
     right: 14,
   },
   dockPillTop: {
-    top: 14,
+    alignSelf: "center",
   },
   dockPillBottom: {
-    bottom: 14,
+    alignSelf: "center",
+    bottom: 18,
   },
   dragHandle: {
     width: 34,

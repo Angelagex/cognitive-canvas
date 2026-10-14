@@ -126,16 +126,19 @@ export const PaperTemplatePopover: React.FC<PaperTemplatePopoverProps> = ({
 const styles = StyleSheet.create({
   popoverCard: {
     position: "absolute",
+    width: 210,
+    height: 384,
     backgroundColor: "#0B1120",
     borderRadius: 16,
     borderWidth: 1,
     borderColor: "#1E293B",
     padding: 12,
+    paddingBottom: 16,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.5,
     shadowRadius: 14,
-    elevation: 20,
+    elevation: 16,
     zIndex: 9999,
   },
   popoverHeader: {

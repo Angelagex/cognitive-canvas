@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { View, SafeAreaView, StatusBar, Animated, TouchableOpacity, StyleSheet } from "react-native";
+import { View, StatusBar, Animated, TouchableOpacity, StyleSheet } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { Sparkles, Minimize2 } from "@sketchyicons/react-native";
 import { useCanvasState } from "./src/hooks/useCanvasState";
@@ -51,28 +51,10 @@ export default function App() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <SafeAreaView style={styles.rootContainer}>
+      <View style={styles.rootContainer}>
         <StatusBar barStyle="light-content" backgroundColor="#0B1120" />
 
-        {/* 1. Header Superior con Modo Zen */}
-        <Animated.View style={headerAnimStyle} pointerEvents={isZenMode ? "none" : "auto"}>
-          <TopHeader
-            mapTitle={canvas.mapTitle}
-            onTitleChange={canvas.handleTitleChange}
-            canUndo={canvas.canUndo}
-            canRedo={canvas.canRedo}
-            onUndo={canvas.handleUndo}
-            onRedo={canvas.handleRedo}
-            onOpenCompiler={() => canvas.setIsDrawerOpen(true)}
-            onOpenDocumentMenu={() => setShowDocumentMenu(true)}
-            isSaving={canvas.isSaving}
-            lastSavedAt={canvas.lastSavedAt}
-            isZenMode={isZenMode}
-            onToggleZenMode={() => setIsZenMode((prev) => !prev)}
-          />
-        </Animated.View>
-
-        {/* 2. Lienzo Infinito */}
+        {/* 1. Lienzo Infinito a Pantalla Completa (Full View 100%) */}
         <View style={styles.canvasWrapper}>
           <JetpackInkCanvas
             style={StyleSheet.absoluteFill}
@@ -138,6 +120,7 @@ export default function App() {
             onStickerDragChange={(drag) => {
               setDragGhost(drag ? { screenX: drag.screenX, screenY: drag.screenY } : null);
             }}
+            isZenMode={isZenMode}
           />
 
           {dragGhost && (
@@ -157,6 +140,46 @@ export default function App() {
             </View>
           )}
 
+          {/* 2. TopHeader Flotante sobre el lienzo (position: absolute, zIndex: 40) */}
+          {!isZenMode && (
+            <Animated.View
+              style={[styles.topHeaderContainer, headerAnimStyle]}
+              pointerEvents="box-none"
+            >
+              <TopHeader
+                mapTitle={canvas.mapTitle}
+                onTitleChange={canvas.handleTitleChange}
+                canUndo={canvas.canUndo}
+                canRedo={canvas.canRedo}
+                onUndo={canvas.handleUndo}
+                onRedo={canvas.handleRedo}
+                onOpenCompiler={() => canvas.setIsDrawerOpen(true)}
+                onOpenDocumentMenu={() => setShowDocumentMenu(true)}
+                isSaving={canvas.isSaving}
+                lastSavedAt={canvas.lastSavedAt}
+                isZenMode={isZenMode}
+                onToggleZenMode={() => setIsZenMode((prev) => !prev)}
+              />
+            </Animated.View>
+          )}
+
+          {/* 3. FloatingFooter Flotante (position: absolute, bottom: 18, zIndex: 50) */}
+          {!isZenMode && (
+            <Animated.View
+              style={[styles.floatingFooterContainer, footerAnimStyle]}
+              pointerEvents="box-none"
+            >
+              <FloatingFooter
+                stylusOnly={canvas.stylusOnly}
+                onToggleStylusOnly={canvas.handleToggleStylusOnly}
+                displayZoom={canvas.displayZoom}
+                onZoomIn={canvas.handleZoomIn}
+                onZoomOut={canvas.handleZoomOut}
+                onResetZoom={canvas.handleResetZoom}
+              />
+            </Animated.View>
+          )}
+
           {/* Micro-botón flotante para salir de Modo Zen */}
           {isZenMode && (
             <Animated.View style={[styles.exitZenButtonWrapper, { opacity: zenAnim }]}>
@@ -170,18 +193,6 @@ export default function App() {
               </TouchableOpacity>
             </Animated.View>
           )}
-
-          {/* 3. Footer Flotante con transición Zen */}
-          <Animated.View style={footerAnimStyle} pointerEvents={isZenMode ? "none" : "auto"}>
-            <FloatingFooter
-              stylusOnly={canvas.stylusOnly}
-              onToggleStylusOnly={canvas.handleToggleStylusOnly}
-              displayZoom={canvas.displayZoom}
-              onZoomIn={canvas.handleZoomIn}
-              onZoomOut={canvas.handleZoomOut}
-              onResetZoom={canvas.handleResetZoom}
-            />
-          </Animated.View>
         </View>
 
         <CompilerDrawer
@@ -205,7 +216,7 @@ export default function App() {
           stickerTargetWorld={stickerTargetWorld}
           onCloseStickerPicker={() => setStickerPickerVisible(false)}
         />
-      </SafeAreaView>
+      </View>
     </GestureHandlerRootView>
   );
 }

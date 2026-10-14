@@ -3,6 +3,8 @@ import { StyleSheet } from "react-native";
 export const styles = StyleSheet.create({
   popoverCard: {
     position: "absolute",
+    width: 210,
+    height: 188,
     backgroundColor: "#0B1120",
     borderRadius: 16,
     borderWidth: 1,

@@ -108,7 +108,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    zIndex: 10,
+    zIndex: 50,
   },
   pillButton: {
     flexDirection: "row",

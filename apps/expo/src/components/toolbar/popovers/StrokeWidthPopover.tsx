@@ -92,6 +92,8 @@ export const StrokeWidthPopover: React.FC<StrokeWidthPopoverProps> = ({
 const styles = StyleSheet.create({
   popoverCard: {
     position: "absolute",
+    width: 210,
+    height: 360,
     backgroundColor: "#0B1120",
     borderRadius: 16,
     borderWidth: 1,
@@ -101,7 +103,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.5,
     shadowRadius: 14,
-    elevation: 20,
+    elevation: 16,
     zIndex: 9999,
   },
   popoverHeader: {

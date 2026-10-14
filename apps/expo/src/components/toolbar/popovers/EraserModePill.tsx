@@ -104,7 +104,8 @@ const styles = StyleSheet.create({
     zIndex: 9999,
   },
   eraserPill: {
-    minWidth: 168,
+    width: 170,
+    height: 42,
   },
   contextualOption: {
     paddingHorizontal: 9,

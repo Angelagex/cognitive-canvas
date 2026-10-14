@@ -37,6 +37,7 @@ export interface GoodnotesToolbarProps {
   onStickerDragChange?: (
     dragState: { isDragging: boolean; screenX: number; screenY: number } | null
   ) => void;
+  isZenMode?: boolean;
 }
 
 export const TOOLBAR_TOOLS: { id: BrushType; label: string }[] = [

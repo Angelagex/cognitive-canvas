@@ -6,9 +6,22 @@ export const styles = StyleSheet.create({
     backgroundColor: "#090D16",
   },
   canvasWrapper: {
-    flex: 1,
-    position: "relative",
+    ...StyleSheet.absoluteFillObject,
     overflow: "hidden",
+  },
+  topHeaderContainer: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 40,
+  },
+  floatingFooterContainer: {
+    position: "absolute",
+    bottom: 18,
+    left: 20,
+    right: 20,
+    zIndex: 50,
   },
   dragGhostHalo: {
     position: "absolute",
