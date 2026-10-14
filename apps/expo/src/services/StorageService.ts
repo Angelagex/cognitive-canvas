@@ -5,7 +5,15 @@ import {
   VisualASTLayer,
   CompiledCognitiveLayer,
 } from "@cognitive-canvas/core";
-import { PlacedAttribute, ToolbarDockEdge } from "../types/canvas";
+import {
+  PlacedAttribute,
+  ToolbarDockEdge,
+  UserPreferences,
+  DEFAULT_TOOL_WIDTHS,
+  DEFAULT_THEME_PALETTES,
+} from "../types/canvas";
+
+export type { UserPreferences };
 
 export interface ExtendedDocumentMetadata {
   title: string;
@@ -175,16 +183,18 @@ export async function setLastActiveMapId(mapId: string): Promise<void> {
 
 const USER_PREFS_FILE = `${FileSystem.documentDirectory}user_preferences.json`;
 
-export interface UserPreferences {
-  toolbar_dock_side?: "left" | "right";
-  toolbar_dock_edge?: ToolbarDockEdge;
-}
-
 export async function getUserPreferences(): Promise<UserPreferences> {
+  const defaults: UserPreferences = {
+    toolbar_dock_side: "left",
+    toolbar_dock_edge: "left",
+    tool_widths: { ...DEFAULT_TOOL_WIDTHS },
+    theme_palettes: { ...DEFAULT_THEME_PALETTES },
+  };
+
   try {
     const fileInfo = await FileSystem.getInfoAsync(USER_PREFS_FILE);
     if (!fileInfo.exists) {
-      return { toolbar_dock_side: "left", toolbar_dock_edge: "left" };
+      return defaults;
     }
     const content = await FileSystem.readAsStringAsync(USER_PREFS_FILE, {
       encoding: FileSystem.EncodingType.UTF8,
@@ -195,12 +205,21 @@ export async function getUserPreferences(): Promise<UserPreferences> {
       (parsed.toolbar_dock_side === "right" ? "right" : "left");
 
     return {
+      ...defaults,
       ...parsed,
       toolbar_dock_side: edge === "right" ? "right" : "left",
       toolbar_dock_edge: edge,
+      tool_widths: {
+        ...defaults.tool_widths,
+        ...(parsed.tool_widths || {}),
+      },
+      theme_palettes: {
+        ...defaults.theme_palettes,
+        ...(parsed.theme_palettes || {}),
+      },
     };
   } catch {
-    return { toolbar_dock_side: "left", toolbar_dock_edge: "left" };
+    return defaults;
   }
 }
 

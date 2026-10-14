@@ -162,3 +162,28 @@ export interface FingerTapEvent {
   entityBounds?: EntityBoundingBox | null;
 }
 
+export interface UserPreferences {
+  toolbar_dock_side?: "left" | "right";
+  toolbar_dock_edge?: ToolbarDockEdge;
+  tool_widths?: Record<BrushType, number>;
+  theme_palettes?: Record<CanvasThemePreset, string[]>;
+}
+
+export const DEFAULT_TOOL_WIDTHS: Record<BrushType, number> = {
+  pen: 8,
+  marker: 12,
+  highlighter: 24,
+  eraser: 24,
+  lasso: 4,
+  laser: 16,
+  pan: 4,
+};
+
+export const DEFAULT_THEME_PALETTES: Record<CanvasThemePreset, string[]> = {
+  dark_slate: [...CANVAS_THEMES.dark_slate.favoriteColors],
+  charcoal_dark: [...CANVAS_THEMES.charcoal_dark.favoriteColors],
+  warm_ivory: [...CANVAS_THEMES.warm_ivory.favoriteColors],
+  pure_white: [...CANVAS_THEMES.pure_white.favoriteColors],
+};
+
+

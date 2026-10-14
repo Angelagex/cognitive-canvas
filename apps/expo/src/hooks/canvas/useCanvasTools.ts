@@ -1,9 +1,11 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import {
   BrushType,
   CanvasBackgroundType,
   CanvasThemePreset,
   CANVAS_THEMES,
+  DEFAULT_TOOL_WIDTHS,
+  DEFAULT_THEME_PALETTES,
   EraserMode,
   ToolbarDockEdge,
 } from "../../types/canvas";
@@ -22,34 +24,64 @@ const isNearDark = (color: string): boolean => {
 };
 
 export const useCanvasTools = () => {
-  const [toolWidths, setToolWidths] = useState<Record<BrushType, number>>({
-    pen: 8,
-    marker: 12,
-    highlighter: 24,
-    eraser: 24,
-    lasso: 4,
-    laser: 16,
-    pan: 4,
-  });
+  const [toolWidths, setToolWidths] = useState<Record<BrushType, number>>(DEFAULT_TOOL_WIDTHS);
   const [activeBrush, setActiveBrushState] = useState<BrushType>("pen");
   const [activeColor, setActiveColor] = useState<string>(CANVAS_THEMES.dark_slate.defaultInkColor);
-  const [activeWidth, setActiveWidthState] = useState<number>(8);
-  const activeWidthRef = useRef<number>(8);
+  const [activeWidth, setActiveWidthState] = useState<number>(DEFAULT_TOOL_WIDTHS.pen);
+  const activeWidthRef = useRef<number>(DEFAULT_TOOL_WIDTHS.pen);
   const activeBrushRef = useRef<BrushType>("pen");
-
-  // Keep refs in sync with current state
-  activeWidthRef.current = activeWidth;
-  activeBrushRef.current = activeBrush;
 
   const [eraserMode, setEraserMode] = useState<EraserMode>("stroke");
   const [backgroundType, setBackgroundType] = useState<CanvasBackgroundType>("dot_grid");
   const [canvasTheme, setCanvasThemeState] = useState<CanvasThemePreset>("dark_slate");
+  const canvasThemeRef = useRef<CanvasThemePreset>("dark_slate");
+
+  const [themePalettes, setThemePalettes] =
+    useState<Record<CanvasThemePreset, string[]>>(DEFAULT_THEME_PALETTES);
+  const themePalettesRef =
+    useRef<Record<CanvasThemePreset, string[]>>(DEFAULT_THEME_PALETTES);
+
   const [favoriteColors, setFavoriteColors] = useState<string[]>([
-    ...CANVAS_THEMES.dark_slate.favoriteColors,
+    ...DEFAULT_THEME_PALETTES.dark_slate,
   ]);
   const [stylusOnly, setStylusOnly] = useState<boolean>(true); // S-Pen palm rejection by default
   const [toolbarDockEdge, setToolbarDockEdge] = useState<ToolbarDockEdge>("left");
   const toolbarDockSide: "left" | "right" = toolbarDockEdge === "right" ? "right" : "left";
+
+  // Keep refs in sync with current state
+  activeWidthRef.current = activeWidth;
+  activeBrushRef.current = activeBrush;
+  canvasThemeRef.current = canvasTheme;
+  themePalettesRef.current = themePalettes;
+
+  // Carga inicial asíncrona de preferencias de usuario
+  useEffect(() => {
+    let isMounted = true;
+    getUserPreferences().then((prefs) => {
+      if (!isMounted) return;
+      if (prefs.toolbar_dock_edge) {
+        setToolbarDockEdge(prefs.toolbar_dock_edge);
+      }
+      if (prefs.tool_widths) {
+        setToolWidths(prefs.tool_widths);
+        const currentBrush = activeBrushRef.current;
+        const initialWidth = prefs.tool_widths[currentBrush] ?? DEFAULT_TOOL_WIDTHS[currentBrush] ?? 8;
+        setActiveWidthState(initialWidth);
+        activeWidthRef.current = initialWidth;
+      }
+      if (prefs.theme_palettes) {
+        setThemePalettes(prefs.theme_palettes);
+        const currentTheme = canvasThemeRef.current;
+        const savedPalette = prefs.theme_palettes[currentTheme];
+        if (savedPalette && savedPalette.length > 0) {
+          setFavoriteColors([...savedPalette]);
+        }
+      }
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const handleSelectBrush = useCallback((nextBrush: BrushType) => {
     setActiveBrushState((prevBrush) => {
@@ -57,9 +89,10 @@ export const useCanvasTools = () => {
       setToolWidths((prevWidths) => {
         const currentW = activeWidthRef.current;
         const updated = { ...prevWidths, [prevBrush]: currentW };
-        const nextW = updated[nextBrush] ?? 8;
+        const nextW = updated[nextBrush] ?? DEFAULT_TOOL_WIDTHS[nextBrush] ?? 8;
         setActiveWidthState(nextW);
         activeWidthRef.current = nextW;
+        saveUserPreferences({ tool_widths: updated });
         return updated;
       });
       return nextBrush;
@@ -69,51 +102,62 @@ export const useCanvasTools = () => {
   const handleSetWidth = useCallback((newWidth: number) => {
     setActiveWidthState(newWidth);
     activeWidthRef.current = newWidth;
-    setToolWidths((prev) => ({
-      ...prev,
-      [activeBrushRef.current]: newWidth,
-    }));
+    setToolWidths((prev) => {
+      const updated = {
+        ...prev,
+        [activeBrushRef.current]: newWidth,
+      };
+      saveUserPreferences({ tool_widths: updated });
+      return updated;
+    });
   }, []);
 
-  // Sincronización dinámica de tema, favoritos y mapeo de color activo
+  // Sincronización dinámica de tema, favoritos guardados y mapeo de color activo
   const setCanvasTheme = useCallback((newTheme: CanvasThemePreset) => {
     setCanvasThemeState((prevTheme) => {
       const prevConfig = CANVAS_THEMES[prevTheme];
       const newConfig = CANVAS_THEMES[newTheme];
 
-      // 1. Sincroniza favoriteColors con CANVAS_THEMES[newTheme].favoriteColors
-      setFavoriteColors([...newConfig.favoriteColors]);
+      // 1. Obtener la paleta guardada para el nuevo tema desde themePalettes
+      const newPalette = themePalettesRef.current[newTheme] || [...newConfig.favoriteColors];
+      setFavoriteColors([...newPalette]);
 
-      // 2. Mapeo contextual del color activo para garantizar contraste sobre el nuevo fondo
+      // 2. Mapeo contextual del color activo para garantizar contraste y legibilidad
       setActiveColor((currActive) => {
-        const prevFavs = prevConfig.favoriteColors;
-        const newFavs = newConfig.favoriteColors;
+        const prevFavs = themePalettesRef.current[prevTheme] || prevConfig.favoriteColors;
         const upperActive = currActive.toUpperCase();
 
-        // Si coincide con el defaultInkColor del tema anterior
-        if (upperActive === prevConfig.defaultInkColor.toUpperCase()) {
-          return newConfig.defaultInkColor;
+        // Si coincide con el color principal del tema anterior
+        if (prevFavs[0] && upperActive === prevFavs[0].toUpperCase()) {
+          return newPalette[0] || newConfig.defaultInkColor;
         }
 
-        // Si es el acento secundario (índice 1)
-        if (upperActive === prevFavs[1].toUpperCase()) {
-          return newFavs[1];
+        // Si coincide con el acento secundario (índice 1)
+        if (prevFavs[1] && upperActive === prevFavs[1].toUpperCase()) {
+          return newPalette[1] || newPalette[0] || newConfig.defaultInkColor;
         }
 
-        // Si es el acento terciario/resaltado (índice 2)
-        if (upperActive === prevFavs[2].toUpperCase()) {
-          return newFavs[2];
+        // Si coincide con el acento terciario/resaltado (índice 2)
+        if (prevFavs[2] && upperActive === prevFavs[2].toUpperCase()) {
+          return newPalette[2] || newPalette[0] || newConfig.defaultInkColor;
         }
 
         // Regla de salvaguarda armónica si es un color personalizado claro/oscuro
         if (!newConfig.isDark && isNearWhite(currActive)) {
-          return newConfig.defaultInkColor;
+          return newPalette[0] || newConfig.defaultInkColor;
         }
         if (newConfig.isDark && isNearDark(currActive)) {
-          return newConfig.defaultInkColor;
+          return newPalette[0] || newConfig.defaultInkColor;
         }
 
-        return currActive;
+        // Si ya coincide con alguno de los favoritos de la nueva paleta, conservarlo
+        const matchesNewPalette = newPalette.some((c) => c.toUpperCase() === upperActive);
+        if (matchesNewPalette) {
+          return currActive;
+        }
+
+        // Si no, aplicar el color principal para asegurar legibilidad
+        return newPalette[0] || newConfig.defaultInkColor;
       });
 
       return newTheme;
@@ -121,11 +165,20 @@ export const useCanvasTools = () => {
   }, []);
 
   const updateFavoriteColor = useCallback((index: number, newColor: string) => {
+    const currentTheme = canvasThemeRef.current;
     setFavoriteColors((prev) => {
       const next = [...prev];
       if (index >= 0 && index < next.length) {
         next[index] = newColor;
       }
+      setThemePalettes((prevPalettes) => {
+        const updatedPalettes = {
+          ...prevPalettes,
+          [currentTheme]: next,
+        };
+        saveUserPreferences({ theme_palettes: updatedPalettes });
+        return updatedPalettes;
+      });
       return next;
     });
     setActiveColor(newColor);
