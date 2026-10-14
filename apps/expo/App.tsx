@@ -7,6 +7,7 @@ import { TopHeader } from "./src/components/header/TopHeader";
 import { GoodnotesToolbar } from "./src/components/toolbar/GoodnotesToolbar";
 import { JetpackInkCanvas } from "./src/components/JetpackInkCanvas";
 import { FloatingFooter } from "./src/components/footer/FloatingFooter";
+import { ZenZoomToast } from "./src/components/footer/ZenZoomToast";
 import { CompilerDrawer } from "./src/components/drawer/CompilerDrawer";
 import { CanvasOverlays } from "./src/components/canvas/CanvasOverlays";
 import { AppModals } from "./src/components/modals/AppModals";
@@ -19,6 +20,8 @@ export default function App() {
   const [stickerTargetWorld, setStickerTargetWorld] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [dragGhost, setDragGhost] = useState<{ screenX: number; screenY: number } | null>(null);
   const [isZenMode, setIsZenMode] = useState(false);
+  const [zoomToastVisible, setZoomToastVisible] = useState(false);
+  const zoomToastTimerRef = useRef<NodeJS.Timeout | null>(null);
   const zenAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -30,6 +33,31 @@ export default function App() {
   }, [isZenMode]);
 
   const canvas = useCanvasState();
+  const prevDisplayZoomRef = useRef(canvas.displayZoom);
+
+  // Toast flotante efímero de zoom en Modo Zen al detectar variación de zoom
+  useEffect(() => {
+    if (prevDisplayZoomRef.current !== canvas.displayZoom) {
+      prevDisplayZoomRef.current = canvas.displayZoom;
+      if (isZenMode) {
+        setZoomToastVisible(true);
+        if (zoomToastTimerRef.current) {
+          clearTimeout(zoomToastTimerRef.current);
+        }
+        zoomToastTimerRef.current = setTimeout(() => {
+          setZoomToastVisible(false);
+        }, 1800);
+      }
+    }
+  }, [canvas.displayZoom, isZenMode]);
+
+  useEffect(() => {
+    return () => {
+      if (zoomToastTimerRef.current) {
+        clearTimeout(zoomToastTimerRef.current);
+      }
+    };
+  }, []);
 
   const headerAnimStyle = {
     opacity: zenAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }),
@@ -192,6 +220,14 @@ export default function App() {
                 <Minimize2 size={18} color="#38BDF8" strokeWidth={2.0} />
               </TouchableOpacity>
             </Animated.View>
+          )}
+
+          {/* Toast flotante efímero de Zoom en Modo Zen */}
+          {isZenMode && (
+            <ZenZoomToast
+              displayZoom={canvas.displayZoom}
+              visible={zoomToastVisible}
+            />
           )}
         </View>
 

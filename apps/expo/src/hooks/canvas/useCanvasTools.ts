@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import {
   BrushType,
   CanvasBackgroundType,
@@ -22,9 +22,25 @@ const isNearDark = (color: string): boolean => {
 };
 
 export const useCanvasTools = () => {
+  const [toolWidths, setToolWidths] = useState<Record<BrushType, number>>({
+    pen: 8,
+    marker: 12,
+    highlighter: 24,
+    eraser: 24,
+    lasso: 4,
+    laser: 16,
+    pan: 4,
+  });
   const [activeBrush, setActiveBrushState] = useState<BrushType>("pen");
   const [activeColor, setActiveColor] = useState<string>(CANVAS_THEMES.dark_slate.defaultInkColor);
-  const [activeWidth, setActiveWidth] = useState<number>(4.5);
+  const [activeWidth, setActiveWidthState] = useState<number>(8);
+  const activeWidthRef = useRef<number>(8);
+  const activeBrushRef = useRef<BrushType>("pen");
+
+  // Keep refs in sync with current state
+  activeWidthRef.current = activeWidth;
+  activeBrushRef.current = activeBrush;
+
   const [eraserMode, setEraserMode] = useState<EraserMode>("stroke");
   const [backgroundType, setBackgroundType] = useState<CanvasBackgroundType>("dot_grid");
   const [canvasTheme, setCanvasThemeState] = useState<CanvasThemePreset>("dark_slate");
@@ -35,14 +51,28 @@ export const useCanvasTools = () => {
   const [toolbarDockEdge, setToolbarDockEdge] = useState<ToolbarDockEdge>("left");
   const toolbarDockSide: "left" | "right" = toolbarDockEdge === "right" ? "right" : "left";
 
-  // Ballpoint Pen (bolígrafo uniforme) standard size: 4.5 dp
-  const handleSelectBrush = useCallback((brush: BrushType) => {
-    setActiveBrushState(brush);
-    if (brush === "pen") {
-      setActiveWidth(4.5);
-    } else if (brush === "highlighter") {
-      setActiveWidth(24.0);
-    }
+  const handleSelectBrush = useCallback((nextBrush: BrushType) => {
+    setActiveBrushState((prevBrush) => {
+      if (prevBrush === nextBrush) return prevBrush;
+      setToolWidths((prevWidths) => {
+        const currentW = activeWidthRef.current;
+        const updated = { ...prevWidths, [prevBrush]: currentW };
+        const nextW = updated[nextBrush] ?? 8;
+        setActiveWidthState(nextW);
+        activeWidthRef.current = nextW;
+        return updated;
+      });
+      return nextBrush;
+    });
+  }, []);
+
+  const handleSetWidth = useCallback((newWidth: number) => {
+    setActiveWidthState(newWidth);
+    activeWidthRef.current = newWidth;
+    setToolWidths((prev) => ({
+      ...prev,
+      [activeBrushRef.current]: newWidth,
+    }));
   }, []);
 
   // Sincronización dinámica de tema, favoritos y mapeo de color activo
@@ -135,7 +165,7 @@ export const useCanvasTools = () => {
     activeColor,
     setActiveColor,
     activeWidth,
-    setActiveWidth,
+    setActiveWidth: handleSetWidth,
     eraserMode,
     setEraserMode,
     backgroundType,

@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.DashPathEffect
 import android.graphics.Matrix
 import android.graphics.RectF
 import android.os.Handler
@@ -889,8 +890,22 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
 
         if (showEraserIndicator && (brushType == "eraser" || isHardwareEraser)) {
             val radiusPx = (strokeWidth * currentScale * density) / 2f
-            canvas.drawCircle(eraserIndicatorX, eraserIndicatorY, radiusPx, eraserFillPaint)
-            canvas.drawCircle(eraserIndicatorX, eraserIndicatorY, radiusPx, eraserGuidePaint)
+
+            if (isUserTouching) {
+                // Estado activo de borrado: círculo sólido, más visible y con relleno translúcido más denso
+                eraserFillPaint.color = Color.parseColor("#3338BDF8") // ~20% opacidad
+                eraserGuidePaint.pathEffect = null // Línea continua sólida
+                eraserGuidePaint.strokeWidth = 3f
+                canvas.drawCircle(eraserIndicatorX, eraserIndicatorY, radiusPx, eraserFillPaint)
+                canvas.drawCircle(eraserIndicatorX, eraserIndicatorY, radiusPx, eraserGuidePaint)
+            } else {
+                // Estado de reposo (Air View Hover): borde discontinuo tenue
+                eraserFillPaint.color = Color.parseColor("#1438BDF8") // ~8% opacidad
+                eraserGuidePaint.pathEffect = DashPathEffect(floatArrayOf(8f, 8f), 0f)
+                eraserGuidePaint.strokeWidth = 2f
+                canvas.drawCircle(eraserIndicatorX, eraserIndicatorY, radiusPx, eraserFillPaint)
+                canvas.drawCircle(eraserIndicatorX, eraserIndicatorY, radiusPx, eraserGuidePaint)
+            }
         }
 
         super.dispatchDraw(canvas)

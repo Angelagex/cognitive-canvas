@@ -43,7 +43,7 @@ class StrokeEraser {
     ) {
         val worldX = (screenX - canvasTranslateX) / (canvasScale * density)
         val worldY = (screenY - canvasTranslateY) / (canvasScale * density)
-        val eraseRadius = (strokeWidth * 3.0f).coerceAtLeast(30f) / canvasScale
+        val eraseRadius = strokeWidth / 2f
         val eraseRadiusSq = eraseRadius * eraseRadius
 
         if (eraserMode == "stroke") {
