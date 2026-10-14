@@ -38,7 +38,7 @@ export const ZenZoomToast: React.FC<ZenZoomToastProps> = ({ displayZoom, visible
       pointerEvents="none"
       style={[styles.container, { opacity: opacityAnim }]}
     >
-      <Text style={styles.text}>{Math.round(displayZoom * 100)}%</Text>
+      <Text style={styles.text}>{Math.round(displayZoom)}%</Text>
     </Animated.View>
   );
 };
