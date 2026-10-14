@@ -64,10 +64,7 @@ export const GoodnotesToolbar: React.FC<GoodnotesToolbarProps> = ({
   const panAnim = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
 
   const closeAllMenus = () => {
-    setShowTemplateMenu(false);
-    setShowSizeMenu(false);
-    setShowColorMenu(false);
-    setShowEraserMenu(false);
+    setShowTemplateMenu(false); setShowSizeMenu(false); setShowColorMenu(false); setShowEraserMenu(false);
   };
 
   const openPopover = (
@@ -107,15 +104,17 @@ export const GoodnotesToolbar: React.FC<GoodnotesToolbarProps> = ({
       saveUserPreferences({ toolbar_dock_edge: next, toolbar_dock_side: next === "right" ? "right" : "left" });
     });
 
-  const verticalCenterTop = Math.max(isZenMode ? 16 : 60, (screenHeight - toolbarHeight) / 2);
+  const minTop = isZenMode ? 16 : 56;
+  const verticalCenter = (screenHeight - toolbarHeight) / 2;
+  const targetTop = Math.max(minTop, Math.round(minTop + (verticalCenter - minTop) * 0.5));
   const topEdgeTop = isZenMode ? 14 : 56;
 
   const edgeKey = (dockEdge.charAt(0).toUpperCase() + dockEdge.slice(1)) as "Left" | "Right" | "Top" | "Bottom";
   const indicatorPosStyle = styles[`indicator${edgeKey}`];
 
   const dockEdgeStyle =
-    dockEdge === "left" ? [styles.dockPillLeft, { top: verticalCenterTop }] :
-    dockEdge === "right" ? [styles.dockPillRight, { top: verticalCenterTop }] :
+    dockEdge === "left" ? [styles.dockPillLeft, { top: targetTop }] :
+    dockEdge === "right" ? [styles.dockPillRight, { top: targetTop }] :
     dockEdge === "top" ? [styles.dockPillTop, { top: topEdgeTop }] :
     [styles.dockPillBottom, { bottom: 18 }];
 
