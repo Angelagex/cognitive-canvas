@@ -87,18 +87,18 @@ class StickerPlacementManager(
                     0f,
                     0f
                 )
-                batch.addOrIgnore(input)
+                batch.add(input)
             }
 
             val brushSize = (baseWidth * relWidth * 0.7f).coerceIn(2.0f, 20.0f)
             val brush = Brush.createWithColorIntArgb(
-                family = StockBrushes.markerLatest,
+                family = StockBrushes.marker(),
                 colorIntArgb = colorInt,
                 size = brushSize,
                 epsilon = 0.1f
             )
 
-            strokesList.add(Stroke(brush, batch.asImmutable()))
+            strokesList.add(Stroke(brush, batch.toImmutable()))
         }
 
         return strokesList

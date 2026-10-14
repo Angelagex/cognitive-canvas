@@ -28,7 +28,7 @@ object StrokeSerializer {
             val colorStr = strokeColorMap[stroke] ?: String.format("#%06X", 0xFFFFFF and defaultStrokeColor)
             strokeMap.putString("color", colorStr)
             strokeMap.putDouble("width", (stroke.brush.size / density).toDouble())
-            val bType = if (stroke.brush.family == StockBrushes.highlighterLatest) "highlighter" else "pen"
+            val bType = if (stroke.brush.family == StockBrushes.highlighter()) "highlighter" else "pen"
             strokeMap.putString("brushType", bType)
 
             val inputs = stroke.inputs
@@ -95,8 +95,8 @@ object StrokeSerializer {
             val widthDp = strokeObj.optDouble("width", 4.5).toFloat()
             val strokeType = strokeObj.optString("brushType", "pen")
             val family = when (strokeType) {
-                "highlighter" -> StockBrushes.highlighterLatest
-                else -> StockBrushes.markerLatest
+                "highlighter" -> StockBrushes.highlighter()
+                else -> StockBrushes.marker()
             }
             val strokeColorInt = try {
                 Color.parseColor(colorHex)
@@ -140,7 +140,7 @@ object StrokeSerializer {
                         0f,
                         0f
                     )
-                    batch.addOrIgnore(input)
+                    batch.add(input)
                     j += 4
                 }
             } else if (pointsArray != null && pointsArray.length() >= 2) {
@@ -162,13 +162,13 @@ object StrokeSerializer {
                         0f,
                         0f
                     )
-                    batch.addOrIgnore(input)
+                    batch.add(input)
                 }
             } else {
                 continue
             }
 
-            val stroke = Stroke(strokeBrush, batch.asImmutable())
+            val stroke = Stroke(strokeBrush, batch.toImmutable())
             restoredStrokes.add(stroke)
             strokeColorMap[stroke] = colorHex
         }

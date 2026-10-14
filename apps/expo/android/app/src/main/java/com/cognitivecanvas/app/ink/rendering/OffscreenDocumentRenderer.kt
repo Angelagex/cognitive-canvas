@@ -10,6 +10,7 @@ import com.cognitivecanvas.app.ink.transform.CanvasTransformManager
 
 object OffscreenDocumentRenderer {
 
+    @OptIn(androidx.ink.brush.ExperimentalInkCustomBrushApi::class)
     fun renderToBitmap(
         completedStrokes: List<Stroke>,
         fullDocument: Boolean,

@@ -451,9 +451,9 @@ class LassoSelectionManager {
                     pt.tiltRadians,
                     pt.orientationRadians
                 )
-                batch.addOrIgnore(transformed)
+                batch.add(transformed)
             }
-            transformedList.add(Stroke(stroke.brush, batch.asImmutable()))
+            transformedList.add(Stroke(stroke.brush, batch.toImmutable()))
         }
         return transformedList
     }
@@ -507,9 +507,9 @@ class LassoSelectionManager {
                 pt.tiltRadians,
                 pt.orientationRadians
             )
-            batch.addOrIgnore(translated)
+            batch.add(translated)
         }
-        return Stroke(stroke.brush, batch.asImmutable())
+        return Stroke(stroke.brush, batch.toImmutable())
     }
 
     private fun scaleStroke(stroke: Stroke, scale: Float, pivotX: Float, pivotY: Float, density: Float = 1.0f): Stroke {
@@ -532,7 +532,7 @@ class LassoSelectionManager {
                 pt.tiltRadians,
                 pt.orientationRadians
             )
-            batch.addOrIgnore(scaled)
+            batch.add(scaled)
         }
         val origBrush = stroke.brush
         val scaledBrush = Brush.createWithColorIntArgb(
@@ -541,7 +541,7 @@ class LassoSelectionManager {
             size = (origBrush.size * scale).coerceIn(1.0f, 60.0f),
             epsilon = origBrush.epsilon
         )
-        return Stroke(scaledBrush, batch.asImmutable())
+        return Stroke(scaledBrush, batch.toImmutable())
     }
 
     private fun isPointInPolygon(px: Float, py: Float, polygon: List<PointF>): Boolean {

@@ -553,9 +553,9 @@ class ShapeDetector {
                 val pt = points[i]
                 val timeMillis = (i * 12).toLong() + 10L
                 val input = StrokeInput.create(pt.x, pt.y, timeMillis)
-                batch.addOrIgnore(input)
+                batch.add(input)
             }
-            Stroke(originalStroke.brush, batch.asImmutable())
+            Stroke(originalStroke.brush, batch.toImmutable())
         } catch (_: Exception) {
             null
         }

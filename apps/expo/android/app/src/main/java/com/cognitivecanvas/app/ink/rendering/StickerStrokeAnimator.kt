@@ -60,10 +60,10 @@ class StickerStrokeAnimator(
                     val batch = MutableStrokeInputBatch()
 
                     for (i in 0 until visibleCount) {
-                        batch.addOrIgnore(inputs.get(i))
+                        batch.add(inputs.get(i))
                     }
 
-                    partialList.add(Stroke(stroke.brush, batch.asImmutable()))
+                    partialList.add(Stroke(stroke.brush, batch.toImmutable()))
                 }
 
                 animatedStrokes = partialList

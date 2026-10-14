@@ -123,13 +123,13 @@ class StrokeEraser {
                                 currentBatch = MutableStrokeInputBatch()
                                 currentRunLength = 0
                             }
-                            currentBatch.addOrIgnore(inputs.get(i))
+                            currentBatch.add(inputs.get(i))
                             currentRunLength++
                         } else {
                             if (currentBatch != null) {
                                 if (currentRunLength >= 2) {
                                     try {
-                                        toAdd.add(Stroke(stroke.brush, currentBatch.asImmutable()))
+                                        toAdd.add(Stroke(stroke.brush, currentBatch.toImmutable()))
                                     } catch (_: Exception) {}
                                 }
                                 currentBatch = null
@@ -140,7 +140,7 @@ class StrokeEraser {
 
                     if (currentBatch != null && currentRunLength >= 2) {
                         try {
-                            toAdd.add(Stroke(stroke.brush, currentBatch.asImmutable()))
+                            toAdd.add(Stroke(stroke.brush, currentBatch.toImmutable()))
                         } catch (_: Exception) {}
                     }
                 }

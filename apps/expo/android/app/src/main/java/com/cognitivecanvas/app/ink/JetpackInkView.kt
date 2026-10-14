@@ -417,7 +417,9 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
         // 2. Navegación multitáctil (Pinch-to-zoom y Paneo con 2 dedos) ANTES de herramientas
         if (!isStylusTouch && !isHardwareEraser && !isBarrelPressed && event.pointerCount >= 2) {
             if (activeStrokeIds.isNotEmpty()) {
-                inProgressStrokesView.cancelUnfinishedStrokes()
+                try {
+                    inProgressStrokesView.cancelUnfinishedStrokes()
+                } catch (_: Exception) {}
                 activeStrokeIds.clear()
             }
             shapeHoldDetector.cancel()
@@ -447,7 +449,9 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
             if (isBarrelPressed) {
                 isMomentaryLassoActive = true
                 if (activeStrokeIds.isNotEmpty()) {
-                    inProgressStrokesView.cancelUnfinishedStrokes()
+                    try {
+                        inProgressStrokesView.cancelUnfinishedStrokes()
+                    } catch (_: Exception) {}
                     activeStrokeIds.clear()
                 }
             } else if (isMomentaryLassoActive) {
@@ -515,7 +519,9 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
         // 3. Eraser Mode (Hardware tail eraser or explicit UI eraser)
         if (brushType == "eraser" || isHardwareEraser) {
             if (activeStrokeIds.isNotEmpty()) {
-                inProgressStrokesView.cancelUnfinishedStrokes()
+                try {
+                    inProgressStrokesView.cancelUnfinishedStrokes()
+                } catch (_: Exception) {}
                 activeStrokeIds.clear()
             }
 
@@ -537,7 +543,9 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
                         completedStrokes,
                         density
                     ) { removed ->
-                        inProgressStrokesView.cancelUnfinishedStrokes()
+                        try {
+                            inProgressStrokesView.cancelUnfinishedStrokes()
+                        } catch (_: Exception) {}
                         undoneStrokes.addAll(removed)
                         for (r in removed) {
                             val b = strokeBoundsCache.remove(r)
@@ -802,6 +810,7 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
     // Drawing Pipeline (`dispatchDraw`)
     // ---------------------------------------------------------------------------------------------
 
+    @OptIn(androidx.ink.brush.ExperimentalInkCustomBrushApi::class)
     override fun dispatchDraw(canvas: Canvas) {
         canvas.drawColor(canvasBackgroundColor)
         val renderMatrix = transformManager.getRenderMatrix()
@@ -1013,8 +1022,8 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
         var brush = cachedBrush
         if (brush == null) {
             val family = when (brushType) {
-                "highlighter" -> StockBrushes.highlighterLatest
-                else -> StockBrushes.markerLatest
+                "highlighter" -> StockBrushes.highlighter()
+                else -> StockBrushes.marker()
             }
 
             val colorToUse = when (brushType) {

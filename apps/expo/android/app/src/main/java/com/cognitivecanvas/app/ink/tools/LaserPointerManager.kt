@@ -47,6 +47,7 @@ class LaserPointerManager {
         isLaserPointerActive = true
     }
 
+    @OptIn(androidx.ink.brush.ExperimentalInkCustomBrushApi::class)
     fun draw(
         canvas: Canvas,
         strokeRenderer: CanvasStrokeRenderer,
