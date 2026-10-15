@@ -20,7 +20,7 @@ class ShapeDetector {
      * - Rectangle / Square (Q <= 0.84, 4 dominant RDP vertices with ~90 deg corners)
      * - Triangle (Q <= 0.84, 3 dominant RDP vertices)
      */
-    fun detectAndSnap(stroke: Stroke, density: Float = 1f): Stroke? {
+    fun detectAndSnap(stroke: Stroke, density: Float = 1f, canvasScale: Float = 1f): Stroke? {
         val inputs = stroke.inputs
         val count = inputs.size
         if (count < 6) return null
@@ -82,13 +82,19 @@ class ShapeDetector {
             }
             val sagittaRatio = if (directDist > 0.001f) dMax / directDist else 0f
 
-            // 1A. Flechas: eje + punta aguda (rectas o curvas)
-            val arrowStroke = trySnapArrow(stroke, points, totalLength)
+            // 1A. Flechas bidireccionales: doble vértice agudo en extremos
+            val bidiArrowStroke = trySnapBidirectionalArrow(stroke, points, totalLength, density, canvasScale)
+            if (bidiArrowStroke != null) {
+                return bidiArrowStroke
+            }
+
+            // 1B. Flechas unidireccionales: eje + punta aguda (rectas o curvas)
+            val arrowStroke = trySnapArrow(stroke, points, density, canvasScale)
             if (arrowStroke != null) {
                 return arrowStroke
             }
 
-            // 1B. Si sagittaRatio < 0.12: La línea es intencionalmente recta
+            // 1C. Si sagittaRatio < 0.12: La línea es intencionalmente recta
             if (sagittaRatio < 0.12f && directDist > 25f) {
                 return snapToStraightLine(stroke, start, end, directDist)
             }
@@ -219,12 +225,211 @@ class ShapeDetector {
         return buildStrokeFromPoints(stroke, resultPoints)
     }
 
+    private fun findAcuteVertexInWindow(
+        points: List<Point>,
+        cumDist: FloatArray,
+        minDist: Float,
+        maxDist: Float
+    ): Int {
+        var bestIndex = -1
+        var bestCos = 0.50f // cos(60 deg) = 0.50 -> quiebre agudo <= 60 deg
+        val n = points.size
+
+        for (i in 2 until n - 2) {
+            val d = cumDist[i]
+            if (d < minDist || d > maxDist) continue
+
+            // Vector hacia atrás a al menos 4px de distancia de arco para estabilidad
+            var prevIdx = i - 1
+            while (prevIdx > 0 && cumDist[i] - cumDist[prevIdx] < 4f) {
+                prevIdx--
+            }
+            val prevP = points[prevIdx]
+            val uX = prevP.x - points[i].x
+            val uY = prevP.y - points[i].y
+            val uLen = hypot(uX, uY)
+
+            // Vector hacia adelante a al menos 4px de distancia de arco
+            var nextIdx = i + 1
+            while (nextIdx < n - 1 && cumDist[nextIdx] - cumDist[i] < 4f) {
+                nextIdx++
+            }
+            val nextP = points[nextIdx]
+            val vX = nextP.x - points[i].x
+            val vY = nextP.y - points[i].y
+            val vLen = hypot(vX, vY)
+
+            if (uLen < 2f || vLen < 2f) continue
+
+            val dot = (uX * vX + uY * vY) / (uLen * vLen)
+            if (dot > bestCos) {
+                bestCos = dot
+                bestIndex = i
+            }
+        }
+        return bestIndex
+    }
+
+    private fun appendArrowHead(
+        resultPoints: ArrayList<Point>,
+        tip: Point,
+        w1: Point,
+        w2: Point,
+        wingSteps: Int = 8,
+        baseSteps: Int = 8
+    ) {
+        // tip -> w1
+        for (s in 1..wingSteps) {
+            val t = s.toFloat() / wingSteps
+            resultPoints.add(Point(tip.x + t * (w1.x - tip.x), tip.y + t * (w1.y - tip.y)))
+        }
+        // w1 -> w2 (base)
+        for (s in 1..baseSteps) {
+            val t = s.toFloat() / baseSteps
+            resultPoints.add(Point(w1.x + t * (w2.x - w1.x), w1.y + t * (w2.y - w1.y)))
+        }
+        // w2 -> tip
+        for (s in 1..wingSteps) {
+            val t = s.toFloat() / wingSteps
+            resultPoints.add(Point(w2.x + t * (tip.x - w2.x), w2.y + t * (tip.y - w2.y)))
+        }
+    }
+
+    /**
+     * Recognizes bidirectional arrows: strokes with acute vertices (<= 60 deg)
+     * near both the start (first 20% of stroke length) and the end (last 20% of stroke length).
+     * Connects interior points with a straight line or quadratic Bézier arc (sagittaRatio),
+     * and projects opposing arrowhead wings at both pStart and pEnd.
+     */
+    private fun trySnapBidirectionalArrow(
+        stroke: Stroke,
+        points: List<Point>,
+        totalLength: Float,
+        density: Float = 1f,
+        canvasScale: Float = 1f
+    ): Stroke? {
+        val count = points.size
+        if (count < 12 || totalLength < 40f) return null
+
+        val cumDist = FloatArray(count)
+        cumDist[0] = 0f
+        for (i in 1 until count) {
+            cumDist[i] = cumDist[i - 1] + hypot(points[i].x - points[i - 1].x, points[i].y - points[i - 1].y)
+        }
+
+        // Vértice agudo cerca del inicio (dentro del primer 20% de la longitud)
+        val startIndex = findAcuteVertexInWindow(points, cumDist, 4f, totalLength * 0.22f)
+        if (startIndex == -1) return null
+
+        // Vértice agudo cerca del final (dentro del último 20% de la longitud)
+        val endIndex = findAcuteVertexInWindow(points, cumDist, totalLength * 0.78f, totalLength - 4f)
+        if (endIndex == -1 || endIndex <= startIndex) return null
+
+        val pStart = points[startIndex]
+        val pEnd = points[endIndex]
+        val shaftDx = pEnd.x - pStart.x
+        val shaftDy = pEnd.y - pStart.y
+        val shaftLen = hypot(shaftDx, shaftDy)
+
+        if (shaftLen < 25f) return null
+
+        // El cuerpo debe representar la porción principal del trazo
+        val startWingLen = cumDist[startIndex]
+        val endWingLen = totalLength - cumDist[endIndex]
+        if (startWingLen > shaftLen * 0.60f || endWingLen > shaftLen * 0.60f) return null
+
+        // Evalúa la sagita del cuerpo (shaft) entre ambos vértices
+        var dMaxShaft = 0f
+        var shaftApex = pStart
+        for (k in startIndex..endIndex) {
+            val p = points[k]
+            val d = perpendicularDistance(p, pStart, pEnd)
+            if (d > dMaxShaft) {
+                dMaxShaft = d
+                shaftApex = p
+            }
+        }
+        val shaftSagittaRatio = if (shaftLen > 0.001f) dMaxShaft / shaftLen else 0f
+
+        val shaftPoints = ArrayList<Point>()
+        val thetaStart: Float
+        val thetaEnd: Float
+
+        if (shaftSagittaRatio < 0.12f) {
+            // Cuerpo recto
+            val angle = atan2(shaftDy, shaftDx)
+            thetaStart = angle
+            thetaEnd = angle
+            val shaftSteps = 24
+            for (s in 0..shaftSteps) {
+                val t = s.toFloat() / shaftSteps
+                shaftPoints.add(Point(pStart.x + t * shaftDx, pStart.y + t * shaftDy))
+            }
+        } else {
+            // Cuerpo curvo de Bézier cuadrático que pasa por shaftApex en t = 0.5
+            val pcX = 2f * shaftApex.x - 0.5f * (pStart.x + pEnd.x)
+            val pcY = 2f * shaftApex.y - 0.5f * (pStart.y + pEnd.y)
+            thetaStart = atan2(pcY - pStart.y, pcX - pStart.x)
+            thetaEnd = atan2(pEnd.y - pcY, pEnd.x - pcX)
+
+            val shaftSteps = 24
+            for (s in 0..shaftSteps) {
+                val t = s.toFloat() / shaftSteps
+                val u = 1f - t
+                val x = u * u * pStart.x + 2f * u * t * pcX + t * t * pEnd.x
+                val y = u * u * pStart.y + 2f * u * t * pcY + t * t * pEnd.y
+                shaftPoints.add(Point(x, y))
+            }
+        }
+
+        val strokeWidth = stroke.brush.size
+        // Longitud de cabeza base en Screen DP (entre 12dp y 22dp para visibilidad óptima)
+        val baseHeadScreenDp = (14f + (strokeWidth * 0.4f)).coerceIn(12f, 24f)
+        val effectiveScale = max(canvasScale * density, 0.001f)
+        val headLengthWorld = (baseHeadScreenDp / effectiveScale).coerceAtMost(shaftLen * 0.35f)
+
+        // El ángulo de apertura de las alas se mantiene en ~28 grados (0.48 rad)
+        val wingAngle = 0.48f
+
+        // Aletas en pStart (orientadas hacia el cuerpo en dirección opuesta a la punta exterior)
+        val w1StartX = pStart.x + headLengthWorld * cos(thetaStart - wingAngle)
+        val w1StartY = pStart.y + headLengthWorld * sin(thetaStart - wingAngle)
+        val w2StartX = pStart.x + headLengthWorld * cos(thetaStart + wingAngle)
+        val w2StartY = pStart.y + headLengthWorld * sin(thetaStart + wingAngle)
+
+        // Aletas en pEnd (orientadas hacia el cuerpo retrocediendo desde thetaEnd)
+        val w1EndX = pEnd.x - headLengthWorld * cos(thetaEnd - wingAngle)
+        val w1EndY = pEnd.y - headLengthWorld * sin(thetaEnd - wingAngle)
+        val w2EndX = pEnd.x - headLengthWorld * cos(thetaEnd + wingAngle)
+        val w2EndY = pEnd.y - headLengthWorld * sin(thetaEnd + wingAngle)
+
+        val resultPoints = ArrayList<Point>()
+        // 1. Aletas iniciales en pStart
+        resultPoints.add(pStart)
+        appendArrowHead(resultPoints, pStart, Point(w1StartX, w1StartY), Point(w2StartX, w2StartY))
+
+        // 2. Cuerpo continuo desde pStart hasta pEnd
+        for (s in 1 until shaftPoints.size) {
+            resultPoints.add(shaftPoints[s])
+        }
+
+        // 3. Aletas finales en pEnd
+        appendArrowHead(resultPoints, pEnd, Point(w1EndX, w1EndY), Point(w2EndX, w2EndY))
+
+        return buildStrokeFromPoints(stroke, resultPoints)
+    }
+
     /**
      * Recognizes single-stroke arrows: a straight or curved shaft followed by an acute fold (arrowhead).
      * If the shaft has sagittaRatio < 0.12: regularizes to a straight shaft.
      * If sagittaRatio >= 0.12: regularizes to a smooth quadratic Bézier arc aligned with the arrowhead.
      */
-    private fun trySnapArrow(stroke: Stroke, points: List<Point>, totalLength: Float): Stroke? {
+    private fun trySnapArrow(
+        stroke: Stroke,
+        points: List<Point>,
+        density: Float = 1f,
+        canvasScale: Float = 1f
+    ): Stroke? {
         val count = points.size
         if (count < 10) return null
 
@@ -329,36 +534,24 @@ class ShapeDetector {
             }
         }
 
-        val headLength = min(max(shaftLen * 0.25f, 55f), 95f)
-        val wingAngle = Math.toRadians(30.0).toFloat()
+        val strokeWidth = stroke.brush.size
+        // Longitud de cabeza base en Screen DP (entre 12dp y 22dp para visibilidad óptima)
+        val baseHeadScreenDp = (14f + (strokeWidth * 0.4f)).coerceIn(12f, 24f)
+        val effectiveScale = max(canvasScale * density, 0.001f)
+        val headLengthWorld = (baseHeadScreenDp / effectiveScale).coerceAtMost(shaftLen * 0.40f)
+
+        // El ángulo de apertura de las alas se mantiene en ~28 grados (0.48 rad)
+        val wingAngle = 0.48f
 
         // Wing 1 (top wing)
-        val w1x = pTip.x - headLength * cos(tipAngle - wingAngle)
-        val w1y = pTip.y - headLength * sin(tipAngle - wingAngle)
+        val w1x = pTip.x - headLengthWorld * cos(tipAngle - wingAngle)
+        val w1y = pTip.y - headLengthWorld * sin(tipAngle - wingAngle)
 
         // Wing 2 (bottom wing)
-        val w2x = pTip.x - headLength * cos(tipAngle + wingAngle)
-        val w2y = pTip.y - headLength * sin(tipAngle + wingAngle)
+        val w2x = pTip.x - headLengthWorld * cos(tipAngle + wingAngle)
+        val w2y = pTip.y - headLengthWorld * sin(tipAngle + wingAngle)
 
-        // 2. Wing 1: pTip -> w1
-        val wingSteps = 8
-        for (s in 1..wingSteps) {
-            val t = s.toFloat() / wingSteps
-            resultPoints.add(Point(pTip.x + t * (w1x - pTip.x), pTip.y + t * (w1y - pTip.y)))
-        }
-
-        // 3. Base of arrowhead: w1 -> w2
-        val baseSteps = 8
-        for (s in 1..baseSteps) {
-            val t = s.toFloat() / baseSteps
-            resultPoints.add(Point(w1x + t * (w2x - w1x), w1y + t * (w2y - w1y)))
-        }
-
-        // 4. Wing 2: w2 -> pTip
-        for (s in 1..wingSteps) {
-            val t = s.toFloat() / wingSteps
-            resultPoints.add(Point(w2x + t * (pTip.x - w2x), w2y + t * (pTip.y - w2y)))
-        }
+        appendArrowHead(resultPoints, pTip, Point(w1x, w1y), Point(w2x, w2y))
 
         return buildStrokeFromPoints(stroke, resultPoints)
     }

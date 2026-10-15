@@ -342,7 +342,7 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
                     }
 
                     val snapped = if (shouldSnap) {
-                        shapeDetector.detectAndSnap(stroke, density) ?: stroke
+                        shapeDetector.detectAndSnap(stroke, density, scale) ?: stroke
                     } else {
                         stroke
                     }
