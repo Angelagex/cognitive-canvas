@@ -27,6 +27,10 @@ El lápiz digital es el único instrumento autorizado para generar trazos de tin
   - **Lazo Momentáneo:** Mantener pulsado el botón lateral activa la herramienta de lazo de forma instantánea mientras el lápiz esté sobre la pantalla. Al levantarlo o soltar el botón, el sistema retorna automáticamente a la herramienta anterior (`pen` o `highlighter`) sin necesidad de tocar la barra de herramientas.
 * **Air View (Hover):**
   - Detección del puntero a $15 \text{ mm}$ de la pantalla sin tocarla. Permite inspeccionar insignias de atributos, resaltar entidades cognitivas y activar micro-previsualizaciones semánticas sin generar marcas.
+* **Borrador de Precisión con Feedback Visual de Radio Real:**
+  - El motor nativo proyecta el radio exacto de acción ($r = \frac{\text{strokeWidth}}{2} \cdot s \cdot \rho$) directamente sobre la posición del cursor tanto en el aire como en contacto físico:
+    * **Air View Hover:** Círculo punteado fino (`DashPathEffect`, ~8% de opacidad), anticipando con precisión milimétrica qué trazos serán alcanzados antes de tocar la pantalla.
+    * **Touch Activo (Erasing):** Anillo sólido visible de 3 px con relleno translúcido dinámico (~20% de opacidad), proporcionando confirmación visual continua del área de impacto destructivo mientras se barre la superficie.
 
 ### 1.2 Gestos con Dedos y Rechazo de Palma Estricto
 
@@ -93,29 +97,40 @@ Una vez confirmada una selección por lazo, aparece una barra flotante inmediata
 
 ## 3. Gestos Nativos Inteligentes
 
-### 3.1 Gesto Scratch-out (Tachadura Invariante al Zoom)
+### 3.1 Gesto Scratch-out (Tachadura Invariante al Zoom y Borrado Estricto)
 
 Permite borrar palabras o notas dibujando un zigzag rápido sobre ellas, sustituyendo la necesidad de cambiar a la herramienta de borrador.
 
-* **Condiciones de Activación:**
-  1. $\ge 5$ inversiones de dirección horizontal (zigzags en el eje X).
-  2. Densidad de longitud acumulada $\ge 4.5$ veces el ancho de su bounding box.
-  3. Desplazamiento mínimo por segmento de al menos **4 dp en World Space** (para evitar que trazos pequeños de caligrafía o sombras sean confundidos con tachaduras).
-  4. Bounding box acotado verticalmente para no eliminar líneas de texto contiguas arriba o abajo.
-* **Efecto:**
-  - Los trazos bajo el bounding box del scratch-out son eliminados de inmediato.
-  - El propio trazo de la tachadura es descartado sin llegar a persistirse.
+* **Detección Geométrica de Zigzag:**
+  1. **Reversiones de Velocidad Angular:** Mínimo de $\ge 4$ inversiones abruptas en la dirección de la componente principal de movimiento, con un desplazamiento mínimo por rama de `minDelta = 3.5f` Screen DP.
+  2. **Tortuosidad Elevada:** La relación entre la longitud acumulada del trazo y la distancia directa euclidiana de sus extremos debe satisfacer $\text{tortuosity} \ge 1.6f$.
+  3. **Acotamiento Vertical:** Bounding box con altura restringida para no solaparse con líneas de texto contiguas arriba o abajo.
+* **Política de Borrado por Intersección Estricta:**
+  - **Eliminación Exclusiva de Trazos Colisionantes:** Solo se eliminan aquellos trazos cuya geometría física intersecta de manera real y directa con la envolvente del scratch-out.
+  - **Prohibición de Propagación por Cercanía (Anti-BFS):** Se prohíben terminantemente las búsquedas de proximidad artificial (como colas BFS o expansiones radiales por clúster), previniendo la eliminación accidental de palabras adyacentes o conectores cercanos que no fueron tachados intencionalmente.
+  - **Padding Delimitado a 6-8 World DP:** El margen de tolerancia perimetral se encuentra estrictamente acotado entre 6 y 8 World DP.
+  - El propio trazo de la tachadura se descarta de forma instantánea de la memoria y nunca llega a persistirse.
 
 ### 3.2 Draw-and-hold (Regularización Geométrica con Dwell)
 
-Facilita la creación de mapas limpios permitiendo dibujar líneas, flechas y figuras geométricas a mano alzada:
-* **Dwell sostenido (450 ms):** Si al terminar una figura el usuario mantiene la punta del lápiz inmóvil durante 450 milisegundos:
+Facilita la creación de mapas limpios permitiendo regularizar líneas, flechas y figuras geométricas a mano alzada:
+* **Dwell Sostenido (450 ms):** Si al terminar una figura el usuario mantiene la punta del lápiz inmóvil durante 450 milisegundos:
   - Se activa un **feedback háptico sutil**.
-  - El motor analiza la trayectoria de puntos (`DrawAndHoldManager`).
-* **Figuras reconocidas:**
-  - **Líneas rectas y Flechas:** Alineación automática del vector y adición de punta triangular limpia.
-  - **Rectángulos y Cajas de Concepto:** Regularización ortogonal con esquinas redondeadas.
-  - **Elipses y Círculos:** Ajuste de ejes mayor y menor.
+  - El motor analiza la trayectoria de puntos (`ShapeDetector.kt` / `DrawAndHoldManager`).
+* **Figuras Reconocidas:**
+  - **Líneas Rectas y Arcos Curvos:** Regularización a recta ortogonal/diagonal o a curvas suaves cuadráticas de Bézier si $\text{sagittaRatio} \ge 0.12$.
+  - **Puntas de Flecha Proporcionales (Viewport-Calibrated Head Scaling):**
+    * La longitud de las aletas de la punta se desvincula de valores fijos en pantalla y se calibra armónicamente con el grosor del trazo (`strokeWidth`) y la escala del viewport (`canvasScale` y densidad $\rho$):
+      $$\text{baseHeadScreenDp} = \text{clamp}(14.0 + \text{strokeWidth} \times 0.4, 12.0, 24.0)$$
+      $$\text{headLengthWorld} = \frac{\text{baseHeadScreenDp}}{\max(\text{canvasScale} \times \rho, 0.001)}$$
+      $$\text{wingAngle} = 0.48 \text{ rad } (\approx 27.5^\circ)$$
+    * Esto previene que a zooms $\ge 200\%$ la punta se dibuje gigante y a zooms reducidos ($< 50\%$) resulte ilegible.
+  - **Flechas Bidireccionales ($\longleftrightarrow$):**
+    * **Detección de Doble Vértice Agudo:** En trazos abiertos (`!isClosed`), el reconocedor evalúa la existencia simultánea de dos quiebres agudos ($\le 60^\circ$, $\cos \alpha \ge 0.50$): uno cerca del inicio ($\le 22\%$ de la longitud del trazo) y otro cerca del final ($\ge 78\%$).
+    * **Generación Continua:** Si se detectan ambos extremos, el cuerpo conecta los puntos interiores (recto o arco cuadrático según `sagittaRatio`) y proyecta dos aletas en $p_{start}$ orientadas hacia el cuerpo y dos aletas en $p_{end}$ orientadas hacia el cuerpo, retornando un `Stroke` continuo regularizado sin saltos visuales.
+  - **Rectángulos y Cajas de Concepto:** Regularización ortogonal con esquinas nítidas.
+  - **Círculos y Elipses:** Modelado mediante 4 curvas cúbicas de Bézier tangenciales con coeficiente $\kappa = 0.55228475$.
+  - **Triángulos:** Reconocimiento de 3 vértices dominantes RDP.
 
 ---
 
@@ -132,3 +147,68 @@ El lienzo abandona los colores planos genéricos e implementa cuatro fondos dise
 
 ### Sincronización Dinámica
 Al cambiar el preset de fondo del lienzo, la barra de herramientas (`GoodnotesToolbar`) actualiza automáticamente sus slots de color rápido para mantener el contraste óptimo y la armonía visual sin requerir ajustes manuales por parte del estudiante.
+
+---
+
+## 5. Barra Flotante Magnética (Docking a 4 Bordes)
+
+La barra de herramientas (`GoodnotesToolbar.tsx`) implementa un sistema de acoplamiento magnético inteligente en los cuatro márgenes físicos de la pantalla (`left`, `right`, `top`, `bottom`):
+
+### 5.1 Comportamiento de Pan & Snap
+* **Arrastre Libre:** El usuario puede tomar el tirador de arrastre de la barra y desplazarla en dos dimensiones sobre la pantalla.
+* **Evaluación de Distancias Ortogonales:** Al soltar la barra (`onTouchEnd`), el sistema calcula la distancia euclidiana de su centro hacia los cuatro bordes físicos y la acopla magnéticamente al borde más cercano.
+* **Reorientación Automática de Layout:**
+  - En los bordes laterales (`left` o `right`), la barra adopta una disposición vertical compacta ($56 \text{ dp}$ de ancho).
+  - En los bordes superior o inferior (`top` o `bottom`), la barra se reorienta horizontalmente ($56 \text{ dp}$ de alto), optimizando el área útil de dibujo.
+
+### 5.2 Calibración Ergonómica de Posición
+* **Anclaje Inferior (`bottom: 18`):**
+  Alineado a la misma cota física del `FloatingFooter` (`bottom: 18 dp`), manteniendo la barra centrada horizontalmente y dejando libres las esquinas para los botones flotantes de Zoom y Stylus, eliminando la sensación de flotación desconectada.
+* **Anclaje Superior (`top: 56` o `top: 14` en Zen Mode):**
+  Posicionado debajo del `TopHeader` ($56 \text{ dp}$) cuando el header es visible, o en $14 \text{ dp}$ en pantalla completa.
+* **Anclaje Lateral Ergonómico (Tercio Medio-Superior):**
+  En lugar de ubicarse en el centro vertical exacto ($50\%$), la barra se eleva hacia el tercio medio-superior libre:
+  $$\text{topOffset} = \text{minTop} + \frac{\text{verticalCenter} - \text{minTop}}{2}$$
+  Donde $\text{minTop}$ es $56 \text{ dp}$ (o $16 \text{ dp}$ en Zen Mode) y $\text{verticalCenter} = \frac{\text{screenHeight} - \text{toolbarHeight}}{2}$.
+  Esto asegura dos ventajas ergonómicas críticas:
+  1. **Alcance Óptimo del Pulgar:** Permite conmutar herramientas sin forzar la articulación de la mano no dominante que sostiene la tablet.
+  2. **Protección de la Zona de Apoyo de la Palma (Palm Rejection):** Despeja la mitad inferior del lateral, impidiendo que la palma apoyada dispare toques falsos en la barra.
+
+---
+
+## 6. Motor Determinista de Popovers y Safe Insets
+
+Para evitar que los menús emergentes (selector de color, selector de grosores, plantillas de papel, menú del borrador) aparezcan desfasados, cortados o tapen el botón que los invocó:
+
+### 6.1 Posicionamiento Matemático Basado en Dimensiones Reales
+* **Medición de Anclaje (`measureInWindow`):**
+  Al pulsar un botón de la barra, se obtienen las coordenadas absolutas en pantalla del disparador (`anchorRect: { x, y, width, height }`).
+* **Tabla Calibrada de Dimensiones Reales (`POPOVER_SIZES`):**
+  Cada popover cuenta con su altura y anchura física exactas (medidas con padding y bordes reales incluidos):
+  - `eraser`: $170 \times 42 \text{ dp}$
+  - `color`: $210 \times 188 \text{ dp}$
+  - `stroke`: $230 \times 364 \text{ dp}$ (alojando las 6 opciones completas sin desbordes)
+  - `paper`: $240 \times 384 \text{ dp}$ (alojando 4 tipos de papel + 4 temas de color)
+  - `undoHistory`: $170 \times 88 \text{ dp}$
+  - `laser`: $180 \times 130 \text{ dp}$
+* **Separación Estándar Unificada (`gap = 8 dp`):**
+  Se elimina cualquier offset estático o hardcodeado. La proyección en los 4 bordes se rige por:
+  - Dock Inferior: $\text{top} = \text{anchor.y} - \text{popover.height} - \text{gap}$
+  - Dock Superior: $\text{top} = \text{anchor.y} + \text{anchor.height} + \text{gap}$
+  - Dock Izquierdo: $\text{left} = \text{anchor.x} + \text{anchor.width} + \text{gap}$
+  - Dock Derecho: $\text{left} = \text{anchor.x} - \text{popover.width} - \text{gap}$
+* **Safe Insets y Clamping:** Se aplican cotas de seguridad (`16 dp` desde los límites del display) para evitar recortes accidentales en los extremos de la pantalla.
+
+---
+
+## 7. Modo Zen y Feedback de Zoom
+
+### 7.1 Inmersión en Modo Zen
+* **Desvanecimiento Total de Controles:** Mediante un solo toque o comando, los controles de chrome periféricos (`TopHeader` y `FloatingFooter`) se desvanecen completamente con transiciones de opacidad suaves.
+* **Preservación de la Tinta:** El lienzo permanece 100% interactivo, con la barra de herramientas acoplada en su posición mínima.
+
+### 7.2 Toast Efímero de Zoom
+* Al realizar el gesto de pellizco para zoom (*pinch-to-zoom*) en modo Zen:
+  - Como el indicador de zoom del footer está oculto, el motor activa un **toast flotante centralizado** que muestra el porcentaje entero actual:
+    $$\text{zoomPercent} = \text{Math.round}(\text{canvasScale} \times 100)\%$$
+  - Se activa un temporizador que desvanece suavemente el toast a los **1800 ms** de cesar el gesto multitáctil, manteniendo el espacio visual despejado.

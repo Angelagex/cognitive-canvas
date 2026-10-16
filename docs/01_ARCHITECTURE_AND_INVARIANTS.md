@@ -11,10 +11,11 @@ El núcleo de Cognitive Canvas está construido sobre una arquitectura desacopla
   - Componentes de UI flotantes ergonómicos contextuales con sombras y bordes de alta fidelidad estética (`ContextualToolPill`, `SemanticAnchorTooltip`, `FloatingFooter`).
 
 * **Motor de Tinta Nativo (Android High-Performance Inking):**
-  - **AndroidX Ink** (`androidx.ink.strokes:strokes`, `androidx.ink.brush:brush`, `androidx.ink.authoring:authoring`, `androidx.ink.rendering.android:rendering-android`).
+  - **Android Jetpack Ink v1.0.0 Estable** (`androidx.ink.strokes:strokes:1.0.0`, `androidx.ink.brush:brush:1.0.0`, `androidx.ink.authoring:authoring:1.0.0`, `androidx.ink.rendering.android:rendering-android:1.0.0`). Formalización de la versión oficial estable, descartando ramas `alpha` incompatibles con el toolchain de Kotlin 1.9 de Expo/React Native.
   - Componente de captura en tiempo real acelerado por hardware: `InProgressStrokesView` ejecutando pipelines de baja latencia con predicción de trazos.
   - Renderizado estático en búfer GPU: `ViewStrokeRenderer` dibujando directamente sobre el `Canvas` de Android en `dispatchDraw()`.
-  - Herramientas nativas especializadas: `LassoSelectionManager`, `StrokeEraser`, `DrawAndHoldManager`, `CanvasTransformManager`, `SpatialHashGrid`.
+  - Herramientas nativas especializadas: `LassoSelectionManager`, `StrokeEraser`, `DrawAndHoldManager`, `CanvasTransformManager`, `SpatialHashGrid`, `ShapeDetector`.
+  - **Mitigación de Race Conditions en Búfer Frontal:** Sincronización segura de hilos entre el S-Pen barrel button, React Native JS bridge y `FrontBufferedRenderer` / `CanvasBufferedRenderer`. La alternancia rápida de herramientas (lápiz a lazo o borrador) y los eventos asíncronos del bridge ejecutan verificaciones atómicas de ciclo de vida antes de solicitar llamadas a `drawAsync()`, previniendo excepciones críticas (`IllegalStateException: Attempt to draw after renderer has been closed`) ante cambios de estado concurrentes.
 
 * **Infraestructura Cloud Serverless (AWS via SST Ion):**
   - **SST Ion (v3)** orquestando infraestructura como código basada en Pulumi/Terraform.
@@ -239,3 +240,75 @@ Al cargar un documento `.cmn`, `JetpackInkView` procesa el JSON nativamente en u
 3. Construye el trazo inmutable `androidx.ink.strokes.Stroke(brush, batch)`.
 4. Indexa el trazo en `SpatialHashGrid` y lo agrega a `completedStrokes`.
 5. Emite un único redibujado `postInvalidateOnAnimation()` al concluir la carga, garantizando apertura instantánea de documentos complejos.
+
+### 5.3 Persistencia de Preferencias de Usuario (`user_preferences.json`)
+
+Para mantener una experiencia ergonómica personalizada e instantánea entre sesiones de trabajo, `StorageService` gestiona un almacén de configuración local independiente en `user_preferences.json`:
+
+```json
+{
+  "toolbar_dock_edge": "bottom",
+  "tool_widths": {
+    "pen": 8.0,
+    "marker": 12.0,
+    "highlighter": 24.0,
+    "eraser": 24.0,
+    "lasso": 4.0,
+    "laser": 16.0,
+    "pan": 4.0
+  },
+  "theme_palettes": {
+    "dark_slate": ["#F8FAFC", "#38BDF8", "#F43F5E"],
+    "charcoal_dark": ["#F4F4F5", "#34D399", "#FBBF24"],
+    "warm_ivory": ["#1E293B", "#1D4ED8", "#BE123C"],
+    "pure_white": ["#0F172A", "#0284C7", "#E11D48"]
+  }
+}
+```
+
+1. **Posición de Acoplamiento Magnético (`toolbar_dock_edge`):**
+   Persiste el borde de anclaje físico de la barra (`"left" | "right" | "top" | "bottom"`), restaurándola en su posición exacta al reabrir la app.
+2. **Memoria de Grosor por Herramienta (`tool_widths`):**
+   Elimina reseteos arbitrarios al alternar entre herramientas. Cada instrumento (`pen`, `highlighter`, `eraser`, etc.) retiene su grosor independiente calibrado por el usuario.
+3. **Paletas Favoritas por Tema de Fondo (`theme_palettes`):**
+   Mantiene la tríada de tintas preferidas de forma contextual para cada uno de los 4 temas de papel (`dark_slate`, `charcoal_dark`, `warm_ivory`, `pure_white`). Al cambiar de fondo, se cargan los colores asignados a ese papel específico para salvaguardar el contraste y la armonía visual.
+
+---
+
+## 6. Topología de Ventana, Inmersión del Sistema y Layout
+
+Cognitive Canvas es una aplicación de inmersión total concebida para transformar la tablet en una superficie de papel infinito digital, libre de distracciones periféricas y fricción del sistema operativo.
+
+### 6.1 Invariante de Pantalla Completa Nativa
+
+1. **Inmersión Permanente vía `WindowInsetsControllerCompat`:**
+   - La ventana de la aplicación configura el controlador de insets del sistema en modo:
+     `WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE`.
+   - Se ocultan tanto la barra de estado (`Type.statusBars()`) como la barra de navegación (`Type.navigationBars()`).
+   - Si el usuario desliza desde el borde para ver la hora o notificaciones del sistema, las barras aparecen de forma translúcida y efímera, ocultándose automáticamente tras 2 segundos sin alterar el viewport ni desplazar los elementos del lienzo.
+
+2. **Invariante de Superficie de Lienzo al 100%:**
+   - El contenedor nativo `JetpackInkCanvas` ocupa permanentemente el **100% físico** del display (`StyleSheet.absoluteFillObject`).
+   - Los elementos de chrome (`TopHeader`, `FloatingFooter`, `GoodnotesToolbar`, overlays de HUD) no reducen ni recortan la superficie del canvas; flotan estrictamente en capas superiores con valores controlados de `zIndex` y punteros traslúcidos.
+
+3. **Prohibición Estricta del Componente `<Modal>` Nativo de Android:**
+   - En Android, el componente `<Modal>` de React Native instancia un `android.app.Dialog` nativo con su propia ventana subordinada (`Window`).
+   - La apertura y cierre de un `Dialog` resetea los flags de inmersión de la ventana principal, provocando que la barra de navegación del sistema parpadee, emerja forzadamente o empuje el contenido hacia arriba.
+   - **Regla Arquitectónica:** Todos los popovers, selectores, menús contextuales y paletas de herramientas deben construirse mediante componentes `View` absolutos controlados dentro del árbol principal de React Native (`position: 'absolute'`), preservando intacta la inmersión de la ventana única.
+
+---
+
+## 7. Estándares de Calidad de Código y Modularidad
+
+Para evitar la degradación arquitectónica (código espagueti y archivos masivos monolíticos):
+
+* **Límite Estricto de 300 Líneas por Archivo:**
+  Ningún componente de React Native, hook personalizado, archivo de estilos o clase nativa de Kotlin debe exceder las **300 líneas de código**.
+* **Principio de Responsabilidad Única (SRP):**
+  - Si un módulo de UI gestiona renderizado, lógica de estado y cálculo geométrico, debe descomponerse en:
+    1. Componente de vista puro (`ComponentName.tsx`).
+    2. Hook de orquestación de estado (`useComponentState.ts`).
+    3. Funciones puras de cálculo matemático o posicionamiento (`componentPlacement.ts`).
+    4. Estilos atómicos desacoplados (`ComponentName.styles.ts`).
+* **Mantenimiento Continuo de la Deuda Técnica:**
+  Toda refactorización o incorporación de funcionalidad debe preservar este límite mediante extracción de submódulos antes de fusionar cambios al codebase principal.

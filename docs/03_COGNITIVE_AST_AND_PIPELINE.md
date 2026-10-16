@@ -97,6 +97,31 @@ Para ofrecer interactividad a latencia cero y simultáneamente razonamiento prof
    - Cuando el usuario encierra una región con el **Lazo** o realiza un **Finger Tap** sobre una palabra/diagrama, esa acción tiene precedencia jerárquica total sobre el clustering pasivo o los saltos de línea de ML Kit.
    - La selección sella el clúster como una entidad atómica única dentro del Visual AST.
 
+### 2.3 Semántica de Conectores y Aristas Bidireccionales (`visual_ast_layer.connectors`)
+
+Tradicionalmente, las herramientas de diagramación se limitan a flechas dirigidas unidireccionales ($A \longrightarrow B$), induciendo al estudiante a pensar en cadenas lineales de causa única. Sin embargo, en la metodología de Justin Sung y los principios GRINDE, los conceptos avanzados operan en redes de **influencia recíproca y bucles de retroalimentación (Feedback Loops)**.
+
+El Visual AST formaliza tres tipos de aristas en `visual_ast_layer.connectors`:
+1. `DIRECTED_CAUSAL` ($\longrightarrow$): Flujo causa-efecto unidireccional estándar.
+2. `ASSOCIATIVE_LINK` (—): Relación de proximidad conceptual sin jerarquía causal.
+3. `BIDIRECTIONAL_RELATION` ($\longleftrightarrow$): Relación de influencia mutua, acoplamiento dinámico o bucle de retroalimentación (positivo/reforzador o negativo/homeostático).
+
+```json
+{
+  "id": "conn_01_bidi",
+  "type": "BIDIRECTIONAL_RELATION",
+  "source_entity_id": "ent_tilacoide",
+  "target_entity_id": "ent_estroma_atp",
+  "curvature": "ARC_QUADRATIC",
+  "semantic_role": "FEEDBACK_LOOP",
+  "stroke_id": "stroke_arrow_bidi_98"
+}
+```
+
+* **Impacto en el Diagnóstico GRINDE:**
+  - La presencia de aristas `BIDIRECTIONAL_RELATION` es una señal de alta ponderación para la dimensión **N** (Non-linear) y **I** (Interconnected).
+  - Habilita al evaluador de Gemini a identificar cuándo un estudiante comprende la cibernética del sistema (ej. cómo el gradiente de protones y la síntesis de ATP se modulan recíprocamente) frente a una mera memorización de pasos secuenciales.
+
 ---
 
 ## 3. Feedback Visual de Atributos Cognitivos
@@ -122,6 +147,22 @@ Se proyectan cápsulas redondeadas y suaves detrás de los trazos (`PlacedAttrib
 En la esquina superior derecha de cada entidad delimitada se sitúa un pin interactivo compacto ($20 \text{ dp}$):
 * Icono identificador: `⚙️` para Mecanismo, `💡` para Analogía, `📊` para Evidencia.
 * Al pulsar o interactuar vía S-Pen Air View Hover, se despliega la nota conceptual y notas de voz asociadas (`Verbal Retrieval`), permitiendo una revisión rápida durante la sesión de estudio.
+
+### 3.3 Contraste y Separación Estricta entre Color de Tinta y Semántica del AST
+
+Una limitación habitual en aplicaciones de notas convencionales es sobrecargar el color del lápiz con significado semántico (e.g. "rojo es importante, azul es mecanismo, verde es ejemplo"). Este esquema resulta frágil:
+- Si el usuario cambia el papel a fondo oscuro, el azul oscuro o negro se vuelve ilegible o invisible.
+- El estudiante agota energía cognitiva eligiendo colores de trazo en lugar de sintetizar relaciones.
+
+Cognitive Canvas implementa una **separación ortogonal estricta**:
+1. **El Color del Trazo (`stroke.color`) se subordina exclusivamente al Contraste Ergonómico:**
+   - Las paletas de colores persisten independientemente por tema de papel (`theme_palettes` en `user_preferences.json`).
+   - Cada preset de fondo (`dark_slate`, `charcoal_dark`, `warm_ivory`, `pure_white`) ofrece únicamente tintas calibradas con ratios de contraste WCAG AAA para garantizar legibilidad prolongada y descanso visual.
+2. **La Semántica Cognitiva reside en el Visual AST (`visual_ast_layer.attributes`):**
+   - El rol funcional de un nodo (Mecanismo Causal, Analogía, Evidencia) se asigna a través de la taxonomía PACER y se manifiesta mediante los **Under-Glow Shaders** difusos y las **Micro-Insignias** ancladas.
+   - Un concepto atribuido como `CAUSAL_MECHANISM` conservará su resplandor azul característico y su insignia `⚙️` independientemente de si el trazo de tinta original fue dibujado en blanco hueso, tiza suave o negro pizarra.
+3. **Resiliencia de Conmutación de Tema:**
+   El estudiante puede alternar libremente entre modo nocturno y diurno en cualquier momento sin comprometer la legibilidad del texto ni distorsionar la evaluación semántica de su mapa mental.
 
 ---
 

@@ -43,3 +43,11 @@ Antes de proponer o aplicar cualquier cambio en Kotlin o en hooks/componentes de
 - **Evitar flags booleanos dispersos:** Si una clase tiene más de 4 estados booleanos cruzados para rastrear el flujo de interacción, modela una máquina de estados finita (`sealed class` en Kotlin o `type State = ...` en TS).
 - **Prohibido el "Copy-Paste" de cálculos repetitivos:** Las transformaciones geométricas o proyecciones de coordenadas (`ScreenToWorld`, `WorldToScreen`, etc.) deben centralizarse en métodos canónicos reutilizables, nunca reescribirse a mano en múltiples archivos.
 - **Funciones pequeñas y predecibles:** Funciones que hagan una sola cosa bien, con un máximo ideal de 25-35 líneas por método.
+
+### PROTOCOLO DE ACTUALIZACIÓN DE DOCUMENTACIÓN (Solo bajo solicitud explícita)
+
+Cuando el usuario pida explícitamente "actualizar documentación", "documentar feature" o "sync docs":
+1. Trata los documentos existentes (`Architecture Invariants`, `Canvas Interaction Spec`, `Cognitive AST and Pipeline`) como NORMATIVOS: nunca degrades principios de arquitectura ni conviertas la documentación en un volcado literal del código.
+2. Si el código actual implementa compromisos temporales o fallbacks, documéntalos como `Known Limitations` o notas de implementación, preservando la regla ideal de diseño.
+3. Actualiza exclusivamente las secciones afectadas por la feature consolidada (APIs, gestos, invariantes o contratos de datos).
+4. No toques la documentación en tareas regulares a menos que se invoque esta orden.
