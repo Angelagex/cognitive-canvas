@@ -132,6 +132,21 @@ Facilita la creación de mapas limpios permitiendo regularizar líneas, flechas 
   - **Círculos y Elipses:** Modelado mediante 4 curvas cúbicas de Bézier tangenciales con coeficiente $\kappa = 0.55228475$.
   - **Triángulos:** Reconocimiento de 3 vértices dominantes RDP.
 
+### 3.3 Stickers Vectoriales Nativos y Catálogo Dual (`StickerPickerModal` & `StickerPlacementManager`)
+
+Para enriquecer el modelado visual sin degradar el rendimiento ni introducir capas externas incompatibles (como imágenes rasterizadas o nodos SVG superpuestos), los stickers se compilan e inyectan como **colecciones de trazos nativos (`androidx.ink.strokes.Stroke`) en World DP**:
+
+* **Arquitectura de Catálogo Dual (`StickerCatalogService.ts`):**
+  El selector (`StickerPickerModal.tsx`) presenta una barra de pestañas segmentada (*Segmented Tab Bar*) que divide el repositorio vectorial precompilado desde `@sketchyicons/react-native` en dos ámbitos complementarios:
+  1. **Pestaña `Cognitivos` (`vector_stickers.json` — 163 glifos en 8 categorías):** Curaduría especializada para modelado de sistemas y síntesis GRINDE/PACER (`FLOW_CONNECTORS`, `CAUSAL_MECHANISMS`, `COGNITION_IDEAS`, `RESTRICTIONS_FILTERS`, `EVIDENCE_DATA`, `STRUCTURE_HIERARCHY`, `TIME_PROCESS`, `RELATIONS_ANCHORS`).
+  2. **Pestaña `Biblioteca General` (`general_library_stickers.json` — 1,754 glifos en 13 categorías):** Repertorio exhaustivo de todos los iconos de la librería (`DEVICES`, `INTERFACE`, `PEOPLE`, `SYMBOLS`, `COMMUNICATION`, `MULTIMEDIA`, `FILES`, `DEVELOPMENT`, `FINANCE`, `NATURE`, `TRAVEL`, `SCIENCE`, `OBJECTS`), clasificados taxonómicamente sin duplicados mediante `scripts/generate-general-stickers.ts` y `scripts/lucide-categories.json`.
+  - Ambas pestañas cuentan con filtrado por categoría en píldoras horizontales, buscador reactivo con *debounce* de $150 \text{ ms}$ y renderizado virtualizado (`FlatList`).
+
+* **Flujo de Colocación, Manipulación en Lazo y Sellado Animado:**
+  1. **Proyección a World DP (`StickerPlacementManager.kt`):** Los puntos normalizados $[0 \dots 100]$ de cada sub-trazo se proyectan al centroide objetivo `(targetWorldX, targetWorldY)` y se validan mediante `StrokeTransformHelper.appendInputSafely()`.
+  2. **Pre-selección Inmediata en Modo Lazo:** Al elegir un sticker, sus trazos se inyectan directamente en la selección activa de `LassoSelectionManager` (`hasPendingSticker = true`) antes de consolidarse en `completedStrokes`, permitiendo al estudiante trasladarlo o redimensionarlo con transformaciones $O(1)$ de inmediato.
+  3. **Sellado Progresivo (`StickerStrokeAnimator.kt`):** Al confirmar la ubicación (o tocar fuera de la selección), `animateAndSeal()` ejecuta una animación de trazado progresivo (`DecelerateInterpolator`, $220 \text{ ms}$) reconstruyendo los lotes parciales de forma segura con `StrokeTransformHelper` y registrando finalmente los trazos en `completedStrokes` y `SpatialHashGrid`. Una vez sellados, los trazos del sticker son indistinguibles de la tinta manuscrita: pueden borrarse parcialmente, seleccionarse con Lazo o recibir atributos semánticos.
+
 ---
 
 ## 4. Sistemas de Papel y Paletas Armónicas

@@ -189,7 +189,7 @@ class LassoSelectionManager {
                 val oldSelected = ArrayList(selectedStrokes)
                 val newSelected = mutableListOf<Stroke>()
                 for (stroke in oldSelected) {
-                    val scaled = scaleStroke(stroke, currentScaleFactor, resizePivot.x, resizePivot.y, density)
+                    val scaled = StrokeTransformHelper.scaleStroke(stroke, currentScaleFactor, resizePivot.x, resizePivot.y, density)
                     val idx = completedStrokes.indexOf(stroke)
                     if (idx != -1) {
                         completedStrokes[idx] = scaled
@@ -236,7 +236,7 @@ class LassoSelectionManager {
                 val oldSelected = ArrayList(selectedStrokes)
                 val newSelected = mutableListOf<Stroke>()
                 for (stroke in oldSelected) {
-                    val translated = translateStroke(stroke, dragDx, dragDy, density)
+                    val translated = StrokeTransformHelper.translateStroke(stroke, dragDx, dragDy, density)
                     val idx = completedStrokes.indexOf(stroke)
                     if (idx != -1) {
                         completedStrokes[idx] = translated
@@ -340,7 +340,7 @@ class LassoSelectionManager {
         if (selectedStrokes.isEmpty()) return emptyList()
         val duplicated = mutableListOf<Stroke>()
         for (stroke in selectedStrokes) {
-            val translated = translateStroke(stroke, offsetWorld, offsetWorld, density)
+            val translated = StrokeTransformHelper.translateStroke(stroke, offsetWorld, offsetWorld, density)
             completedStrokes.add(translated)
             duplicated.add(translated)
         }
@@ -431,29 +431,8 @@ class LassoSelectionManager {
         if (selectionMatrix.isIdentity) return ArrayList(selectedStrokes)
 
         val transformedList = mutableListOf<Stroke>()
-        val pts = FloatArray(2)
         for (stroke in selectedStrokes) {
-            val inputs = stroke.inputs
-            val count = inputs.size
-            val batch = MutableStrokeInputBatch()
-            for (i in 0 until count) {
-                val pt = inputs.get(i)
-                pts[0] = pt.x
-                pts[1] = pt.y
-                selectionMatrix.mapPoints(pts)
-                val transformed = StrokeInput.create(
-                    pts[0],
-                    pts[1],
-                    pt.elapsedTimeMillis,
-                    pt.toolType,
-                    pt.strokeUnitLengthCm,
-                    pt.pressure,
-                    pt.tiltRadians,
-                    pt.orientationRadians
-                )
-                batch.add(transformed)
-            }
-            transformedList.add(Stroke(stroke.brush, batch.toImmutable()))
+            transformedList.add(StrokeTransformHelper.transformStrokeWithMatrix(stroke, selectionMatrix))
         }
         return transformedList
     }
@@ -487,61 +466,6 @@ class LassoSelectionManager {
                 canvas.drawCircle(c.x, c.y, handleRadius, handleBorderPaint)
             }
         }
-    }
-
-    private fun translateStroke(stroke: Stroke, dx: Float, dy: Float, density: Float = 1.0f): Stroke {
-        val inputs = stroke.inputs
-        val count = inputs.size
-        val batch = MutableStrokeInputBatch()
-        val dxPx = dx * density
-        val dyPx = dy * density
-        for (i in 0 until count) {
-            val pt = inputs.get(i)
-            val translated = StrokeInput.create(
-                pt.x + dxPx,
-                pt.y + dyPx,
-                pt.elapsedTimeMillis,
-                pt.toolType,
-                pt.strokeUnitLengthCm,
-                pt.pressure,
-                pt.tiltRadians,
-                pt.orientationRadians
-            )
-            batch.add(translated)
-        }
-        return Stroke(stroke.brush, batch.toImmutable())
-    }
-
-    private fun scaleStroke(stroke: Stroke, scale: Float, pivotX: Float, pivotY: Float, density: Float = 1.0f): Stroke {
-        val inputs = stroke.inputs
-        val count = inputs.size
-        val batch = MutableStrokeInputBatch()
-        val pivotXPx = pivotX * density
-        val pivotYPx = pivotY * density
-        for (i in 0 until count) {
-            val pt = inputs.get(i)
-            val sx = pivotXPx + (pt.x - pivotXPx) * scale
-            val sy = pivotYPx + (pt.y - pivotYPx) * scale
-            val scaled = StrokeInput.create(
-                sx,
-                sy,
-                pt.elapsedTimeMillis,
-                pt.toolType,
-                pt.strokeUnitLengthCm,
-                pt.pressure,
-                pt.tiltRadians,
-                pt.orientationRadians
-            )
-            batch.add(scaled)
-        }
-        val origBrush = stroke.brush
-        val scaledBrush = Brush.createWithColorIntArgb(
-            family = origBrush.family,
-            colorIntArgb = origBrush.colorIntArgb,
-            size = (origBrush.size * scale).coerceIn(1.0f, 60.0f),
-            epsilon = origBrush.epsilon
-        )
-        return Stroke(scaledBrush, batch.toImmutable())
     }
 
     private fun isPointInPolygon(px: Float, py: Float, polygon: List<PointF>): Boolean {

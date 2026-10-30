@@ -65,6 +65,7 @@ class StickerPlacementManager(
             if (pointCount < 2) continue
 
             val batch = MutableStrokeInputBatch()
+            val state = StrokeTransformHelper.InputState()
             for (pIdx in 0 until pointCount) {
                 val pMap = pointsArray.getMap(pIdx) ?: continue
                 val rx = pMap.getDouble("rx").toFloat()
@@ -87,8 +88,10 @@ class StickerPlacementManager(
                     0f,
                     0f
                 )
-                batch.add(input)
+                StrokeTransformHelper.appendInputSafely(batch, state, input)
             }
+
+            if (batch.size < 2) continue
 
             val brushSize = (baseWidth * relWidth * 0.7f).coerceIn(2.0f, 20.0f)
             val brush = Brush.createWithColorIntArgb(
@@ -98,7 +101,9 @@ class StickerPlacementManager(
                 epsilon = 0.1f
             )
 
-            strokesList.add(Stroke(brush, batch.toImmutable()))
+            try {
+                strokesList.add(Stroke(brush, batch.toImmutable()))
+            } catch (_: Exception) {}
         }
 
         return strokesList

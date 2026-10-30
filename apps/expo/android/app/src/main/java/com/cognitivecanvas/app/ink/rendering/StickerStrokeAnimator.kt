@@ -9,6 +9,7 @@ import android.view.View
 import android.view.animation.DecelerateInterpolator
 import androidx.ink.strokes.MutableStrokeInputBatch
 import androidx.ink.strokes.Stroke
+import com.cognitivecanvas.app.ink.tools.StrokeTransformHelper
 import com.cognitivecanvas.app.ink.spatial.SpatialHashGrid
 import java.util.concurrent.CopyOnWriteArrayList
 
@@ -58,12 +59,17 @@ class StickerStrokeAnimator(
                     val total = inputs.size
                     val visibleCount = (total * progress).toInt().coerceIn(2, total)
                     val batch = MutableStrokeInputBatch()
+                    val state = StrokeTransformHelper.InputState()
 
                     for (i in 0 until visibleCount) {
-                        batch.add(inputs.get(i))
+                        StrokeTransformHelper.appendInputSafely(batch, state, inputs.get(i))
                     }
 
-                    partialList.add(Stroke(stroke.brush, batch.toImmutable()))
+                    if (batch.size >= 2) {
+                        try {
+                            partialList.add(Stroke(stroke.brush, batch.toImmutable()))
+                        } catch (_: Exception) {}
+                    }
                 }
 
                 animatedStrokes = partialList

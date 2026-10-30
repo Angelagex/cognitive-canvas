@@ -14,7 +14,7 @@ El núcleo de Cognitive Canvas está construido sobre una arquitectura desacopla
   - **Android Jetpack Ink v1.0.0 Estable** (`androidx.ink.strokes:strokes:1.0.0`, `androidx.ink.brush:brush:1.0.0`, `androidx.ink.authoring:authoring:1.0.0`, `androidx.ink.rendering.android:rendering-android:1.0.0`). Formalización de la versión oficial estable, descartando ramas `alpha` incompatibles con el toolchain de Kotlin 1.9 de Expo/React Native.
   - Componente de captura en tiempo real acelerado por hardware: `InProgressStrokesView` ejecutando pipelines de baja latencia con predicción de trazos.
   - Renderizado estático en búfer GPU: `ViewStrokeRenderer` dibujando directamente sobre el `Canvas` de Android en `dispatchDraw()`.
-  - Herramientas nativas especializadas: `LassoSelectionManager`, `StrokeEraser`, `DrawAndHoldManager`, `CanvasTransformManager`, `SpatialHashGrid`, `ShapeDetector`.
+  - Herramientas y delegados nativos especializados: `LassoSelectionManager`, `StrokeEraser`, `DrawAndHoldManager`, `CanvasTransformManager`, `SpatialHashGrid`, `ShapeDetector`, `StickerPlacementManager`, `StickerStrokeAnimator`, `StrokeTransformHelper`.
   - **Mitigación de Race Conditions en Búfer Frontal:** Sincronización segura de hilos entre el S-Pen barrel button, React Native JS bridge y `FrontBufferedRenderer` / `CanvasBufferedRenderer`. La alternancia rápida de herramientas (lápiz a lazo o borrador) y los eventos asíncronos del bridge ejecutan verificaciones atómicas de ciclo de vida antes de solicitar llamadas a `drawAsync()`, previniendo excepciones críticas (`IllegalStateException: Attempt to draw after renderer has been closed`) ante cambios de estado concurrentes.
 
 * **Infraestructura Cloud Serverless (AWS via SST Ion):**
@@ -157,6 +157,20 @@ dispatchDraw(canvas)
 * Si el trazo es cancelado (e.g. se detecta que el usuario colocó un segundo dedo para hacer zoom o pan), se invoca `inProgressStrokesView.cancelUnfinishedStrokes()` y se descarta cualquier ID sin pasarlo al almacenamiento persistente.
 * Al borrar o deshacer (`undoStroke()`), se invocan cancelaciones atómicas tanto en el búfer temporal como en el mapa de trazos completos, invalidando la pantalla de manera inmediata.
 
+### 4.3 Invariantes Nativos de Construcción y Transformación de Trazos (`StrokeTransformHelper.kt`)
+
+El motor C++ subyacente de Jetpack Ink (`MutableStrokeInputBatch` y `Stroke`) impone precondiciones matemáticas estrictas al reconstruir o mutar lotes de puntos. Cualquier violación durante un escalado, traslación o muestreo provoca una excepción nativa inmediata (`IllegalArgumentException: Inputs must not have duplicate position and elapsed_time`).
+
+Para blindar todos los subsistemas frente a colapsos por redondeo en coma flotante o colisiones temporales, toda creación y transformación de lotes se centraliza en `StrokeTransformHelper`:
+
+1. **Saneamiento y Deduplicación por Punto (`appendInputSafely`):**
+   - **Filtrado Numérico:** Descarta coordenadas inválidas (`NaN` o `Infinity`).
+   - **Prevención de Colisiones Espaciotemporales:** Rechaza puntos consecutivos que compartan simultáneamente idéntica posición $(x, y)$ y marca de tiempo (`elapsedTimeMillis`), lo cual ocurre frecuentemente al reducir la escala (`scaleStroke`) de trazos densos o stickers.
+   - **Monotonía Temporal Estricta:** Garantiza que `elapsedTimeMillis` sea estrictamente no decreciente ($t_i \ge t_{i-1}$), ajustando automáticamente cualquier desfase a `lastTime + 1L`.
+   - **Cardinalidad Mínima:** Verifica que todo lote consolidado cuente con el mínimo de puntos requeridos (`batch.size >= 2` en segmentos continuos) antes de invocar `Stroke(brush, batch.toImmutable())`.
+2. **Operaciones Afines Centralizadas:**
+   - Las mutaciones geométricas en World DP (`translateStroke`, `scaleStroke`, `transformStrokeWithMatrix`) delegan exclusivamente en `StrokeTransformHelper`, eliminando duplicación de lógica y protegiendo transversalmente a `LassoSelectionManager`, `StickerPlacementManager`, `StickerStrokeAnimator`, `StrokeSerializer`, `ShapeDetector` y `StrokeEraser`.
+
 ---
 
 ## 5. Persistencia en 3 Capas (.cmn)
@@ -234,10 +248,10 @@ Donde:
 
 ### 5.2 Reconstrucción Atómica en Kotlin
 
-Al cargar un documento `.cmn`, `JetpackInkView` procesa el JSON nativamente en un hilo de fondo:
-1. Instancia un `MutableStrokeInputBatch`.
-2. Itera el arreglo plano de 4 en 4 elementos creando puntos nativos.
-3. Construye el trazo inmutable `androidx.ink.strokes.Stroke(brush, batch)`.
+Al cargar un documento `.cmn`, `JetpackInkView` y `StrokeSerializer` procesan el JSON nativamente en un hilo de fondo:
+1. Instancia un `MutableStrokeInputBatch` junto con un estado validador `StrokeTransformHelper.InputState()`.
+2. Itera el arreglo plano de 4 en 4 elementos insertando cada punto mediante `StrokeTransformHelper.appendInputSafely()` para garantizar la monotonía temporal y ausencia de duplicados.
+3. Construye el trazo inmutable `androidx.ink.strokes.Stroke(brush, batch.toImmutable())`.
 4. Indexa el trazo en `SpatialHashGrid` y lo agrega a `completedStrokes`.
 5. Emite un único redibujado `postInvalidateOnAnimation()` al concluir la carga, garantizando apertura instantánea de documentos complejos.
 

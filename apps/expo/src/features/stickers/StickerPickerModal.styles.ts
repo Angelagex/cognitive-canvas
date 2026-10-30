@@ -1,13 +1,13 @@
 import { StyleSheet, Dimensions } from "react-native";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
-export const MODAL_WIDTH = Math.min(480, SCREEN_WIDTH - 32);
-export const MODAL_HEIGHT = Math.min(520, SCREEN_HEIGHT - 64);
+export const MODAL_WIDTH = Math.min(520, SCREEN_WIDTH - 32);
+export const MODAL_HEIGHT = Math.min(560, SCREEN_HEIGHT - 64);
 
 export const styles = StyleSheet.create({
   modalBackdrop: {
     flex: 1,
-    backgroundColor: "rgba(11, 17, 32, 0.65)",
+    backgroundColor: "rgba(11, 17, 32, 0.7)",
     justifyContent: "center",
     alignItems: "center",
   },
@@ -28,7 +28,7 @@ export const styles = StyleSheet.create({
   headerRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 12,
+    marginBottom: 10,
   },
   searchBar: {
     flex: 1,
@@ -54,6 +54,55 @@ export const styles = StyleSheet.create({
     backgroundColor: "#1E293B",
     alignItems: "center",
     justifyContent: "center",
+  },
+  tabBarContainer: {
+    flexDirection: "row",
+    backgroundColor: "#1E293B",
+    borderRadius: 12,
+    padding: 3,
+    marginBottom: 10,
+  },
+  tabButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 7,
+    paddingHorizontal: 10,
+    borderRadius: 9,
+  },
+  tabButtonActive: {
+    backgroundColor: "#0284C7",
+    shadowColor: "#0284C7",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.35,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  tabButtonText: {
+    color: "#94A3B8",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  tabButtonTextActive: {
+    color: "#FFFFFF",
+    fontWeight: "700",
+  },
+  tabBadge: {
+    marginLeft: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 8,
+    backgroundColor: "rgba(255, 255, 255, 0.12)",
+  },
+  tabBadgeText: {
+    color: "#CBD5E1",
+    fontSize: 10,
+    fontWeight: "600",
+  },
+  tabBadgeTextActive: {
+    color: "#FFFFFF",
+    fontWeight: "700",
   },
   categoryScrollContainer: {
     height: 36,

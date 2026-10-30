@@ -7,6 +7,7 @@ import androidx.ink.brush.StockBrushes
 import androidx.ink.strokes.MutableStrokeInputBatch
 import androidx.ink.strokes.Stroke
 import androidx.ink.strokes.StrokeInput
+import com.cognitivecanvas.app.ink.tools.StrokeTransformHelper
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.WritableArray
 import org.json.JSONArray
@@ -120,6 +121,7 @@ object StrokeSerializer {
             val flatPoints = strokeObj.optJSONArray("flatPoints")
             val pointsArray = strokeObj.optJSONArray("points")
             val batch = MutableStrokeInputBatch()
+            val state = StrokeTransformHelper.InputState()
 
             if (flatPoints != null && flatPoints.length() >= 8) {
                 val totalFloats = flatPoints.length()
@@ -140,7 +142,7 @@ object StrokeSerializer {
                         0f,
                         0f
                     )
-                    batch.add(input)
+                    StrokeTransformHelper.appendInputSafely(batch, state, input)
                     j += 4
                 }
             } else if (pointsArray != null && pointsArray.length() >= 2) {
@@ -162,15 +164,19 @@ object StrokeSerializer {
                         0f,
                         0f
                     )
-                    batch.add(input)
+                    StrokeTransformHelper.appendInputSafely(batch, state, input)
                 }
             } else {
                 continue
             }
 
-            val stroke = Stroke(strokeBrush, batch.toImmutable())
-            restoredStrokes.add(stroke)
-            strokeColorMap[stroke] = colorHex
+            if (batch.size < 2) continue
+
+            try {
+                val stroke = Stroke(strokeBrush, batch.toImmutable())
+                restoredStrokes.add(stroke)
+                strokeColorMap[stroke] = colorHex
+            } catch (_: Exception) {}
         }
 
         return restoredStrokes

@@ -1,7 +1,7 @@
 # Reporte de Curaduría de Stickers Cognitivos Vectoriales
 
-Fecha de Generación: 2026-10-12T06:28:21.930Z
-Total de Iconos Curados: **162** (Rango objetivo: 150-200)
+Fecha de Generación: 2026-10-28T02:19:12.278Z
+Total de Iconos Curados: **163** (Rango objetivo: 150-200)
 
 ## 1. Recuento de Iconos por Categoría Cognitiva
 
@@ -14,8 +14,8 @@ Total de Iconos Curados: **162** (Rango objetivo: 150-200)
 | `EVIDENCE_DATA` | Evidencia y Datos | **19** |
 | `STRUCTURE_HIERARCHY` | Estructura y Jerarquía | **19** |
 | `TIME_PROCESS` | Tiempo y Proceso | **18** |
-| `RELATIONS_ANCHORS` | Relaciones y Anclajes | **16** |
-| **TOTAL** | **Todas las categorías** | **162** |
+| `RELATIONS_ANCHORS` | Relaciones y Anclajes | **17** |
+| **TOTAL** | **Todas las categorías** | **163** |
 
 ## 2. Palabras Clave Oficiales No Encontradas Directamente y sus Equivalentes
 

@@ -742,13 +742,14 @@ class ShapeDetector {
         if (points.size < 2) return null
         return try {
             val batch = MutableStrokeInputBatch()
+            val state = StrokeTransformHelper.InputState()
             for (i in points.indices) {
                 val pt = points[i]
                 val timeMillis = (i * 12).toLong() + 10L
                 val input = StrokeInput.create(pt.x, pt.y, timeMillis)
-                batch.add(input)
+                StrokeTransformHelper.appendInputSafely(batch, state, input)
             }
-            Stroke(originalStroke.brush, batch.toImmutable())
+            if (batch.size < 2) null else Stroke(originalStroke.brush, batch.toImmutable())
         } catch (_: Exception) {
             null
         }

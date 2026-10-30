@@ -11,6 +11,8 @@
     "build:android": "./scripts/install-app.sh",
     "leapp": "./scripts/sync-leapp.sh",
     "generate-entity": "tsx packages/scripts/src/generate-entity.ts",
+    "generate:stickers:general": "tsx scripts/generate-general-stickers.ts",
+    "generate:stickers:curated": "node scripts/extract-curated-stickers.js",
     "prepare": ""
   },
   "devDependencies": {

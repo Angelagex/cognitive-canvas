@@ -127,7 +127,8 @@ const CATEGORY_DEFINITIONS = [
       'link', 'link-2', 'unlink', 'unlink-2',
       'anchor', 'pin', 'map-pin',
       'bookmark', 'bookmark-check', 'tag', 'tags',
-      'flag', 'flag-triangle-right', 'share-2', 'paperclip', 'external-link'
+      'flag', 'flag-triangle-right', 'share-2', 'paperclip', 'external-link',
+      'handshake'
     ]
   }
 ];
@@ -328,7 +329,8 @@ const CANONICAL_STICKER_METADATA = {
   'flag-triangle-right': { id: 'icon_flag_triangle_right', name: 'Señalizador' },
   'share-2': { id: 'icon_share_2', name: 'Distribución Relacional' },
   'paperclip': { id: 'icon_paperclip', name: 'Adjunto de Evidencia' },
-  'external-link': { id: 'icon_external_link', name: 'Referencia Externa' }
+  'external-link': { id: 'icon_external_link', name: 'Referencia Externa' },
+  'handshake': { id: 'icon_handshake', name: 'Apretón de Manos / Acuerdo' }
 };
 
 // Función para extraer los path strings 'd' de un archivo de icono
@@ -486,9 +488,18 @@ function main() {
   const expoOutputFile = path.join(expoAssetsDir, 'vector_stickers.json');
   fs.writeFileSync(expoOutputFile, outputJson, 'utf8');
 
+  // Escribir en apps/expo/src/assets/stickers/
+  const expoSrcStickersDir = path.join(ROOT_DIR, 'apps/expo/src/assets/stickers');
+  if (!fs.existsSync(expoSrcStickersDir)) {
+    fs.mkdirSync(expoSrcStickersDir, { recursive: true });
+  }
+  const expoSrcOutputFile = path.join(expoSrcStickersDir, 'vector_stickers.json');
+  fs.writeFileSync(expoSrcOutputFile, outputJson, 'utf8');
+
   console.log(`✅ Catálogo generado exitosamente con ${totalStickers} stickers en ${catalog.categories.length} categorías.`);
   console.log(`📁 Guardado en: ${rootOutputFile}`);
   console.log(`📁 Guardado en: ${expoOutputFile}`);
+  console.log(`📁 Guardado en: ${expoSrcOutputFile}`);
 
   // 4. Generar Reporte Markdown
   generateReportMarkdown(categoryStats, totalStickers, missingOfficialKeywords);
@@ -521,7 +532,7 @@ function formatFallbackName(iconName) {
 }
 
 function generateReportMarkdown(stats, totalCount, missingKeywords) {
-  const reportPath = path.join(ROOT_DIR, 'docs', 'STICKERS_CURATION_REPORT.md');
+  const reportPath = path.join(ROOT_DIR, 'docs', 'archive', 'STICKERS_CURATION_REPORT.md');
   const docsDir = path.dirname(reportPath);
   if (!fs.existsSync(docsDir)) {
     fs.mkdirSync(docsDir, { recursive: true });

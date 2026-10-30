@@ -115,30 +115,29 @@ class StrokeEraser {
 
                     // Reconstruct non-erased segments as smaller sub-strokes
                     var currentBatch: MutableStrokeInputBatch? = null
-                    var currentRunLength = 0
+                    var currentState: StrokeTransformHelper.InputState? = null
 
                     for (i in 0 until inputCount) {
                         if (!isErased[i]) {
                             if (currentBatch == null) {
                                 currentBatch = MutableStrokeInputBatch()
-                                currentRunLength = 0
+                                currentState = StrokeTransformHelper.InputState()
                             }
-                            currentBatch.add(inputs.get(i))
-                            currentRunLength++
+                            StrokeTransformHelper.appendInputSafely(currentBatch, currentState!!, inputs.get(i))
                         } else {
                             if (currentBatch != null) {
-                                if (currentRunLength >= 2) {
+                                if (currentBatch.size >= 2) {
                                     try {
                                         toAdd.add(Stroke(stroke.brush, currentBatch.toImmutable()))
                                     } catch (_: Exception) {}
                                 }
                                 currentBatch = null
-                                currentRunLength = 0
+                                currentState = null
                             }
                         }
                     }
 
-                    if (currentBatch != null && currentRunLength >= 2) {
+                    if (currentBatch != null && currentBatch.size >= 2) {
                         try {
                             toAdd.add(Stroke(stroke.brush, currentBatch.toImmutable()))
                         } catch (_: Exception) {}
