@@ -11,6 +11,7 @@ import {
   UserPreferences,
   DEFAULT_TOOL_WIDTHS,
   DEFAULT_THEME_PALETTES,
+  SynthesisReferenceCard,
 } from "../types/canvas";
 
 export type { UserPreferences };
@@ -24,6 +25,7 @@ export interface ExtendedDocumentMetadata {
   canvas_translate_x?: number;
   canvas_translate_y?: number;
   placed_attributes?: PlacedAttribute[];
+  synthesis_cards?: SynthesisReferenceCard[];
 }
 
 export interface ExtendedCognitiveMapDocument extends Omit<CognitiveMapDocument, "metadata"> {

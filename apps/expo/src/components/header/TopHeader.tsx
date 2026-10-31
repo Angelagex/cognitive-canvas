@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { View, Text, TouchableOpacity, TextInput } from "react-native";
 import {
-  Menu,
+  ArrowLeft,
   Pencil,
   Check,
   X,
@@ -23,7 +23,8 @@ export interface TopHeaderProps {
   onRedo: () => void;
   onRequestClear?: () => void;
   onOpenCompiler: () => void;
-  onOpenDocumentMenu: () => void;
+  onOpenDocumentMenu?: () => void;
+  onReturnToHub?: () => void;
   isSaving?: boolean;
   lastSavedAt?: number | null;
   isZenMode?: boolean;
@@ -39,6 +40,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
   onRedo,
   onOpenCompiler,
   onOpenDocumentMenu,
+  onReturnToHub,
   isSaving = false,
   lastSavedAt = null,
   isZenMode = false,
@@ -75,21 +77,20 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
 
   return (
     <View style={styles.header}>
-      {/* Left: Document Menu (Vault, Export, New), Title & Save Indicator */}
+      {/* Left: [ ← Hub ] Button, Interactive Title & Auto-Save Status */}
       <View style={styles.leftSection}>
         <TouchableOpacity
           style={styles.menuButton}
-          onPress={onOpenDocumentMenu}
+          onPress={onReturnToHub || onOpenDocumentMenu}
           activeOpacity={0.75}
-          accessibilityLabel="Abrir menú del documento y bóveda"
+          accessibilityLabel="Auto-guardar y volver al Workspace Hub"
         >
-          <Menu size={16} color="#38BDF8" strokeWidth={2.0} />
-          <Text style={styles.menuText}>Menú</Text>
+          <ArrowLeft size={15} color="#38BDF8" strokeWidth={2.2} />
+          <Text style={styles.menuText}>← Hub</Text>
         </TouchableOpacity>
 
         <View style={styles.divider} />
 
-        {/* Interactive Title with Explicit Editing Mode */}
         {isEditingTitle ? (
           <View style={styles.titleEditContainer}>
             <TextInput
@@ -135,7 +136,6 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
           </TouchableOpacity>
         )}
 
-        {/* Unobtrusive Cloud Save Status Indicator */}
         <View style={styles.saveBadgeContainer}>
           {isSaving ? (
             <View style={styles.savingBadge}>
@@ -186,7 +186,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
             style={styles.zenButton}
             onPress={onToggleZenMode}
             activeOpacity={0.7}
-            accessibilityLabel={isZenMode ? "Salir del modo enfoque" : "Modo enfoque (pantalla completa)"}
+            accessibilityLabel={isZenMode ? "Salir del modo enfoque" : "Modo enfoque"}
           >
             {isZenMode ? (
               <Minimize2 size={16} color="#38BDF8" strokeWidth={2.0} />

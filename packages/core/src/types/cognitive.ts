@@ -61,6 +61,12 @@ export interface CanvasCompilerRequest {
   image_base64?: string;
   visual_ast_layer?: VisualAST;
   passive_context_dictionary?: Record<string, string>;
+  thinking_memos?: Array<{
+    id?: string;
+    transcript: string;
+    recordedAt: number;
+    bounds?: NormalizedBoundingBox;
+  }>;
 }
 
 export interface CanvasCompilerResponse {

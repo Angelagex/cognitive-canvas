@@ -94,6 +94,28 @@ export interface BarrelButtonEvent {
   y: number;
   worldX?: number;
   worldY?: number;
+  activeBrush?: BrushType;
+  previousBrush?: BrushType;
+}
+
+export interface ThinkingMemo {
+  transcript: string;
+  recordedAt: number;
+}
+
+export interface ConsolidatedRef {
+  targetCanvasId: string;
+  targetCanvasTitle: string;
+}
+
+export interface SynthesisReferenceCard {
+  id: string;
+  nodeId: string;
+  label: string;
+  summary: string;
+  sourceCanvasId: string;
+  sourceCanvasTitle: string;
+  side: "left" | "right";
 }
 
 export interface SelectionBounds {
@@ -126,6 +148,8 @@ export interface PlacedAttribute {
   worldY: number;
   entityBounds?: EntityBoundingBox;
   strokeIds?: string[];
+  thinkingMemo?: ThinkingMemo;
+  consolidatedRef?: ConsolidatedRef;
 }
 
 export interface EntityBoundingBox {
@@ -167,6 +191,10 @@ export interface UserPreferences {
   toolbar_dock_edge?: ToolbarDockEdge;
   tool_widths?: Record<BrushType, number>;
   theme_palettes?: Record<CanvasThemePreset, string[]>;
+  deepgram_api_key?: string;
+  target_learning_goal?: string;
+  default_theme?: CanvasThemePreset;
+  stylus_only_default?: boolean;
 }
 
 export const DEFAULT_TOOL_WIDTHS: Record<BrushType, number> = {

@@ -106,12 +106,26 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
         eventEmitter.emitTransformChanged(scale, tx, ty)
     }
 
-    val stylusHandler = StylusInputHandler(stylusOnly = true) { x, y ->
+    val stylusHandler: StylusInputHandler = StylusInputHandler(stylusOnly = true) { x, y ->
+        handleBarrelButtonClick(x, y)
+    }
+
+    private fun handleBarrelButtonClick(x: Float, y: Float) {
+        val nextBrush = stylusHandler.toggleBrushOnBarrelClick(brushType)
+        if (nextBrush == "lasso" && activeStrokeIds.isNotEmpty()) {
+            try {
+                inProgressStrokesView.cancelUnfinishedStrokes()
+            } catch (_: Exception) {}
+            activeStrokeIds.clear()
+        }
+        brushType = nextBrush
         eventEmitter.emitBarrelButton(
             x, y,
             transformManager.canvasTranslateX,
             transformManager.canvasTranslateY,
-            transformManager.canvasScale
+            transformManager.canvasScale,
+            nextBrush,
+            stylusHandler.previousBrush
         )
     }
 
@@ -444,29 +458,6 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
 
         stylusHandler.checkBarrelButton(event)
 
-        // Momentary Lasso via S-Pen barrel button toggle
-        if (isStylusTouch && brushType != "lasso") {
-            if (isBarrelPressed) {
-                isMomentaryLassoActive = true
-                if (activeStrokeIds.isNotEmpty()) {
-                    try {
-                        inProgressStrokesView.cancelUnfinishedStrokes()
-                    } catch (_: Exception) {}
-                    activeStrokeIds.clear()
-                }
-            } else if (isMomentaryLassoActive) {
-                val density = context.resources.displayMetrics.density
-                val worldX = (event.x - transformManager.canvasTranslateX) / (transformManager.canvasScale * density)
-                val worldY = (event.y - transformManager.canvasTranslateY) / (transformManager.canvasScale * density)
-                if (!lassoManager.isHandlingSelection(worldX, worldY, transformManager.canvasScale)) {
-                    lassoManager.clearSelection()
-                    isMomentaryLassoActive = false
-                    postInvalidateOnAnimation()
-                    eventEmitter.emitSelectionChanged(false, 0, null)
-                }
-            }
-        }
-
         // Single Finger Tap detection (Word selection & Attribute Pin trigger)
         // Desactivado completamente en modo borrador
         if (!isStylusTouch && !isHardwareEraser && !isBarrelPressed && brushType != "eraser" && event.pointerCount == 1) {
@@ -739,6 +730,7 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
     // ---------------------------------------------------------------------------------------------
 
     fun handleStylusHover(event: MotionEvent) {
+        stylusHandler.checkBarrelButton(event)
         val location = IntArray(2)
         getLocationOnScreen(location)
         val density = context.resources.displayMetrics.density

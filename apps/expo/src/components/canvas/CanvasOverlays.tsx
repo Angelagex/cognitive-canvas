@@ -67,6 +67,7 @@ export const CanvasOverlays: React.FC<CanvasOverlaysProps> = ({ canvas }) => {
 
       <PlacedAttributeBadges
         attributes={placedAttributes}
+        synthesisCards={canvas.synthesisCards}
         canvasScale={canvasScale}
         canvasTranslateX={canvasTranslateX}
         canvasTranslateY={canvasTranslateY}
@@ -82,6 +83,7 @@ export const CanvasOverlays: React.FC<CanvasOverlaysProps> = ({ canvas }) => {
         onDeleteAttribute={handleDeleteAttribute}
         onOpenCompiler={() => setIsDrawerOpen(true)}
         onBadgeHover={handleBadgeHover}
+        onOpenConsolidatedCanvas={(targetId) => canvas.handleLoadMap(targetId)}
       />
 
       {anchorTooltip?.visible && (
@@ -110,6 +112,8 @@ export const CanvasOverlays: React.FC<CanvasOverlaysProps> = ({ canvas }) => {
         canvasScale={canvasScale}
         canvasTranslateX={canvasTranslateX}
         canvasTranslateY={canvasTranslateY}
+        activeThinkingMemo={canvas.activeThinkingMemo}
+        onSaveThinkingMemo={canvas.handleSaveThinkingMemo}
         onOpenAttributeModal={handleOpenAttributeModalFromLasso}
         onDuplicateSelection={handleDuplicateSelection}
         onDeleteSelection={handleDeleteSelection}

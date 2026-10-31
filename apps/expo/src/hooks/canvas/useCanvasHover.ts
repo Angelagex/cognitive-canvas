@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { NativeSyntheticEvent } from "react-native";
 import {
   HoverEvent,
@@ -9,6 +9,7 @@ import {
   EntityBoundingBox,
   PassiveAttributeType,
   SelectionBounds,
+  BrushType,
 } from "../../types/canvas";
 import { VisualASTEntity, VisualASTLayer, RawInkStroke } from "@cognitive-canvas/core";
 import { getCanvasStrokes, unpackStrokePoints } from "../../components/JetpackInkCanvas";
@@ -23,6 +24,8 @@ interface UseCanvasHoverProps {
   strokesRef: React.MutableRefObject<RawInkStroke[]>;
   strokeBBoxesRef: React.MutableRefObject<Map<string, EntityBoundingBox>>;
   markDirty: () => void;
+  activeBrush?: BrushType;
+  setActiveBrush?: (brush: BrushType) => void;
 }
 
 export const useCanvasHover = ({
@@ -35,7 +38,10 @@ export const useCanvasHover = ({
   strokesRef,
   strokeBBoxesRef,
   markDirty,
+  activeBrush,
+  setActiveBrush,
 }: UseCanvasHoverProps) => {
+  const prevBrushRef = useRef<BrushType>("pen");
   const [hoveredAttribute, setHoveredAttribute] = useState<PlacedAttribute | null>(null);
   const [hoveredEntityBounds, setHoveredEntityBounds] = useState<EntityBoundingBox | null>(null);
   const [hoveredEntity, setHoveredEntity] = useState<VisualASTEntity | null>(null);
@@ -456,10 +462,21 @@ export const useCanvasHover = ({
 
   const handleBarrelButton = useCallback(
     (event: NativeSyntheticEvent<BarrelButtonEvent>) => {
-      const { x, y, worldX, worldY } = event.nativeEvent;
-      console.log("[SemanticAnchor] S-Pen Barrel button pressed:", { x, y, worldX, worldY });
+      const { activeBrush: nativeBrush } = event.nativeEvent;
+      if (nativeBrush && setActiveBrush) {
+        setActiveBrush(nativeBrush);
+        return;
+      }
+      if (setActiveBrush && activeBrush) {
+        if (activeBrush !== "lasso") {
+          prevBrushRef.current = activeBrush;
+          setActiveBrush("lasso");
+        } else {
+          setActiveBrush(prevBrushRef.current || "pen");
+        }
+      }
     },
-    []
+    [activeBrush, setActiveBrush]
   );
 
   const handleCloseAnchorTooltip = useCallback(() => {

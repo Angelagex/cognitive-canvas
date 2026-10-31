@@ -52,7 +52,15 @@ class InkEventEmitter(
         sendEvent("topTransform", event)
     }
 
-    fun emitBarrelButton(x: Float, y: Float, canvasTranslateX: Float, canvasTranslateY: Float, canvasScale: Float) {
+    fun emitBarrelButton(
+        x: Float,
+        y: Float,
+        canvasTranslateX: Float,
+        canvasTranslateY: Float,
+        canvasScale: Float,
+        activeBrush: String? = null,
+        previousBrush: String? = null
+    ) {
         val dpX = x / density
         val dpY = y / density
         val dpTx = canvasTranslateX / density
@@ -65,6 +73,12 @@ class InkEventEmitter(
             putDouble("y", dpY.toDouble())
             putDouble("worldX", worldX.toDouble())
             putDouble("worldY", worldY.toDouble())
+            if (activeBrush != null) {
+                putString("activeBrush", activeBrush)
+            }
+            if (previousBrush != null) {
+                putString("previousBrush", previousBrush)
+            }
         }
         sendEvent("topBarrelButton", event)
     }

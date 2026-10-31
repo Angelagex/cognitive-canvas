@@ -11,7 +11,15 @@ import {
   MapDocumentSummary,
   getUserPreferences,
 } from "../../services/StorageService";
-import { PlacedAttribute, EntityBoundingBox, PassiveAttributeType, SelectionBounds, ToolbarDockEdge } from "../../types/canvas";
+import {
+  PlacedAttribute,
+  EntityBoundingBox,
+  PassiveAttributeType,
+  SelectionBounds,
+  ToolbarDockEdge,
+  ThinkingMemo,
+  SynthesisReferenceCard,
+} from "../../types/canvas";
 import { VisualASTLayer, RawInkStroke } from "@cognitive-canvas/core";
 import { getCanvasStrokes } from "../../components/JetpackInkCanvas";
 
@@ -83,8 +91,12 @@ export const useCanvasDocument = ({
       worldY: 280,
     },
   ]);
+  const [synthesisCards, setSynthesisCards] = useState<SynthesisReferenceCard[]>([]);
+  const [activeThinkingMemo, setActiveThinkingMemo] = useState<ThinkingMemo | null>(null);
   const placedAttributesRef = useRef<PlacedAttribute[]>(placedAttributes);
   placedAttributesRef.current = placedAttributes;
+  const synthesisCardsRef = useRef<SynthesisReferenceCard[]>(synthesisCards);
+  synthesisCardsRef.current = synthesisCards;
 
   // Dirty State Tracker
   const isDirtyRef = useRef<boolean>(false);
@@ -126,6 +138,7 @@ export const useCanvasDocument = ({
           canvas_translate_x: canvasTranslateXRef.current,
           canvas_translate_y: canvasTranslateYRef.current,
           placed_attributes: placedAttributesRef.current,
+          synthesis_cards: synthesisCardsRef.current,
         },
         raw_ink_layer: {
           strokes: strokesRef.current,
@@ -265,6 +278,47 @@ export const useCanvasDocument = ({
       setPlacedAttributes((prev) => [...prev, newAttr]);
       markDirty();
       return newAttr;
+    },
+    [markDirty]
+  );
+
+  const handleSaveThinkingMemo = useCallback(
+    (memo: ThinkingMemo, bounds: SelectionBounds) => {
+      setActiveThinkingMemo(memo);
+      setPlacedAttributes((prev) => {
+        const existingIdx = prev.findIndex(
+          (a) =>
+            Math.hypot(a.worldX - bounds.centerX, a.worldY - bounds.centerY) < 90
+        );
+        if (existingIdx !== -1) {
+          const next = [...prev];
+          next[existingIdx] = {
+            ...next[existingIdx],
+            note: memo.transcript,
+            thinkingMemo: memo,
+          };
+          return next;
+        }
+        return [
+          ...prev,
+          {
+            id: `attr_memo_${Date.now()}`,
+            type: "CAUSAL_MECHANISM",
+            title: "Thinking Memo",
+            note: memo.transcript,
+            worldX: bounds.centerX,
+            worldY: bounds.centerY,
+            entityBounds: {
+              xmin: bounds.minX,
+              ymin: bounds.minY,
+              xmax: bounds.maxX,
+              ymax: bounds.maxY,
+            },
+            thinkingMemo: memo,
+          },
+        ];
+      });
+      markDirty();
     },
     [markDirty]
   );
@@ -421,6 +475,8 @@ export const useCanvasDocument = ({
           if (doc.metadata?.canvas_translate_x !== undefined) setCanvasTranslateX(doc.metadata.canvas_translate_x);
           if (doc.metadata?.canvas_translate_y !== undefined) setCanvasTranslateY(doc.metadata.canvas_translate_y);
           if (doc.metadata?.placed_attributes) setPlacedAttributes(doc.metadata.placed_attributes);
+          setSynthesisCards(doc.metadata?.synthesis_cards || []);
+          setActiveThinkingMemo(null);
           if (doc.visual_ast_layer) setVisualAST(doc.visual_ast_layer);
 
           const strokes = doc.raw_ink_layer?.strokes || [];
@@ -573,6 +629,9 @@ export const useCanvasDocument = ({
     handleDeleteMap,
     placedAttributes,
     setPlacedAttributes,
+    synthesisCards,
+    activeThinkingMemo,
+    handleSaveThinkingMemo,
     handleAddAttribute,
     handleDeleteAttribute,
     handleTransformAttributes,

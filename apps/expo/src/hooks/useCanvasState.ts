@@ -87,6 +87,8 @@ export const useCanvasState = () => {
     strokesRef: ast.strokesRef,
     strokeBBoxesRef: ast.strokeBBoxesRef,
     markDirty: doc.markDirty,
+    activeBrush: tools.activeBrush,
+    setActiveBrush: tools.setActiveBrush,
   });
 
   const handleRequestClear = useCallback(() => {
@@ -157,8 +159,14 @@ export const useCanvasState = () => {
     handleNewMap: doc.handleNewMap,
     handleDeleteMap: doc.handleDeleteMap,
     placedAttributes: doc.placedAttributes,
+    synthesisCards: doc.synthesisCards,
+    activeThinkingMemo: doc.activeThinkingMemo,
+    handleSaveThinkingMemo: doc.handleSaveThinkingMemo,
     handleAddAttribute: doc.handleAddAttribute,
     handleDeleteAttribute: doc.handleDeleteAttribute,
+    setCanvasScale: viewport.setCanvasScale,
+    setCanvasTranslateX: viewport.setCanvasTranslateX,
+    setCanvasTranslateY: viewport.setCanvasTranslateY,
 
     // Tools
     activeBrush: tools.activeBrush,

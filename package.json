@@ -22,6 +22,7 @@
     "typescript": "^5"
   },
   "dependencies": {
+    "react-native-webview": "13.12.5",
     "sst": "^3"
   }
 }

@@ -6,6 +6,10 @@ class StylusInputHandler(
     var stylusOnly: Boolean = true,
     private val onBarrelButtonPressed: (x: Float, y: Float) -> Unit = { _, _ -> }
 ) {
+    var previousBrush: String = "pen"
+        private set
+
+    private var wasBarrelButtonDown: Boolean = false
 
     fun isStylus(event: MotionEvent, pointerIndex: Int = 0): Boolean {
         if (pointerIndex < 0 || pointerIndex >= event.pointerCount) return false
@@ -33,12 +37,31 @@ class StylusInputHandler(
         return isStylus(event, pointerIndex)
     }
 
+    /**
+     * Single-click toggle logic for the S-Pen barrel button:
+     * - If activeBrush != "lasso": stores previousBrush = activeBrush and returns "lasso"
+     * - If activeBrush == "lasso": restores activeBrush = previousBrush (defaulting to "pen")
+     */
+    fun toggleBrushOnBarrelClick(activeBrush: String): String {
+        return if (activeBrush != "lasso") {
+            previousBrush = activeBrush.ifEmpty { "pen" }
+            "lasso"
+        } else {
+            previousBrush.ifEmpty { "pen" }
+        }
+    }
+
     fun checkBarrelButton(event: MotionEvent) {
-        if (isBarrelButtonPressed(event)) {
-            val pointerIndex = event.actionIndex
+        val isCurrentlyDown = isBarrelButtonPressed(event)
+        // Trigger toggle on button release / single-click completion
+        if (wasBarrelButtonDown && !isCurrentlyDown) {
+            val pointerIndex = event.actionIndex.coerceIn(0, (event.pointerCount - 1).coerceAtLeast(0))
             val x = event.getX(pointerIndex)
             val y = event.getY(pointerIndex)
+            wasBarrelButtonDown = false
             onBarrelButtonPressed(x, y)
+            return
         }
+        wasBarrelButtonDown = isCurrentlyDown
     }
 }
