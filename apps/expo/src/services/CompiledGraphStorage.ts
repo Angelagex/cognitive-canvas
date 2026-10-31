@@ -31,6 +31,25 @@ export function slugifyConcept(label: string): string {
   );
 }
 
+export function inferConceptDomain(
+  label: string,
+  canvasTitle: string,
+  explicitDomain?: string
+): string {
+  if (explicitDomain?.trim()) return explicitDomain.trim();
+  const combined = `${label} ${canvasTitle}`.toLowerCase();
+  if (/(photo|camera|iso|shutter|aperture|f-stop|lens|exposi|luz|sensor|optica)/.test(combined)) {
+    return "Photography";
+  }
+  if (/(tcp|syn|ack|packet|raft|consensus|network|socket|http|dns|latency|window)/.test(combined)) {
+    return "Networking & Systems";
+  }
+  if (/(code|react|typescript|function|class|compiler|ast|algorithm|memory|thread)/.test(combined)) {
+    return "Programming";
+  }
+  return canvasTitle.replace(/^(synthesis:\s*|mapa\s*)/i, "").trim().slice(0, 24) || "General";
+}
+
 export async function saveCompiledGraph(payload: CanvasCompiledPayload): Promise<void> {
   try {
     await ensureGraphsDir();
@@ -105,28 +124,22 @@ export function deriveCompiledPayloadFromDocument(doc: any): CanvasCompiledPaylo
           : idx % 2 === 0
           ? "mechanism"
           : "primitive";
-
       const matchingAttr = attrs.find(
-        (a: any) =>
-          a.title?.toLowerCase() === label.toLowerCase() || a.consolidatedRef !== undefined
+        (a: any) => a.title?.toLowerCase() === label.toLowerCase() || a.consolidatedRef !== undefined
       );
-
+      const b = n.visual_bounding_box;
       nodes.push({
         id: slugifyConcept(label),
         label,
+        domain: inferConceptDomain(label, canvasTitle, n.domain),
         tier,
         verificationState: n.deducible_from_context ? "unverified" : "ghost",
         provenance: [
           {
             canvasId,
             canvasTitle,
-            boundingBox: n.visual_bounding_box
-              ? {
-                  minX: n.visual_bounding_box.xmin ?? 100,
-                  minY: n.visual_bounding_box.ymin ?? 100,
-                  maxX: n.visual_bounding_box.xmax ?? 320,
-                  maxY: n.visual_bounding_box.ymax ?? 240,
-                }
+            boundingBox: b
+              ? { minX: b.xmin ?? 100, minY: b.ymin ?? 100, maxX: b.xmax ?? 320, maxY: b.ymax ?? 240 }
               : undefined,
           },
         ],
@@ -147,33 +160,23 @@ export function deriveCompiledPayloadFromDocument(doc: any): CanvasCompiledPaylo
           : attr.type === "CAUSAL_MECHANISM"
           ? "mechanism"
           : "system";
-
+      const eb = attr.entityBounds;
       nodes.push({
         id: slugifyConcept(label),
         label,
+        domain: inferConceptDomain(label, canvasTitle, attr.domain),
         tier,
         verificationState: attr.thinkingMemo ? "verified" : "unverified",
         provenance: [
           {
             canvasId,
             canvasTitle,
-            boundingBox: attr.entityBounds
-              ? {
-                  minX: attr.entityBounds.xmin,
-                  minY: attr.entityBounds.ymin,
-                  maxX: attr.entityBounds.xmax,
-                  maxY: attr.entityBounds.ymax,
-                }
-              : {
-                  minX: attr.worldX - 80,
-                  minY: attr.worldY - 40,
-                  maxX: attr.worldX + 80,
-                  maxY: attr.worldY + 40,
-                },
+            boundingBox: eb
+              ? { minX: eb.xmin, minY: eb.ymin, maxX: eb.xmax, maxY: eb.ymax }
+              : { minX: attr.worldX - 80, minY: attr.worldY - 40, maxX: attr.worldX + 80, maxY: attr.worldY + 40 },
           },
         ],
-        summary:
-          attr.thinkingMemo?.transcript || attr.note || `Atributo cognitivo en ${canvasTitle}.`,
+        summary: attr.thinkingMemo?.transcript || attr.note || `Atributo cognitivo en ${canvasTitle}.`,
         consolidatedRef: attr.consolidatedRef,
       });
     });
@@ -197,13 +200,7 @@ export function deriveCompiledPayloadFromDocument(doc: any): CanvasCompiledPaylo
     })
     .filter(Boolean) as KnowledgeEdge[];
 
-  return {
-    canvasId,
-    canvasTitle,
-    compiledAt: doc.metadata?.updated_at || Date.now(),
-    nodes,
-    edges,
-  };
+  return { canvasId, canvasTitle, compiledAt: doc.metadata?.updated_at || Date.now(), nodes, edges };
 }
 
 export async function updateKnowledgeNodeVerification(
@@ -233,10 +230,7 @@ export async function createNonDestructiveSynthesisCanvas(params: {
   const newCanvasId = `map_synthesis_${Date.now()}`;
   const synthesisTitle = `Synthesis: ${params.topic}`;
   const now = Date.now();
-  const ref: ConsolidatedReference = {
-    targetCanvasId: newCanvasId,
-    targetCanvasTitle: synthesisTitle,
-  };
+  const ref: ConsolidatedReference = { targetCanvasId: newCanvasId, targetCanvasTitle: synthesisTitle };
 
   await saveDocument({
     map_id: newCanvasId,

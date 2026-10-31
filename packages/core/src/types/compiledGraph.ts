@@ -26,6 +26,7 @@ export interface ThinkingMemoMetadata {
 export interface KnowledgeNode {
   id: string;                         // Canonical slug (e.g., "tcp-syn-packet")
   label: string;                      // Display name (e.g., "SYN Packet")
+  domain?: string;                    // Thematic topic cluster (e.g., "Programming", "Photography")
   tier: ConceptTier;                  // Hierarchical layer (Y-axis placement)
   verificationState: NodeVerificationState;
   provenance: {

@@ -14,7 +14,7 @@ import {
   ConceptTier,
 } from "@cognitive-canvas/core/types";
 import { PlacedAttribute, ThinkingMemo } from "../types/canvas";
-import { slugifyConcept } from "./CompiledGraphStorage";
+import { slugifyConcept, inferConceptDomain } from "./CompiledGraphStorage";
 
 export interface LocalCompileInput {
   canvasId: string;
@@ -87,6 +87,7 @@ export function buildLayeredGraphPayload(
     return {
       id: slugifyConcept(n.detected_content),
       label: n.detected_content,
+      domain: inferConceptDomain(n.detected_content, canvasTitle),
       tier,
       verificationState: matchingAttr?.thinkingMemo ? "verified" : "unverified",
       provenance: [

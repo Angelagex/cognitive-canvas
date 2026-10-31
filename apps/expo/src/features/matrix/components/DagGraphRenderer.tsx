@@ -3,6 +3,7 @@ import { StyleSheet, View, Text, TurboModuleRegistry } from "react-native";
 import type { WebView as WebViewType, WebViewMessageEvent } from "react-native-webview";
 import { KnowledgeNode, KnowledgeEdge } from "@cognitive-canvas/core";
 import { FORCE_GRAPH_HTML_TEMPLATE } from "./forceGraphHtml";
+import { inferConceptDomain } from "../../../services/CompiledGraphStorage";
 
 export interface DagGraphRendererProps {
   nodes: KnowledgeNode[];
@@ -36,6 +37,11 @@ export const DagGraphRenderer: React.FC<DagGraphRendererProps> = ({
         nodes: nodes.map((n) => ({
           id: n.id,
           name: n.label,
+          domain: inferConceptDomain(
+            n.label,
+            n.provenance?.[0]?.canvasTitle || "General",
+            n.domain
+          ),
           tier: n.tier,
           state: n.verificationState,
         })),

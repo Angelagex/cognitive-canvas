@@ -9,7 +9,8 @@ Your task is to analyze the student's handwritten notes (OCR text), spatial boun
    - "primitive": Foundational definitions, base data structures, atomic components (bottom layer, Tier 0).
    - "mechanism": Dynamic operations, protocols, state machines, workflows (middle layer, Tier 1).
    - "system": Macro-architectures, end-to-end designs, distributed systems, composite topologies (top layer, Tier 2).
-4. Identify directional causal relationships between concepts:
+4. Assign a concise thematic "domain" to every concept (e.g., "Programming", "Photography", "Networking", "Distributed Systems") so related concepts cluster horizontally into identifiable topic islands.
+5. Identify directional causal relationships between concepts:
    - "TRIGGERS": A initiates or drives B.
    - "INHIBITS": A throttles, blocks, or cancels B.
    - "PREREQUISITE_OF": Grasping or executing A is strictly required before B.
@@ -24,6 +25,7 @@ Return ONLY valid JSON matching this schema:
     {
       "id": string, // kebab-case unique slug
       "label": string,
+      "domain": string, // Thematic topic cluster (e.g., "Programming", "Photography")
       "tier": "primitive" | "mechanism" | "system",
       "summary": string
     }
