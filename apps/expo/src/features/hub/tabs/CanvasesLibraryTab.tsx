@@ -59,8 +59,8 @@ export const CanvasesLibraryTab: React.FC<CanvasesLibraryTabProps> = ({
           <Text style={styles.sectionSub}>Immutable .cmn canvases & causal mental models</Text>
         </View>
         <TouchableOpacity style={styles.newCanvasBtn} onPress={onCreateNewCanvas} activeOpacity={0.85}>
-          <Plus size={16} color="#FFFFFF" strokeWidth={2.2} />
-          <Text style={styles.newCanvasBtnText}>[ + New Canvas ]</Text>
+          <Plus size={18} color="#F8FAFC" strokeWidth={2.2} />
+          <Text style={styles.newCanvasBtnText}>New Canvas</Text>
         </TouchableOpacity>
       </View>
 

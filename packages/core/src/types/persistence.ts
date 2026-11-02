@@ -27,6 +27,7 @@ export interface RawInkStroke {
   timestamp?: number;
   pointCount?: number;
   flatPoints?: number[];
+  associatedNodeId?: string;
 }
 
 /**

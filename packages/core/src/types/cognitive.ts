@@ -56,9 +56,29 @@ export interface ContrastingCaseItem {
 }
 
 export interface CanvasCompilerRequest {
-  canvas_id: string;
+  canvas_id?: string;
+  canvasId?: string;
+  canvas_title?: string;
+  canvasTitle?: string;
   image_s3_key?: string;
   image_base64?: string;
+  imageBase64?: string;
+  renderWorldBounds?: {
+    minX: number;
+    minY: number;
+    width: number;
+    height: number;
+  };
+  thinkingMemos?: Array<{
+    id: string;
+    transcript: string;
+    relativePosition: { x: number; y: number };
+  }>;
+  passiveAttributes?: Array<{
+    category: string;
+    label: string;
+    relativePosition: { x: number; y: number };
+  }>;
   visual_ast_layer?: VisualAST;
   passive_context_dictionary?: Record<string, string>;
   thinking_memos?: Array<{

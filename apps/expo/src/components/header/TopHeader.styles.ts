@@ -142,6 +142,16 @@ export const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#334155",
   },
+  actionIconButton: {
+    width: 34,
+    height: 32,
+    justifyContent: "center",
+    alignItems: "center",
+    borderRadius: 6,
+    backgroundColor: "#1E293B",
+    borderWidth: 1,
+    borderColor: "#334155",
+  },
   saveBadgeContainer: {
     marginLeft: 10,
     justifyContent: "center",

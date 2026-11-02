@@ -192,6 +192,7 @@ export interface UserPreferences {
   tool_widths?: Record<BrushType, number>;
   theme_palettes?: Record<CanvasThemePreset, string[]>;
   deepgram_api_key?: string;
+  gemini_api_key?: string;
   target_learning_goal?: string;
   default_theme?: CanvasThemePreset;
   stylus_only_default?: boolean;

@@ -111,8 +111,20 @@ vi.mock("@cognitive-canvas/core/flashcard", () => ({
 import { handler } from "../src/compile";
 
 describe("Phase 2 - Cognitive Compiler Handler Tests", () => {
+  it("should return 401 error if x-gemini-api-key header is missing", async () => {
+    const event = {
+      headers: {},
+      body: JSON.stringify({ canvas_id: "canvas_1" }),
+    };
+    const response: any = await handler(event, {} as any, () => {});
+    expect(response.statusCode).toBe(401);
+    const body = JSON.parse(response.body);
+    expect(body.error).toContain("x-gemini-api-key");
+  });
+
   it("should return 400 error if canvas_id is missing", async () => {
     const event = {
+      headers: { "x-gemini-api-key": "test-byok-key" },
       body: JSON.stringify({}),
     };
     const response: any = await handler(event, {} as any, () => {});
@@ -123,6 +135,7 @@ describe("Phase 2 - Cognitive Compiler Handler Tests", () => {
 
   it("should return 400 error if no image source is provided", async () => {
     const event = {
+      headers: { "x-gemini-api-key": "test-byok-key" },
       body: JSON.stringify({ canvas_id: "non_existent_canvas" }),
     };
     // Mock get returning null
@@ -145,6 +158,7 @@ describe("Phase 2 - Cognitive Compiler Handler Tests", () => {
     };
 
     const event = {
+      headers: { "x-gemini-api-key": "test-byok-key" },
       body: JSON.stringify(mockPayload),
     };
 

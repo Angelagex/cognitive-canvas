@@ -1,47 +1,77 @@
 import React, { useState } from "react";
-import {
-  StyleSheet,
-  View,
-  Text,
-  Modal,
-  TouchableOpacity,
-  TouchableWithoutFeedback,
-  ScrollView,
-  Alert,
-} from "react-native";
-import {
-  ArrowLeft,
-  X,
-  Plus,
-  Folder,
-  Copy,
-  Image,
-  FileText,
-  Download,
-  Zap,
-  Trash2,
-  ChevronRight,
-  BrainCircuit,
-  Pen,
-  Tag,
-} from "@sketchyicons/react-native";
-import { MapDocumentSummary } from "../../services/StorageService";
+import { View, Text, TouchableOpacity, Pressable, Alert, Platform } from "react-native";
+import * as FileSystem from "expo-file-system";
+import { X, Image, Download, BrainCircuit, Trash2, ChevronRight, Check } from "@sketchyicons/react-native";
+import { exportHighResPng, getCanvasStrokes } from "../JetpackInkCanvas";
+import { MapDocumentSummary, loadDocument, getCompilationForCanvas } from "../../services/StorageService";
+import { styles } from "./DocumentActionsModal.styles";
 
-interface DocumentActionsModalProps {
+export interface DocumentActionsModalProps {
   visible: boolean;
   onClose: () => void;
   mapTitle: string;
   strokeCount: number;
   entityCount: number;
   lastSavedAt: number | null;
-  savedMaps: MapDocumentSummary[];
+  savedMaps?: MapDocumentSummary[];
   currentMapId: string;
-  onSelectMap: (mapId: string) => void;
-  onNewMap: () => void;
-  onDeleteMap: (mapId: string) => void;
+  compilation?: any | null;
+  onSelectMap?: (mapId: string) => void;
+  onNewMap?: () => void;
+  onDeleteMap?: (mapId: string) => void;
   onRequestClear: () => void;
-  onOpenCompiler: () => void;
+  onOpenCompiler?: () => void;
   onDuplicateMap?: () => void;
+}
+
+const EXPORTS_DIR = `${FileSystem.documentDirectory}exports/`;
+const { StorageAccessFramework } = FileSystem;
+
+async function ensureExportsDir(): Promise<void> {
+  const info = await FileSystem.getInfoAsync(EXPORTS_DIR);
+  if (!info.exists) {
+    await FileSystem.makeDirectoryAsync(EXPORTS_DIR, { intermediates: true });
+  }
+}
+
+function sanitizeFileName(title: string): string {
+  return (
+    (title || "untitled")
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]+/g, "_")
+      .replace(/^_+|_+$/g, "")
+      .slice(0, 40) || "canvas"
+  );
+}
+
+/**
+ * Saves a physical file to internal exports/ and, on Android, opens the native
+ * Storage Access Framework (SAF) directory picker to save directly to Downloads/Files.
+ */
+async function savePhysicalFileWithSAF(params: {
+  fileName: string;
+  mimeType: string;
+  content: string;
+  encoding: FileSystem.EncodingType;
+}): Promise<{ savedLocation: string; usedSaf: boolean }> {
+  await ensureExportsDir();
+  const fallbackUri = `${EXPORTS_DIR}${params.fileName}`;
+  await FileSystem.writeAsStringAsync(fallbackUri, params.content, { encoding: params.encoding });
+
+  if (Platform.OS === "android" && StorageAccessFramework) {
+    const permissions = await StorageAccessFramework.requestDirectoryPermissionsAsync();
+    if (permissions.granted) {
+      const safFileUri = await StorageAccessFramework.createFileAsync(
+        permissions.directoryUri,
+        params.fileName,
+        params.mimeType
+      );
+      await FileSystem.writeAsStringAsync(safFileUri, params.content, { encoding: params.encoding });
+      return { savedLocation: decodeURIComponent(safFileUri), usedSaf: true };
+    }
+  }
+  return { savedLocation: fallbackUri.replace("file://", ""), usedSaf: false };
 }
 
 export const DocumentActionsModal: React.FC<DocumentActionsModalProps> = ({
@@ -51,748 +81,209 @@ export const DocumentActionsModal: React.FC<DocumentActionsModalProps> = ({
   strokeCount,
   entityCount,
   lastSavedAt,
-  savedMaps,
   currentMapId,
-  onSelectMap,
-  onNewMap,
-  onDeleteMap,
+  compilation,
   onRequestClear,
-  onOpenCompiler,
-  onDuplicateMap,
 }) => {
-  const [currentView, setCurrentView] = useState<"menu" | "vault">("menu");
-  const [mapToDelete, setMapToDelete] = useState<MapDocumentSummary | null>(null);
+  const [busyAction, setBusyAction] = useState<"PNG" | "JSON" | "AI_JSON" | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // Reset view to "menu" when modal closes
-  const handleClose = () => {
-    setCurrentView("menu");
-    setMapToDelete(null);
-    onClose();
-  };
-
-  const handleExport = (format: "PNG" | "PDF" | "CMN") => {
-    handleClose();
-    setTimeout(() => {
-      Alert.alert(
-        `Exportar a ${format}`,
-        `El mapa "${mapTitle}" se está preparando para exportar en formato ${format}. (${strokeCount} trazos, ${entityCount} conceptos).`,
-        [{ text: "Aceptar", style: "default" }]
-      );
-    }, 150);
-  };
-
-  const handleDuplicate = () => {
-    handleClose();
-    if (onDuplicateMap) {
-      onDuplicateMap();
-    } else {
-      Alert.alert("Duplicar", `Copia creada de "${mapTitle}" exitosamente.`);
-    }
-  };
+  if (!visible) return null;
 
   const formatDate = (timestamp: number | null) => {
-    if (!timestamp) return "Desconocido";
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diffHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60);
-
-    if (diffHours < 1) {
-      const mins = Math.max(1, Math.round(diffHours * 60));
-      return `Hace ${mins} min`;
-    }
-    if (diffHours < 24) {
-      return `Hoy, ${date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
-    }
-    return date.toLocaleDateString([], { day: "numeric", month: "short", year: "numeric" });
+    if (!timestamp) return "Sin guardar";
+    return new Date(timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   };
 
-  const handleConfirmDelete = () => {
-    if (mapToDelete) {
-      onDeleteMap(mapToDelete.map_id);
-      setMapToDelete(null);
+  const handleExportPng = async () => {
+    try {
+      setBusyAction("PNG");
+      const capture = await exportHighResPng(1.0, true);
+      const fileName = `${sanitizeFileName(mapTitle)}_${Date.now()}.png`;
+      const base64Png = await FileSystem.readAsStringAsync(capture.uri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      const result = await savePhysicalFileWithSAF({
+        fileName,
+        mimeType: "image/png",
+        content: base64Png,
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      const msg = `PNG (${capture.width}×${capture.height}px) guardado en:\n${result.savedLocation}`;
+      setToastMessage(msg);
+      Alert.alert("Snapshot PNG Exportado", msg);
+    } catch (err: any) {
+      Alert.alert("Error al exportar PNG", err?.message || "No se pudo capturar el lienzo.");
+    } finally {
+      setBusyAction(null);
+    }
+  };
+
+  const handleExportJson = async () => {
+    try {
+      setBusyAction("JSON");
+      const savedDoc = await loadDocument(currentMapId);
+      const payload = savedDoc || {
+        map_id: currentMapId,
+        version: "1.0.0",
+        metadata: { title: mapTitle, exported_at: Date.now() },
+        raw_ink_layer: { strokes: await getCanvasStrokes() },
+      };
+      const fileName = `${sanitizeFileName(mapTitle)}_${Date.now()}.cmn.json`;
+      const result = await savePhysicalFileWithSAF({
+        fileName,
+        mimeType: "application/json",
+        content: JSON.stringify(payload, null, 2),
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+      const msg = `Archivo .cmn JSON guardado en:\n${result.savedLocation}`;
+      setToastMessage(msg);
+      Alert.alert("Datos .cmn JSON Exportados", msg);
+    } catch (err: any) {
+      Alert.alert("Error al exportar JSON", err?.message || "No se pudo serializar el documento.");
+    } finally {
+      setBusyAction(null);
+    }
+  };
+
+  const handleExportAiAnalysis = async () => {
+    try {
+      setBusyAction("AI_JSON");
+      const storedCompilation = await getCompilationForCanvas(currentMapId);
+      const compilationData = storedCompilation || compilation || null;
+
+      if (!compilationData) {
+        const noCompMsg = "Please compile this canvas with AI first before exporting the analysis.";
+        setToastMessage(noCompMsg);
+        Alert.alert("No Compilation Available", noCompMsg);
+        return;
+      }
+
+      const fileName = `${sanitizeFileName(mapTitle)}_ai_analysis.json`;
+      const result = await savePhysicalFileWithSAF({
+        fileName,
+        mimeType: "application/json",
+        content: JSON.stringify(compilationData, null, 2),
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+
+      const msg = `Archivo ${fileName} guardado en:\n${result.savedLocation}`;
+      setToastMessage(msg);
+      Alert.alert("AI Analysis Exported", msg);
+    } catch (error) {
+      console.error("Failed to export AI analysis file:", error);
+      Alert.alert("Export Error", "Failed to generate the AI analysis document.");
+    } finally {
+      setBusyAction(null);
     }
   };
 
   return (
-    <Modal
-      visible={visible}
-      transparent={true}
-      animationType="fade"
-      statusBarTranslucent={true}
-      navigationBarTranslucent={true}
-      onRequestClose={handleClose}
-    >
-      <TouchableWithoutFeedback onPress={handleClose}>
-        <View style={styles.backdrop}>
-          <TouchableWithoutFeedback>
-            <View style={[styles.card, currentView === "vault" && styles.cardVault]}>
-              {/* Header */}
-              <View style={styles.header}>
-                <View style={styles.headerLeft}>
-                  {currentView === "vault" ? (
-                    <TouchableOpacity
-                      style={styles.backButton}
-                      onPress={() => setCurrentView("menu")}
-                      activeOpacity={0.7}
-                    >
-                      <ArrowLeft size={16} color="#38BDF8" strokeWidth={2.0} />
-                      <Text style={styles.backButtonText}>Menú</Text>
-                    </TouchableOpacity>
-                  ) : (
-                    <View style={styles.headerTextCol}>
-                      <Text style={styles.title} numberOfLines={1}>{mapTitle}</Text>
-                      <Text style={styles.subtitle}>
-                        {strokeCount} trazos • {entityCount} entidades • Guardado {formatDate(lastSavedAt)}
-                      </Text>
-                    </View>
-                  )}
-                </View>
-
-                {currentView === "vault" && (
-                  <View style={styles.vaultHeaderCenter}>
-                    <Text style={styles.vaultTitle}>Bóveda de Mapas</Text>
-                    <Text style={styles.vaultSubtitle}>{savedMaps.length} documentos .cmn</Text>
-                  </View>
-                )}
-
-                <View style={styles.headerRight}>
-                  {currentView === "vault" && (
-                    <TouchableOpacity
-                      style={styles.newMapBtn}
-                      onPress={() => {
-                        onNewMap();
-                        handleClose();
-                      }}
-                      activeOpacity={0.8}
-                    >
-                      <Plus size={14} color="#FFFFFF" strokeWidth={2.2} />
-                      <Text style={styles.newMapBtnText}>Nuevo</Text>
-                    </TouchableOpacity>
-                  )}
-                  <TouchableOpacity style={styles.closeBtn} onPress={handleClose} activeOpacity={0.7}>
-                    <X size={16} color="#94A3B8" strokeWidth={2.0} />
-                  </TouchableOpacity>
-                </View>
-              </View>
-
-              {/* VIEW 1: Menú Principal de Acciones */}
-              {currentView === "menu" ? (
-                <ScrollView style={styles.scrollArea} showsVerticalScrollIndicator={false}>
-                  {/* SECCIÓN 1: GESTIÓN */}
-                  <Text style={styles.sectionHeader}>DOCUMENTO & PROYECTOS</Text>
-
-                  <TouchableOpacity
-                    style={styles.actionItem}
-                    onPress={() => setCurrentView("vault")}
-                    activeOpacity={0.7}
-                  >
-                    <View style={[styles.actionIconContainer, { backgroundColor: "#1E3A8A" }]}>
-                      <Folder size={18} color="#FFFFFF" strokeWidth={1.8} />
-                    </View>
-                    <View style={styles.actionTextCol}>
-                      <Text style={styles.actionTitle}>Bóveda de Mapas ({savedMaps.length})</Text>
-                      <Text style={styles.actionDesc}>Explorar todos tus proyectos, cambiar de mapa o gestionar copias</Text>
-                    </View>
-                    <ChevronRight size={18} color="#64748B" strokeWidth={2.0} />
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={styles.actionItem}
-                    onPress={() => {
-                      handleClose();
-                      onNewMap();
-                    }}
-                    activeOpacity={0.7}
-                  >
-                    <View style={[styles.actionIconContainer, { backgroundColor: "#065F46" }]}>
-                      <Plus size={18} color="#FFFFFF" strokeWidth={2.0} />
-                    </View>
-                    <View style={styles.actionTextCol}>
-                      <Text style={styles.actionTitle}>Nuevo Mapa en Blanco</Text>
-                      <Text style={styles.actionDesc}>Iniciar un nuevo lienzo sin sobrescribir el actual</Text>
-                    </View>
-                    <ChevronRight size={18} color="#64748B" strokeWidth={2.0} />
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={styles.actionItem}
-                    onPress={handleDuplicate}
-                    activeOpacity={0.7}
-                  >
-                    <View style={[styles.actionIconContainer, { backgroundColor: "#3730A3" }]}>
-                      <Copy size={18} color="#FFFFFF" strokeWidth={1.8} />
-                    </View>
-                    <View style={styles.actionTextCol}>
-                      <Text style={styles.actionTitle}>Duplicar este Mapa</Text>
-                      <Text style={styles.actionDesc}>Crear una copia de respaldo para experimentar nuevas ramas</Text>
-                    </View>
-                    <ChevronRight size={18} color="#64748B" strokeWidth={2.0} />
-                  </TouchableOpacity>
-
-                  {/* SECCIÓN 2: EXPORTAR */}
-                  <Text style={styles.sectionHeader}>EXPORTAR & COMPARTIR</Text>
-
-                  <TouchableOpacity
-                    style={styles.actionItem}
-                    onPress={() => handleExport("PNG")}
-                    activeOpacity={0.7}
-                  >
-                    <View style={[styles.actionIconContainer, { backgroundColor: "#0284C7" }]}>
-                      <Image size={18} color="#FFFFFF" strokeWidth={1.8} />
-                    </View>
-                    <View style={styles.actionTextCol}>
-                      <Text style={styles.actionTitle}>Exportar como Imagen (PNG)</Text>
-                      <Text style={styles.actionDesc}>Alta resolución para compartir en mensajes o diapositivas</Text>
-                    </View>
-                    <ChevronRight size={18} color="#64748B" strokeWidth={2.0} />
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={styles.actionItem}
-                    onPress={() => handleExport("PDF")}
-                    activeOpacity={0.7}
-                  >
-                    <View style={[styles.actionIconContainer, { backgroundColor: "#DC2626" }]}>
-                      <FileText size={18} color="#FFFFFF" strokeWidth={1.8} />
-                    </View>
-                    <View style={styles.actionTextCol}>
-                      <Text style={styles.actionTitle}>Exportar como Documento (PDF)</Text>
-                      <Text style={styles.actionDesc}>Vectorial con páginas estructuradas e imprimibles</Text>
-                    </View>
-                    <ChevronRight size={18} color="#64748B" strokeWidth={2.0} />
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={styles.actionItem}
-                    onPress={() => handleExport("CMN")}
-                    activeOpacity={0.7}
-                  >
-                    <View style={[styles.actionIconContainer, { backgroundColor: "#7C3AED" }]}>
-                      <Download size={18} color="#FFFFFF" strokeWidth={1.8} />
-                    </View>
-                    <View style={styles.actionTextCol}>
-                      <Text style={styles.actionTitle}>Descargar Archivo Cognitivo (.cmn)</Text>
-                      <Text style={styles.actionDesc}>Respaldo nativo con capas de tinta y árbol AST completo</Text>
-                    </View>
-                    <ChevronRight size={18} color="#64748B" strokeWidth={2.0} />
-                  </TouchableOpacity>
-
-                  {/* SECCIÓN 3: SÍNTESIS */}
-                  <Text style={styles.sectionHeader}>COGNICIÓN & SÍNTESIS</Text>
-
-                  <TouchableOpacity
-                    style={styles.actionItem}
-                    onPress={() => {
-                      handleClose();
-                      onOpenCompiler();
-                    }}
-                    activeOpacity={0.7}
-                  >
-                    <View style={[styles.actionIconContainer, { backgroundColor: "#D97706" }]}>
-                      <Zap size={18} color="#FFFFFF" strokeWidth={2.0} />
-                    </View>
-                    <View style={styles.actionTextCol}>
-                      <Text style={styles.actionTitle}>Compilar Mapa Mental (GRINDE)</Text>
-                      <Text style={styles.actionDesc}>Extraer conceptos clave y relaciones causales con IA</Text>
-                    </View>
-                    <ChevronRight size={18} color="#64748B" strokeWidth={2.0} />
-                  </TouchableOpacity>
-
-                  {/* SECCIÓN 4: ACCIÓN PELIGROSA */}
-                  <Text style={styles.sectionHeader}>ZONA DE PELIGRO</Text>
-
-                  <TouchableOpacity
-                    style={[styles.actionItem, styles.dangerItem]}
-                    onPress={() => {
-                      handleClose();
-                      onRequestClear();
-                    }}
-                    activeOpacity={0.7}
-                  >
-                    <View style={[styles.actionIconContainer, { backgroundColor: "rgba(239, 68, 68, 0.2)" }]}>
-                      <Trash2 size={18} color="#EF4444" strokeWidth={1.8} />
-                    </View>
-                    <View style={styles.actionTextCol}>
-                      <Text style={[styles.actionTitle, styles.dangerText]}>Limpiar Todo el Lienzo</Text>
-                      <Text style={styles.actionDesc}>Borrar todos los trazos manuscritos actuales</Text>
-                    </View>
-                    <ChevronRight size={18} color="#EF4444" strokeWidth={2.0} />
-                  </TouchableOpacity>
-                </ScrollView>
-              ) : (
-                /* VIEW 2: Bóveda de Mapas Integrada */
-                <View style={styles.vaultContainer}>
-                  {mapToDelete && (
-                    <View style={styles.deleteConfirmBanner}>
-                      <Text style={styles.deleteConfirmText}>
-                        ¿Eliminar permanentemente "{mapToDelete.title}"?
-                      </Text>
-                      <View style={styles.deleteConfirmActions}>
-                        <TouchableOpacity
-                          style={styles.deleteCancelBtn}
-                          onPress={() => setMapToDelete(null)}
-                        >
-                          <Text style={styles.deleteCancelText}>Cancelar</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          style={styles.deleteProceedBtn}
-                          onPress={handleConfirmDelete}
-                        >
-                          <Text style={styles.deleteProceedText}>Eliminar</Text>
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  )}
-
-                  <ScrollView
-                    style={styles.vaultList}
-                    contentContainerStyle={styles.vaultListContent}
-                    showsVerticalScrollIndicator={false}
-                  >
-                    {savedMaps.length === 0 ? (
-                      <View style={styles.emptyContainer}>
-                        <Folder size={36} color="#64748B" strokeWidth={1.5} />
-                        <Text style={styles.emptyTitle}>No hay mapas en la bóveda</Text>
-                        <Text style={styles.emptySubtitle}>
-                          Tus mapas mentales se guardarán automáticamente aquí conforme dibujes.
-                        </Text>
-                      </View>
-                    ) : (
-                      savedMaps.map((map) => {
-                        const isCurrent = map.map_id === currentMapId;
-                        return (
-                          <View
-                            key={map.map_id}
-                            style={[styles.mapCard, isCurrent && styles.mapCardActive]}
-                          >
-                            <TouchableOpacity
-                              style={styles.mapCardMain}
-                              onPress={() => {
-                                onSelectMap(map.map_id);
-                                handleClose();
-                              }}
-                              activeOpacity={0.7}
-                            >
-                              <View style={styles.mapCardThumbnail}>
-                                <BrainCircuit size={22} color="#38BDF8" strokeWidth={1.8} />
-                                {isCurrent && (
-                                  <View style={styles.activePill}>
-                                    <Text style={styles.activePillText}>Abierto</Text>
-                                  </View>
-                                )}
-                              </View>
-
-                              <View style={styles.mapCardDetails}>
-                                <Text style={styles.mapCardTitle} numberOfLines={1}>
-                                  {map.title || "Mapa sin título"}
-                                </Text>
-                                <Text style={styles.mapCardDate}>
-                                  {formatDate(map.updated_at)}
-                                </Text>
-
-                                <View style={styles.mapCardBadges}>
-                                  <View style={styles.mapBadge}>
-                                    <Pen size={10} color="#94A3B8" strokeWidth={1.8} />
-                                    <Text style={styles.mapBadgeText}>
-                                      {map.stroke_count} trazos
-                                    </Text>
-                                  </View>
-                                  <View style={styles.mapBadge}>
-                                    <Tag size={10} color="#94A3B8" strokeWidth={1.8} />
-                                    <Text style={styles.mapBadgeText}>
-                                      {map.entity_count} conceptos
-                                    </Text>
-                                  </View>
-                                  {map.is_compiled && (
-                                    <View style={[styles.mapBadge, styles.compiledBadge]}>
-                                      <Zap size={10} color="#FBBF24" strokeWidth={2.0} />
-                                      <Text style={styles.compiledBadgeText}>Compilado</Text>
-                                    </View>
-                                  )}
-                                </View>
-                              </View>
-                            </TouchableOpacity>
-
-                            <TouchableOpacity
-                              style={styles.deleteButton}
-                              onPress={() => setMapToDelete(map)}
-                              activeOpacity={0.7}
-                              accessibilityLabel="Eliminar mapa"
-                            >
-                              <Trash2 size={16} color="#EF4444" strokeWidth={1.8} />
-                            </TouchableOpacity>
-                          </View>
-                        );
-                      })
-                    )}
-                  </ScrollView>
-                </View>
-              )}
-            </View>
-          </TouchableWithoutFeedback>
+    <Pressable style={styles.backdrop} onPress={onClose}>
+      <Pressable style={styles.card} onPress={() => {}}>
+        <View style={styles.header}>
+          <View style={styles.headerTextCol}>
+            <Text style={styles.title} numberOfLines={1}>{mapTitle}</Text>
+            <Text style={styles.subtitle}>
+              {strokeCount} trazos • {entityCount} entidades • Guardado {formatDate(lastSavedAt)}
+            </Text>
+          </View>
+          <TouchableOpacity style={styles.closeBtn} onPress={onClose} activeOpacity={0.7}>
+            <X size={16} color="#94A3B8" strokeWidth={2.0} />
+          </TouchableOpacity>
         </View>
-      </TouchableWithoutFeedback>
-    </Modal>
+
+        {toastMessage && (
+          <View style={styles.toastBanner}>
+            <Check size={14} color="#10B981" strokeWidth={2.2} />
+            <Text style={styles.toastText} numberOfLines={2}>{toastMessage}</Text>
+          </View>
+        )}
+
+        <View style={styles.body}>
+          <Text style={styles.sectionHeader}>EXPORTAR & COMPARTIR</Text>
+
+          <TouchableOpacity
+            style={styles.actionItem}
+            onPress={handleExportPng}
+            disabled={busyAction !== null}
+            activeOpacity={0.75}
+          >
+            <View style={[styles.actionIconContainer, { backgroundColor: "#0284C7" }]}>
+              <Image size={18} color="#FFFFFF" strokeWidth={1.8} />
+            </View>
+            <View style={styles.actionTextCol}>
+              <Text style={styles.actionTitle}>
+                {busyAction === "PNG" ? "Capturando Snapshot..." : "Export as PNG"}
+              </Text>
+              <Text style={styles.actionDesc}>
+                Captura offscreen idéntica al pipeline de compilación IA (fullDocument, 1.0x)
+              </Text>
+            </View>
+            <ChevronRight size={18} color="#64748B" strokeWidth={2.0} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.actionItem}
+            onPress={handleExportJson}
+            disabled={busyAction !== null}
+            activeOpacity={0.75}
+          >
+            <View style={[styles.actionIconContainer, { backgroundColor: "#7C3AED" }]}>
+              <Download size={18} color="#FFFFFF" strokeWidth={1.8} />
+            </View>
+            <View style={styles.actionTextCol}>
+              <Text style={styles.actionTitle}>
+                {busyAction === "JSON" ? "Exportando JSON..." : "Export Canvas Data (.cmn JSON)"}
+              </Text>
+              <Text style={styles.actionDesc}>
+                Exporta el payload crudo de trazos vectoriales, stickers y árbol AST
+              </Text>
+            </View>
+            <ChevronRight size={18} color="#64748B" strokeWidth={2.0} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.actionItem}
+            onPress={handleExportAiAnalysis}
+            disabled={busyAction !== null}
+            activeOpacity={0.75}
+          >
+            <View style={[styles.actionIconContainer, { backgroundColor: "#059669" }]}>
+              <BrainCircuit size={18} color="#FFFFFF" strokeWidth={1.8} />
+            </View>
+            <View style={styles.actionTextCol}>
+              <Text style={styles.actionTitle}>
+                {busyAction === "AI_JSON" ? "Exportando Análisis IA..." : "Export AI Analysis (JSON)"}
+              </Text>
+              <Text style={styles.actionDesc}>
+                Exporta el grafo cognitivo compilado, flashcards SRS, niveles y dominios
+              </Text>
+            </View>
+            <ChevronRight size={18} color="#64748B" strokeWidth={2.0} />
+          </TouchableOpacity>
+
+          <Text style={styles.sectionHeader}>ZONA DE PELIGRO</Text>
+
+          <TouchableOpacity
+            style={[styles.actionItem, styles.dangerItem]}
+            onPress={() => {
+              onClose();
+              onRequestClear();
+            }}
+            activeOpacity={0.75}
+          >
+            <View style={[styles.actionIconContainer, { backgroundColor: "rgba(239, 68, 68, 0.2)" }]}>
+              <Trash2 size={18} color="#EF4444" strokeWidth={1.8} />
+            </View>
+            <View style={styles.actionTextCol}>
+              <Text style={[styles.actionTitle, styles.dangerText]}>Clear All Strokes</Text>
+              <Text style={styles.actionDesc}>Borrar todos los trazos manuscritos del lienzo actual</Text>
+            </View>
+            <ChevronRight size={18} color="#EF4444" strokeWidth={2.0} />
+          </TouchableOpacity>
+        </View>
+      </Pressable>
+    </Pressable>
   );
 };
-
-const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.65)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  card: {
-    width: 490,
-    maxHeight: "86%",
-    backgroundColor: "#0F172A",
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "#334155",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.5,
-    shadowRadius: 16,
-    elevation: 20,
-    overflow: "hidden",
-  },
-  cardVault: {
-    width: 600,
-    height: 520,
-    maxHeight: "88%",
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 18,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: "#1E293B",
-    backgroundColor: "#0B1120",
-  },
-  headerLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    flex: 1,
-  },
-  headerTextCol: {
-    flex: 1,
-    marginRight: 10,
-  },
-  title: {
-    color: "#F8FAFC",
-    fontSize: 15,
-    fontWeight: "700",
-  },
-  subtitle: {
-    color: "#94A3B8",
-    fontSize: 11,
-    marginTop: 2,
-  },
-  backButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#1E293B",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 6,
-    gap: 4,
-  },
-  backButtonIcon: {
-    color: "#38BDF8",
-    fontSize: 14,
-    fontWeight: "700",
-  },
-  backButtonText: {
-    color: "#38BDF8",
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  vaultHeaderCenter: {
-    alignItems: "center",
-    flex: 2,
-  },
-  vaultTitle: {
-    color: "#F8FAFC",
-    fontSize: 15,
-    fontWeight: "700",
-  },
-  vaultSubtitle: {
-    color: "#64748B",
-    fontSize: 11,
-  },
-  headerRight: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  newMapBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#0284C7",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 6,
-    gap: 4,
-  },
-  newMapBtnIcon: {
-    color: "#FFFFFF",
-    fontSize: 13,
-    fontWeight: "800",
-  },
-  newMapBtnText: {
-    color: "#FFFFFF",
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  closeBtn: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: "#1E293B",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  closeBtnText: {
-    color: "#94A3B8",
-    fontSize: 13,
-    fontWeight: "600",
-  },
-  scrollArea: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  sectionHeader: {
-    color: "#64748B",
-    fontSize: 10,
-    fontWeight: "800",
-    letterSpacing: 0.6,
-    marginTop: 10,
-    marginBottom: 6,
-    paddingHorizontal: 4,
-  },
-  actionItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#1E293B",
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 10,
-    marginBottom: 6,
-    borderWidth: 1,
-    borderColor: "#334155",
-  },
-  dangerItem: {
-    borderColor: "rgba(239, 68, 68, 0.3)",
-    backgroundColor: "rgba(239, 68, 68, 0.06)",
-    marginBottom: 16,
-  },
-  actionIconContainer: {
-    width: 34,
-    height: 34,
-    borderRadius: 8,
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 12,
-  },
-  actionIcon: {
-    fontSize: 16,
-  },
-  actionTextCol: {
-    flex: 1,
-  },
-  actionTitle: {
-    color: "#F1F5F9",
-    fontSize: 13,
-    fontWeight: "600",
-  },
-  dangerText: {
-    color: "#EF4444",
-  },
-  actionDesc: {
-    color: "#94A3B8",
-    fontSize: 11,
-    marginTop: 2,
-  },
-  arrowIcon: {
-    color: "#64748B",
-    fontSize: 18,
-    fontWeight: "300",
-    marginLeft: 8,
-  },
-
-  // Vault Styles
-  vaultContainer: {
-    flex: 1,
-    paddingHorizontal: 16,
-    paddingTop: 12,
-  },
-  deleteConfirmBanner: {
-    backgroundColor: "rgba(239, 68, 68, 0.15)",
-    borderWidth: 1,
-    borderColor: "rgba(239, 68, 68, 0.4)",
-    borderRadius: 8,
-    padding: 10,
-    marginBottom: 12,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  deleteConfirmText: {
-    color: "#FCA5A5",
-    fontSize: 12,
-    fontWeight: "600",
-    flex: 1,
-  },
-  deleteConfirmActions: {
-    flexDirection: "row",
-    gap: 8,
-  },
-  deleteCancelBtn: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
-    backgroundColor: "#1E293B",
-  },
-  deleteCancelText: {
-    color: "#94A3B8",
-    fontSize: 11,
-    fontWeight: "600",
-  },
-  deleteProceedBtn: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
-    backgroundColor: "#DC2626",
-  },
-  deleteProceedText: {
-    color: "#FFFFFF",
-    fontSize: 11,
-    fontWeight: "700",
-  },
-  vaultList: {
-    flex: 1,
-  },
-  vaultListContent: {
-    paddingBottom: 28,
-  },
-  emptyContainer: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 40,
-  },
-  emptyIcon: {
-    fontSize: 36,
-    marginBottom: 8,
-  },
-  emptyTitle: {
-    color: "#94A3B8",
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  emptySubtitle: {
-    color: "#64748B",
-    fontSize: 11,
-    textAlign: "center",
-    marginTop: 4,
-    maxWidth: 280,
-  },
-  mapCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#1E293B",
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#334155",
-    padding: 10,
-    marginBottom: 8,
-  },
-  mapCardActive: {
-    borderColor: "#0284C7",
-    backgroundColor: "rgba(2, 132, 199, 0.08)",
-  },
-  mapCardMain: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  mapCardThumbnail: {
-    width: 48,
-    height: 48,
-    borderRadius: 8,
-    backgroundColor: "#0F172A",
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 12,
-    position: "relative",
-    borderWidth: 1,
-    borderColor: "#334155",
-  },
-  mapCardThumbnailIcon: {
-    fontSize: 20,
-  },
-  activePill: {
-    position: "absolute",
-    bottom: -4,
-    backgroundColor: "#0284C7",
-    paddingHorizontal: 4,
-    paddingVertical: 1,
-    borderRadius: 4,
-  },
-  activePillText: {
-    color: "#FFFFFF",
-    fontSize: 8,
-    fontWeight: "800",
-  },
-  mapCardDetails: {
-    flex: 1,
-  },
-  mapCardTitle: {
-    color: "#F1F5F9",
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  mapCardDate: {
-    color: "#64748B",
-    fontSize: 10,
-    marginTop: 2,
-  },
-  mapCardBadges: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    marginTop: 4,
-  },
-  mapBadge: {
-    backgroundColor: "#0F172A",
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  mapBadgeText: {
-    color: "#94A3B8",
-    fontSize: 9,
-    fontWeight: "600",
-  },
-  compiledBadge: {
-    backgroundColor: "rgba(217, 119, 6, 0.2)",
-  },
-  compiledBadgeText: {
-    color: "#FBBF24",
-    fontSize: 9,
-    fontWeight: "700",
-  },
-  deleteButton: {
-    padding: 8,
-    marginLeft: 6,
-  },
-  deleteIcon: {
-    fontSize: 14,
-    opacity: 0.6,
-  },
-});

@@ -31,6 +31,7 @@ export const AppModals: React.FC<AppModalsProps> = ({
     lastSavedAt,
     savedMaps,
     currentMapId,
+    compilation,
     handleLoadMap,
     handleNewMap,
     handleDeleteMap,
@@ -55,6 +56,7 @@ export const AppModals: React.FC<AppModalsProps> = ({
         lastSavedAt={lastSavedAt}
         savedMaps={savedMaps}
         currentMapId={currentMapId}
+        compilation={compilation}
         onSelectMap={handleLoadMap}
         onNewMap={handleNewMap}
         onDeleteMap={handleDeleteMap}

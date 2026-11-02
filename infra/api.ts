@@ -1,15 +1,13 @@
 import { bucket, database } from "./storage";
 
-export const geminiApiKey = new sst.Secret("GeminiApiKey");
-
 export const compilerWorker = new sst.aws.Function("CompilerWorker", {
   handler: "packages/functions/src/compileWorker.handler",
-  link: [bucket, database, geminiApiKey],
+  link: [bucket, database],
   timeout: "5 minutes",
 });
 
 export const myApi = new sst.aws.ApiGatewayV2("MyApi", {
-  link: [bucket, database, geminiApiKey, compilerWorker],
+  link: [bucket, database, compilerWorker],
 });
 
 myApi.route("GET /", "packages/functions/src/api.handler");

@@ -29,6 +29,7 @@ export interface KnowledgeNode {
   domain?: string;                    // Thematic topic cluster (e.g., "Programming", "Photography")
   tier: ConceptTier;                  // Hierarchical layer (Y-axis placement)
   verificationState: NodeVerificationState;
+  box_2d?: [number, number, number, number]; // [ymin, xmin, ymax, xmax] normalized 0-1000
   provenance: {
     canvasId: string;
     canvasTitle: string;

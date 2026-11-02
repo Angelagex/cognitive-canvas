@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from "react";
-import { StyleSheet, View, Text, TextInput, TouchableOpacity, ScrollView } from "react-native";
-import { Check, Settings, Mic, Sparkles } from "@sketchyicons/react-native";
+import { View, Text, TextInput, TouchableOpacity, ScrollView } from "react-native";
+import { Check, Settings, Mic, Sparkles, BrainCircuit, Trash2 } from "@sketchyicons/react-native";
 import { getUserPreferences, saveUserPreferences } from "../../../services/StorageService";
+import { KeyStorageService } from "../../../services/KeyStorageService";
 import { ToolbarDockEdge, CanvasThemePreset, CANVAS_THEMES } from "../../../types/canvas";
+import { styles } from "./SettingsTab.styles";
 
 export interface SettingsTabProps {
   stylusOnly: boolean;
@@ -21,6 +23,12 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   canvasTheme,
   onSelectTheme,
 }) => {
+  const [apiKey, setApiKey] = useState("");
+  const [isMasked, setIsMasked] = useState(true);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [isStatusError, setIsStatusError] = useState(false);
+  const [isTestingKey, setIsTestingKey] = useState(false);
+
   const [deepgramKey, setDeepgramKey] = useState("");
   const [learningGoal, setLearningGoal] = useState(
     "Dominar sistemas distribuidos, consenso Raft y control de congestión TCP"
@@ -28,13 +36,50 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   const [savedNotice, setSavedNotice] = useState(false);
 
   useEffect(() => {
+    KeyStorageService.getApiKey().then((stored) => {
+      if (stored) setApiKey(stored);
+    });
     getUserPreferences().then((prefs) => {
       if (prefs.deepgram_api_key) setDeepgramKey(prefs.deepgram_api_key);
       if (prefs.target_learning_goal) setLearningGoal(prefs.target_learning_goal);
     });
   }, []);
 
+  const handleSaveGeminiKey = async () => {
+    if (!apiKey.trim()) {
+      setIsStatusError(true);
+      setStatusMessage("Please enter a valid Gemini API key before saving.");
+      return;
+    }
+    await KeyStorageService.setApiKey(apiKey);
+    setIsStatusError(false);
+    setStatusMessage("Gemini API key saved securely on device.");
+  };
+
+  const handleClearGeminiKey = async () => {
+    await KeyStorageService.clearApiKey();
+    setApiKey("");
+    setIsStatusError(false);
+    setStatusMessage("Gemini API key cleared from device.");
+  };
+
+  const handleTestGeminiKey = async () => {
+    setIsTestingKey(true);
+    setStatusMessage("Testing Gemini API key...");
+    setIsStatusError(false);
+    try {
+      const result = await KeyStorageService.testApiKey(apiKey);
+      setIsStatusError(!result.valid);
+      setStatusMessage(result.message);
+    } finally {
+      setIsTestingKey(false);
+    }
+  };
+
   const handleSaveSettings = async () => {
+    if (apiKey.trim()) {
+      await KeyStorageService.setApiKey(apiKey);
+    }
     await saveUserPreferences({
       deepgram_api_key: deepgramKey.trim(),
       target_learning_goal: learningGoal.trim(),
@@ -60,6 +105,76 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
           <Check size={15} color="#FFFFFF" strokeWidth={2.2} />
           <Text style={styles.saveBtnText}>{savedNotice ? "Saved!" : "Save Preferences"}</Text>
         </TouchableOpacity>
+      </View>
+
+      <View style={styles.sectionCard}>
+        <View style={styles.cardHeader}>
+          <BrainCircuit size={15} color="#10B981" strokeWidth={2.0} />
+          <Text style={styles.cardTitle}>Gemini API Configuration (BYOK)</Text>
+        </View>
+        <Text style={styles.cardDesc}>
+          Stored locally in Android hardware Keystore (`expo-secure-store`) and sent via `x-gemini-api-key` during compilation.
+        </Text>
+
+        <View style={styles.keyInputRow}>
+          <TextInput
+            style={[styles.input, { flex: 1 }]}
+            value={apiKey}
+            onChangeText={setApiKey}
+            placeholder="AIzaSy..."
+            placeholderTextColor="#64748B"
+            secureTextEntry={isMasked}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          <TouchableOpacity
+            style={styles.maskToggleBtn}
+            onPress={() => setIsMasked((prev) => !prev)}
+          >
+            <Text style={styles.maskToggleText}>{isMasked ? "Show" : "Hide"}</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.keyActionsRow}>
+          <TouchableOpacity style={styles.keyPrimaryBtn} onPress={handleSaveGeminiKey}>
+            <Check size={14} color="#FFFFFF" strokeWidth={2.2} />
+            <Text style={styles.keyBtnText}>Save Key</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.keyTestBtn}
+            onPress={handleTestGeminiKey}
+            disabled={isTestingKey}
+          >
+            <Sparkles size={14} color="#38BDF8" strokeWidth={2.0} />
+            <Text style={[styles.keyBtnText, { color: "#38BDF8" }]}>
+              {isTestingKey ? "Testing..." : "Test Key"}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.keyClearBtn} onPress={handleClearGeminiKey}>
+            <Trash2 size={14} color="#EF4444" strokeWidth={2.0} />
+            <Text style={[styles.keyBtnText, { color: "#EF4444" }]}>Clear Key</Text>
+          </TouchableOpacity>
+        </View>
+
+        {statusMessage && (
+          <View
+            style={[
+              styles.statusBanner,
+              isStatusError ? styles.statusBannerError : styles.statusBannerOk,
+            ]}
+          >
+            <Text
+              style={[
+                styles.statusText,
+                isStatusError ? { color: "#FCA5A5" } : { color: "#6EE7B7" },
+              ]}
+            >
+              {statusMessage}
+            </Text>
+          </View>
+        )}
       </View>
 
       <View style={styles.sectionCard}>
@@ -153,70 +268,3 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
     </ScrollView>
   );
 };
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#0B1120" },
-  content: { padding: 24, gap: 16, paddingBottom: 48 },
-  headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  titleRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  heading: { color: "#F8FAFC", fontSize: 19, fontWeight: "700" },
-  saveBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    backgroundColor: "#10B981",
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    borderRadius: 10,
-  },
-  saveBtnText: { color: "#FFFFFF", fontSize: 12, fontWeight: "700" },
-  sectionCard: {
-    backgroundColor: "#0F172A",
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "#1E293B",
-    padding: 16,
-  },
-  cardHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 },
-  cardTitle: { color: "#F8FAFC", fontSize: 14, fontWeight: "700" },
-  cardDesc: { color: "#94A3B8", fontSize: 12, marginBottom: 10 },
-  input: {
-    backgroundColor: "#1E293B",
-    borderColor: "#334155",
-    borderWidth: 1,
-    borderRadius: 10,
-    color: "#F8FAFC",
-    fontSize: 13,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-  },
-  rowBetween: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginTop: 8,
-  },
-  label: { color: "#CBD5E1", fontSize: 12, fontWeight: "600" },
-  toggleBtn: {
-    backgroundColor: "#1E293B",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#334155",
-  },
-  toggleBtnActive: { backgroundColor: "rgba(16, 185, 129, 0.18)", borderColor: "#10B981" },
-  toggleText: { color: "#F8FAFC", fontSize: 11, fontWeight: "700" },
-  pillRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  choicePill: {
-    backgroundColor: "#1E293B",
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#334155",
-  },
-  choicePillActive: { backgroundColor: "#0284C7", borderColor: "#38BDF8" },
-  choicePillText: { color: "#94A3B8", fontSize: 11, fontWeight: "600" },
-  choicePillTextActive: { color: "#FFFFFF", fontWeight: "700" },
-});

@@ -236,3 +236,46 @@ export async function saveUserPreferences(prefs: Partial<UserPreferences>): Prom
     console.warn("[StorageService] Failed to save user preferences:", err);
   }
 }
+
+/**
+ * Retrieves the latest AI compilation payload associated with a canvasId from local storage.
+ */
+export async function getCompilationForCanvas(canvasId: string): Promise<any | null> {
+  try {
+    const graphPath = `${FileSystem.documentDirectory}compiled_graphs/${canvasId}_compiled_graph.json`;
+    const graphInfo = await FileSystem.getInfoAsync(graphPath);
+    let compiledGraph: any = null;
+    if (graphInfo.exists) {
+      const raw = await FileSystem.readAsStringAsync(graphPath, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+      compiledGraph = JSON.parse(raw);
+    }
+
+    const doc = await loadDocument(canvasId);
+    const cognitiveLayer = doc?.compiled_cognitive_layer ?? null;
+
+    if (!compiledGraph && !cognitiveLayer) {
+      return null;
+    }
+
+    if (compiledGraph && cognitiveLayer) {
+      return {
+        ...compiledGraph,
+        compiled_cognitive_layer: cognitiveLayer,
+      };
+    }
+
+    return (
+      compiledGraph || {
+        canvasId,
+        canvasTitle: doc?.metadata?.title || "Canvas",
+        compiledAt: doc?.metadata?.updated_at || Date.now(),
+        compiled_cognitive_layer: cognitiveLayer,
+      }
+    );
+  } catch (err) {
+    console.warn(`[StorageService] Failed to read compilation for ${canvasId}:`, err);
+    return null;
+  }
+}

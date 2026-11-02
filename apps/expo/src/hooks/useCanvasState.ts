@@ -21,6 +21,7 @@ export const useCanvasState = () => {
 
   // Lazy getters for compilation to break circular dependency
   let getVisualASTFn: () => any = () => null;
+  let getStrokesFn: () => any = () => [];
   let getMapTitleFn: () => string = () => "Mapa Mental";
   let getCurrentMapIdFn: () => string = () => "canvas_default";
   let getPlacedAttributesFn: () => any = () => [];
@@ -28,6 +29,7 @@ export const useCanvasState = () => {
   // 4. Compilation Drawer & Justin Sung Learning Engine
   const compiler = useCognitiveCompilation({
     getVisualAST: () => getVisualASTFn(),
+    getStrokes: () => getStrokesFn(),
     getMapTitle: () => getMapTitleFn(),
     getCurrentMapId: () => getCurrentMapIdFn(),
     getPlacedAttributes: () => getPlacedAttributesFn(),
@@ -70,7 +72,8 @@ export const useCanvasState = () => {
     setToolbarDockEdge: tools.setToolbarDockEdge,
   });
 
-  getVisualASTFn = () => ast.ensureVisualAST();
+  getVisualASTFn = () => ast.visualAST;
+  getStrokesFn = () => ast.strokesRef.current;
   getMapTitleFn = () => doc.mapTitle;
   getCurrentMapIdFn = () => doc.currentMapId;
   getPlacedAttributesFn = () => doc.placedAttributes;

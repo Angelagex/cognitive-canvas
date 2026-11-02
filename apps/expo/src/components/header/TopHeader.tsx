@@ -11,6 +11,7 @@ import {
   BrainCircuit,
   Maximize2,
   Minimize2,
+  MoreVertical,
 } from "@sketchyicons/react-native";
 import { styles } from "./TopHeader.styles";
 
@@ -81,12 +82,12 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
       <View style={styles.leftSection}>
         <TouchableOpacity
           style={styles.menuButton}
-          onPress={onReturnToHub || onOpenDocumentMenu}
+          onPress={onReturnToHub}
           activeOpacity={0.75}
           accessibilityLabel="Auto-guardar y volver al Workspace Hub"
         >
-          <ArrowLeft size={15} color="#38BDF8" strokeWidth={2.2} />
-          <Text style={styles.menuText}>← Hub</Text>
+          <ArrowLeft size={18} color="#38BDF8" strokeWidth={2.2} />
+          <Text style={styles.menuText}>Hub</Text>
         </TouchableOpacity>
 
         <View style={styles.divider} />
@@ -193,6 +194,17 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
             ) : (
               <Maximize2 size={16} color="#94A3B8" strokeWidth={2.0} />
             )}
+          </TouchableOpacity>
+        )}
+
+        {onOpenDocumentMenu && (
+          <TouchableOpacity
+            style={styles.actionIconButton}
+            onPress={onOpenDocumentMenu}
+            activeOpacity={0.7}
+            accessibilityLabel="Document Actions"
+          >
+            <MoreVertical size={20} color="#94A3B8" strokeWidth={2.0} />
           </TouchableOpacity>
         )}
       </View>

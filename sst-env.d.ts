@@ -14,10 +14,6 @@ declare module "sst" {
       "name": string
       "type": "sst.aws.Dynamo"
     }
-    "GeminiApiKey": {
-      "type": "sst.sst.Secret"
-      "value": string
-    }
     "MyApi": {
       "type": "sst.aws.ApiGatewayV2"
       "url": string

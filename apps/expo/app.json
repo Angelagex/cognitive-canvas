@@ -25,7 +25,8 @@
     },
     "plugins": [
       "expo-dev-client",
-      "./plugins/withJetpackInk"
+      "./plugins/withJetpackInk",
+      "expo-secure-store"
     ],
     "extra": {
       "eas": {
