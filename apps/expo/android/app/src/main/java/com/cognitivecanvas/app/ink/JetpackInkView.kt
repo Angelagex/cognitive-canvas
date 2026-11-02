@@ -1259,4 +1259,42 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
     fun captureBitmap(scaleMultiplier: Float = 1.0f, fullDocument: Boolean = false): Bitmap {
         return renderToBitmap(scaleMultiplier, fullDocument)
     }
+
+    fun getRenderedWorldRect(fullDocument: Boolean = false): RectF {
+        return OffscreenDocumentRenderer.computeRenderedWorldRect(
+            completedStrokes = completedStrokes,
+            fullDocument = fullDocument,
+            viewWidth = width,
+            viewHeight = height,
+            density = context.resources.displayMetrics.density,
+            transformManager = transformManager,
+            getStrokeBounds = { stroke -> getStrokeBounds(stroke) }
+        )
+    }
+
+    fun setTransformFromProps(scale: Float?, translateXDp: Float?, translateYDp: Float?) {
+        val density = context.resources.displayMetrics.density
+        var changed = false
+        if (scale != null && !scale.isNaN() && scale > 0f && Math.abs(transformManager.canvasScale - scale) > 0.001f) {
+            transformManager.canvasScale = scale
+            changed = true
+        }
+        if (translateXDp != null && !translateXDp.isNaN()) {
+            val targetPx = translateXDp * density
+            if (Math.abs(transformManager.canvasTranslateX - targetPx) > 0.5f) {
+                transformManager.canvasTranslateX = targetPx
+                changed = true
+            }
+        }
+        if (translateYDp != null && !translateYDp.isNaN()) {
+            val targetPy = translateYDp * density
+            if (Math.abs(transformManager.canvasTranslateY - targetPy) > 0.5f) {
+                transformManager.canvasTranslateY = targetPy
+                changed = true
+            }
+        }
+        if (changed && !transformManager.isUserInteracting) {
+            postInvalidateOnAnimation()
+        }
+    }
 }

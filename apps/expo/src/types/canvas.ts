@@ -15,6 +15,12 @@ export interface HighResPngExportResult {
   width: number;
   height: number;
   sizeBytes: number;
+  renderedRect?: {
+    minX: number;
+    minY: number;
+    maxX: number;
+    maxY: number;
+  };
 }
 
 export type PassiveAttributeType = "ANALOGY" | "CAUSAL_MECHANISM" | "EVIDENCE";

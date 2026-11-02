@@ -1,3 +1,4 @@
+import { PixelRatio, Dimensions } from "react-native";
 import { RawInkStroke } from "@cognitive-canvas/core";
 
 export interface WorldBox {
@@ -48,10 +49,16 @@ export function computeStrokeWorldBox(stroke: RawInkStroke): WorldBox | null {
 }
 
 /**
- * Computes the exact `renderWorldBounds` used by `OffscreenDocumentRenderer.kt`
- * when `fullDocument = true` (union of all stroke bounding boxes + 40dp padding).
+ * Computes the exact `renderWorldBounds` (in World DP) corresponding to the full
+ * `[0..viewW, 0..viewH]` bitmap produced by `OffscreenDocumentRenderer.kt` when `fullDocument = true`.
+ * Accounts for the 40f padding, aspect-ratio centering letterbox offsets (`offsetX`, `offsetY`),
+ * and Android display pixel density (`stroke.inputs` in px vs `getStrokeBounds` in dp).
  */
-export function computeRenderWorldBounds(strokes: RawInkStroke[]): RenderWorldBounds {
+export function computeRenderWorldBounds(
+  strokes: RawInkStroke[],
+  bitmapWidthPx?: number,
+  bitmapHeightPx?: number
+): RenderWorldBounds {
   let minX = Infinity;
   let minY = Infinity;
   let maxX = -Infinity;
@@ -75,12 +82,34 @@ export function computeRenderWorldBounds(strokes: RawInkStroke[]): RenderWorldBo
   const contentTop = minY - padding;
   const contentRight = maxX + padding;
   const contentBottom = maxY + padding;
+  const contentW = Math.max(50, contentRight - contentLeft);
+  const contentH = Math.max(50, contentBottom - contentTop);
+
+  const density = PixelRatio.get() || 1;
+  const win = Dimensions.get("window");
+  const viewW =
+    bitmapWidthPx && bitmapWidthPx > 0
+      ? bitmapWidthPx
+      : Math.round((win.width || 1280) * density);
+  const viewH =
+    bitmapHeightPx && bitmapHeightPx > 0
+      ? bitmapHeightPx
+      : Math.round((win.height || 800) * density);
+
+  const calculatedFit = Math.min(viewW / contentW, viewH / contentH);
+  const offsetX = (viewW - contentW * calculatedFit) / 2;
+  const offsetY = (viewH - contentH * calculatedFit) / 2;
+
+  const worldMinX = (contentLeft - offsetX / calculatedFit) / density;
+  const worldMinY = (contentTop - offsetY / calculatedFit) / density;
+  const worldWidth = viewW / (calculatedFit * density);
+  const worldHeight = viewH / (calculatedFit * density);
 
   return {
-    minX: contentLeft,
-    minY: contentTop,
-    width: Math.max(50, contentRight - contentLeft),
-    height: Math.max(50, contentBottom - contentTop),
+    minX: worldMinX,
+    minY: worldMinY,
+    width: Math.max(50, worldWidth),
+    height: Math.max(50, worldHeight),
   };
 }
 

@@ -15,6 +15,7 @@ interface CompilerDrawerProps {
   onPacerFilterChange?: (filter: PacerClassification | "ALL") => void;
   showPacerOverlay?: boolean;
   onTogglePacerOverlay?: () => void;
+  onFocusNode?: (box: { minX: number; minY: number; maxX: number; maxY: number }) => void;
 }
 
 export const CompilerDrawer: React.FC<CompilerDrawerProps> = ({
@@ -28,7 +29,13 @@ export const CompilerDrawer: React.FC<CompilerDrawerProps> = ({
   onPacerFilterChange,
   showPacerOverlay,
   onTogglePacerOverlay,
+  onFocusNode,
 }) => {
+  const handleFocusNode = (box: { minX: number; minY: number; maxX: number; maxY: number }) => {
+    onFocusNode?.(box);
+    onClose();
+  };
+
   return (
     <Modal
       visible={isOpen}
@@ -56,7 +63,7 @@ export const CompilerDrawer: React.FC<CompilerDrawerProps> = ({
           {/* Action Trigger Banner */}
           <View style={styles.actionBanner}>
             <View style={styles.bannerInfo}>
-              <Text style={styles.bannerTitle}>Evaluación Macro-Cognitiva & Islas</Text>
+              <Text style={styles.bannerTitle}>Cognitive Canvas — Grafo de Conocimiento</Text>
               <Text style={styles.bannerSubtitle}>
                 {strokeCount > 0 ? `${strokeCount} trazos listos en lienzo` : "Dibuja tu mapa para compilar"}
               </Text>
@@ -73,7 +80,7 @@ export const CompilerDrawer: React.FC<CompilerDrawerProps> = ({
             </TouchableOpacity>
           </View>
 
-          {/* Scrollable Retrieval Panel with Macro-Cognitive Evaluation */}
+          {/* Scrollable Retrieval Panel with Real Extracted Graph */}
           <View style={styles.panelContent}>
             {compilation ? (
               <RetrievalPanel
@@ -82,6 +89,8 @@ export const CompilerDrawer: React.FC<CompilerDrawerProps> = ({
                 onPacerFilterChange={onPacerFilterChange}
                 showPacerOverlay={showPacerOverlay}
                 onTogglePacerOverlay={onTogglePacerOverlay}
+                onFocusNode={handleFocusNode}
+                onCloseDrawer={onClose}
               />
             ) : (
               <View style={styles.emptyStateContainer}>
@@ -91,7 +100,7 @@ export const CompilerDrawer: React.FC<CompilerDrawerProps> = ({
                 <Text style={styles.emptyStateTitle}>Lienzo listo para evaluar</Text>
                 <Text style={styles.emptyStateDescription}>
                   Dibuja tus conceptos y relaciones causales con el S-Pen.
-                  Presiona "Ejecutar IA" para auditar las macro-islas, nivel de madurez 1-4 y activar la Capa Fantasma (Ghost Overlay).
+                  Presiona "Ejecutar IA" para extraer tus nodos jerárquicos, dinámicas causales y desafíos socráticos sobre tu mapa real.
                 </Text>
               </View>
             )}

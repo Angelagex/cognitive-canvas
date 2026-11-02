@@ -150,6 +150,7 @@ class JetpackInkModule(private val reactContext: ReactApplicationContext) :
         Handler(Looper.getMainLooper()).post {
             try {
                 var bitmap: Bitmap? = null
+                val renderedRect = inkView.getRenderedWorldRect(fullDocument)
                 try {
                     bitmap = inkView.captureBitmap(scaleMultiplier, fullDocument)
                 } catch (e: Exception) {
@@ -157,7 +158,7 @@ class JetpackInkModule(private val reactContext: ReactApplicationContext) :
                 }
 
                 if (bitmap != null) {
-                    saveBitmapAndResolve(bitmap, promise)
+                    saveBitmapAndResolve(bitmap, renderedRect, promise)
                     return@post
                 }
 
@@ -179,7 +180,7 @@ class JetpackInkModule(private val reactContext: ReactApplicationContext) :
                         copyBitmap,
                         { copyResult ->
                             if (copyResult == PixelCopy.SUCCESS) {
-                                saveBitmapAndResolve(copyBitmap, promise)
+                                saveBitmapAndResolve(copyBitmap, renderedRect, promise)
                             } else {
                                 promise.reject("ERR_PIXEL_COPY", "PixelCopy failed with code: $copyResult")
                             }
@@ -195,7 +196,11 @@ class JetpackInkModule(private val reactContext: ReactApplicationContext) :
         }
     }
 
-    private fun saveBitmapAndResolve(bitmap: Bitmap, promise: Promise) {
+    private fun saveBitmapAndResolve(
+        bitmap: Bitmap,
+        renderedRect: android.graphics.RectF,
+        promise: Promise
+    ) {
         Thread {
             try {
                 val fileName = "canvas_render_${System.currentTimeMillis()}.jpg"
@@ -213,6 +218,13 @@ class JetpackInkModule(private val reactContext: ReactApplicationContext) :
                     putInt("width", bitmap.width)
                     putInt("height", bitmap.height)
                     putDouble("sizeBytes", file.length().toDouble())
+                    val rectMap = Arguments.createMap().apply {
+                        putDouble("minX", renderedRect.left.toDouble())
+                        putDouble("minY", renderedRect.top.toDouble())
+                        putDouble("maxX", renderedRect.right.toDouble())
+                        putDouble("maxY", renderedRect.bottom.toDouble())
+                    }
+                    putMap("renderedRect", rectMap)
                 }
                 promise.resolve(result)
             } catch (e: Exception) {

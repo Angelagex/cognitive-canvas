@@ -51,6 +51,13 @@ export const PACER_COLORS: Record<
     bgColor: "rgba(55, 65, 81, 0.25)",
     borderColor: "#6B7280",
   },
+  NONE: {
+    label: "Nodo",
+    letter: "",
+    color: "#38BDF8",
+    bgColor: "rgba(15, 23, 42, 0.18)",
+    borderColor: "rgba(56, 189, 248, 0.45)",
+  },
 };
 
 export const PacerOverlayLayer: React.FC<PacerOverlayLayerProps> = ({
@@ -71,26 +78,29 @@ export const PacerOverlayLayer: React.FC<PacerOverlayLayerProps> = ({
         const matchesFilter =
           activeFilter === "ALL" || !activeFilter || activeFilter === node.pacer_classification;
 
-        // 1. Prioridad: Buscar entidad coincidente en el Visual AST por ID
-        let targetBbox = visualAST?.entities?.find((e) => e.id === node.id)?.bbox;
+        // 1. Primary source of truth: Vision-First remapped bounding box (`node.visual_bounding_box`)
+        let targetBbox =
+          node.visual_bounding_box &&
+          node.visual_bounding_box.xmax > node.visual_bounding_box.xmin &&
+          node.visual_bounding_box.ymax > node.visual_bounding_box.ymin
+            ? node.visual_bounding_box
+            : undefined;
 
-        // 2. Respaldo: Si el ID cambió, buscar entidad por coincidencia de texto transcrito o contenido
+        // 2. Fallback: match entity in Visual AST by ID or transcribed text
         if (!targetBbox && visualAST?.entities && visualAST.entities.length > 0) {
-          const nodeContent = (node.detected_content || "").toLowerCase().trim();
-          if (nodeContent) {
-            const matchedEntity = visualAST.entities.find((e) => {
-              const entText = (e.transcribed_text || "").toLowerCase().trim();
-              return entText && (entText.includes(nodeContent) || nodeContent.includes(entText));
-            });
-            if (matchedEntity) {
-              targetBbox = matchedEntity.bbox;
+          targetBbox = visualAST.entities.find((e) => e.id === node.id)?.bbox;
+          if (!targetBbox) {
+            const nodeContent = (node.detected_content || "").toLowerCase().trim();
+            if (nodeContent) {
+              const matchedEntity = visualAST.entities.find((e) => {
+                const entText = (e.transcribed_text || "").toLowerCase().trim();
+                return entText && (entText.includes(nodeContent) || nodeContent.includes(entText));
+              });
+              if (matchedEntity) {
+                targetBbox = matchedEntity.bbox;
+              }
             }
           }
-        }
-
-        // 3. Respaldo: Usar visual_bounding_box devuelto por el compilador
-        if (!targetBbox) {
-          targetBbox = node.visual_bounding_box;
         }
 
         if (!targetBbox) return null;
@@ -126,10 +136,14 @@ export const PacerOverlayLayer: React.FC<PacerOverlayLayerProps> = ({
               },
             ]}
           >
-            {/* Top-Left Category Badge */}
-            <View style={[styles.pacerBadge, { backgroundColor: pacerInfo.borderColor }]}>
-              <Text style={styles.pacerBadgeLetter}>{pacerInfo.letter}</Text>
-            </View>
+            {/* Top-Left Category Badge (only when PACER role is not NONE/CONCEPTUAL) */}
+            {node.pacer_classification !== "NONE" &&
+              node.pacer_classification !== "CONCEPTUAL" &&
+              !!pacerInfo.letter && (
+                <View style={[styles.pacerBadge, { backgroundColor: pacerInfo.borderColor }]}>
+                  <Text style={styles.pacerBadgeLetter}>{pacerInfo.letter}</Text>
+                </View>
+              )}
 
             {/* Label caption on larger nodes */}
             {width > 60 && height > 35 && (

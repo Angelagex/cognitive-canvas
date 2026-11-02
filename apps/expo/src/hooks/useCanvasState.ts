@@ -209,6 +209,8 @@ export const useCanvasState = () => {
     handleZoomOut: viewport.handleZoomOut,
     handleResetZoom: viewport.handleResetZoom,
     handleTransform: viewport.handleTransform,
+    focusOnBoundingBox: viewport.focusOnBoundingBox,
+    focusOnWorldBox: viewport.focusOnBoundingBox,
 
     // AST & Ink Bridge
     visualAST: ast.visualAST,

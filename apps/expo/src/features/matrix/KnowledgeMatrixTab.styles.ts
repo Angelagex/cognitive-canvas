@@ -10,7 +10,9 @@ export const FALLBACK_PAYLOADS: CanvasCompiledPayload[] = [
       {
         id: "tcp-syn-packet",
         label: "SYN Packet",
+        domain: "Networking & Systems",
         tier: "primitive",
+        pacerRole: "NONE",
         verificationState: "verified",
         provenance: [
           {
@@ -24,7 +26,9 @@ export const FALLBACK_PAYLOADS: CanvasCompiledPayload[] = [
       {
         id: "sliding-window-backpressure",
         label: "Sliding Window Backpressure",
+        domain: "Networking & Systems",
         tier: "mechanism",
+        pacerRole: "PROCEDURAL",
         verificationState: "unverified",
         provenance: [
           {
@@ -38,7 +42,9 @@ export const FALLBACK_PAYLOADS: CanvasCompiledPayload[] = [
       {
         id: "distributed-consensus-raft",
         label: "Distributed Consensus Cluster",
+        domain: "Networking & Systems",
         tier: "system",
+        pacerRole: "NONE",
         verificationState: "ghost",
         provenance: [
           {
@@ -68,6 +74,12 @@ export const FALLBACK_PAYLOADS: CanvasCompiledPayload[] = [
         confidence: 0.86,
       },
     ],
+    synthesis: {
+      systemSummary: "Control de flujo TCP acoplado a latencias de consenso distribuido.",
+      ghostConnections: [],
+      blindSpots: [],
+      socraticChallenges: [],
+    },
   },
   {
     canvasId: "map_raft_replication",
@@ -77,7 +89,9 @@ export const FALLBACK_PAYLOADS: CanvasCompiledPayload[] = [
       {
         id: "sliding-window-backpressure",
         label: "Sliding Window Backpressure",
+        domain: "Networking & Systems",
         tier: "mechanism",
+        pacerRole: "PROCEDURAL",
         verificationState: "unverified",
         provenance: [
           {
@@ -90,6 +104,12 @@ export const FALLBACK_PAYLOADS: CanvasCompiledPayload[] = [
       },
     ],
     edges: [],
+    synthesis: {
+      systemSummary: "Replicación de logs en Raft.",
+      ghostConnections: [],
+      blindSpots: [],
+      socraticChallenges: [],
+    },
   },
 ];
 

@@ -4,6 +4,8 @@ import {
   RawInkStroke,
   ConceptTier,
   CausalEdgeType,
+  PacerRole,
+  CognitiveSynthesis,
 } from "@cognitive-canvas/core/types";
 import { PlacedAttribute, ThinkingMemo } from "../types/canvas";
 import { exportHighResPng, getCanvasStrokes } from "../components/JetpackInkCanvas";
@@ -20,6 +22,7 @@ export interface VisionCompiledNode {
   label: string;
   domain: string;
   tier: ConceptTier;
+  pacerRole: PacerRole;
   summary: string;
   box_2d: [number, number, number, number];
 }
@@ -36,6 +39,7 @@ export interface VisionCompilerResponse {
   canvasTitle: string;
   nodes: VisionCompiledNode[];
   edges: VisionCompiledEdge[];
+  synthesis: CognitiveSynthesis;
   renderWorldBounds: RenderWorldBounds;
   legacyOutput?: CognitiveCompilerOutput;
 }
@@ -46,19 +50,7 @@ export interface CanvasDocumentInput {
   strokes?: RawInkStroke[];
   placedAttributes?: PlacedAttribute[];
   thinkingMemos?: Array<{ id: string; transcript: string; worldX: number; worldY: number }>;
-  metadata?: {
-    placed_attributes?: Array<{
-      type?: string;
-      category?: string;
-      title?: string;
-      label?: string;
-      note?: string;
-      worldX: number;
-      worldY: number;
-      thinkingMemo?: ThinkingMemo;
-      id?: string;
-    }>;
-  };
+  metadata?: { placed_attributes?: any[] };
   visualAST?: VisualAST | null;
   imageBase64?: string;
   apiUrl?: string;
@@ -75,11 +67,6 @@ export interface CompileParams {
   apiUrl?: string;
 }
 
-/**
- * Vision-First Multimodal Compilation Request Builder & Dispatcher (BYOK).
- * Retrieves the user's Gemini API key via `KeyStorageService.getApiKey()` and passes it
- * in the `x-gemini-api-key` header along with the PNG snapshot and spatial metadata.
- */
 export async function compileCanvas(
   document: CanvasDocumentInput
 ): Promise<VisionCompilerResponse> {
@@ -96,7 +83,37 @@ export async function compileCanvas(
       ? document.strokes
       : await getCanvasStrokes().catch(() => []);
 
-  const renderWorldBounds = computeRenderWorldBounds(strokes);
+  let pngBase64String = document.imageBase64 || "";
+  let capturedWidth: number | undefined;
+  let capturedHeight: number | undefined;
+  let capturedRect: { minX: number; minY: number; maxX: number; maxY: number } | undefined;
+
+  if (!pngBase64String) {
+    try {
+      const capture = await exportHighResPng(1.0, true);
+      if (capture?.uri) {
+        capturedWidth = capture.width;
+        capturedHeight = capture.height;
+        capturedRect = capture.renderedRect;
+        pngBase64String = await FileSystem.readAsStringAsync(capture.uri, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+      }
+    } catch (captureErr) {
+      console.warn("[CompilationService] Offscreen PNG capture skipped:", captureErr);
+    }
+  }
+
+  const renderWorldBounds: RenderWorldBounds =
+    capturedRect && capturedRect.maxX > capturedRect.minX && capturedRect.maxY > capturedRect.minY
+      ? {
+          minX: capturedRect.minX,
+          minY: capturedRect.minY,
+          width: capturedRect.maxX - capturedRect.minX,
+          height: capturedRect.maxY - capturedRect.minY,
+        }
+      : computeRenderWorldBounds(strokes, capturedWidth, capturedHeight);
+
   const rawAttrs = document.placedAttributes || document.metadata?.placed_attributes || [];
 
   const extractedMemos: Array<{ id: string; transcript: string; worldX: number; worldY: number }> =
@@ -113,37 +130,22 @@ export async function compileCanvas(
     }
   });
 
+  const toRel = (wx: number, wy: number) => ({
+    x: Number(((wx - renderWorldBounds.minX) / renderWorldBounds.width).toFixed(4)),
+    y: Number(((wy - renderWorldBounds.minY) / renderWorldBounds.height).toFixed(4)),
+  });
+
   const localizedThinkingMemos = extractedMemos.map((m) => ({
     id: m.id,
     transcript: m.transcript,
-    relativePosition: {
-      x: Number(((m.worldX - renderWorldBounds.minX) / renderWorldBounds.width).toFixed(4)),
-      y: Number(((m.worldY - renderWorldBounds.minY) / renderWorldBounds.height).toFixed(4)),
-    },
+    relativePosition: toRel(m.worldX, m.worldY),
   }));
 
   const localizedAttributes = rawAttrs.map((a: any) => ({
     category: a.category || a.type || "CONCEPTUAL",
     label: a.label || [a.title, a.note].filter(Boolean).join(": ") || "Attribute",
-    relativePosition: {
-      x: Number(((a.worldX - renderWorldBounds.minX) / renderWorldBounds.width).toFixed(4)),
-      y: Number(((a.worldY - renderWorldBounds.minY) / renderWorldBounds.height).toFixed(4)),
-    },
+    relativePosition: toRel(a.worldX ?? renderWorldBounds.minX, a.worldY ?? renderWorldBounds.minY),
   }));
-
-  let pngBase64String = document.imageBase64 || "";
-  if (!pngBase64String) {
-    try {
-      const capture = await exportHighResPng(1.0, true);
-      if (capture?.uri) {
-        pngBase64String = await FileSystem.readAsStringAsync(capture.uri, {
-          encoding: FileSystem.EncodingType.Base64,
-        });
-      }
-    } catch (captureErr) {
-      console.warn("[CompilationService] Offscreen PNG capture skipped:", captureErr);
-    }
-  }
 
   const compilationRequest = {
     canvasId: document.id,
@@ -182,6 +184,7 @@ export async function compileCanvas(
         const data = await response.json();
         const resolved = data.output && Array.isArray(data.output.nodes) ? data.output : data;
         if (Array.isArray(resolved.nodes)) {
+          const rawSyn = resolved.synthesis || {};
           return {
             canvasId: resolved.canvasId || document.id,
             canvasTitle: resolved.canvasTitle || document.title || "Untitled",
@@ -190,6 +193,12 @@ export async function compileCanvas(
               label: n.label || n.detected_content || `Concept ${idx + 1}`,
               domain: n.domain || document.title || "General",
               tier: n.tier || "mechanism",
+              pacerRole:
+                n.pacerRole === "REFERENCE" ||
+                n.pacerRole === "PROCEDURAL" ||
+                n.pacerRole === "ANALOGOUS"
+                  ? n.pacerRole
+                  : "NONE",
               summary: n.summary || n.passive_context || "",
               box_2d:
                 Array.isArray(n.box_2d) && n.box_2d.length === 4
@@ -202,6 +211,14 @@ export async function compileCanvas(
               type: e.type || "TRIGGERS",
               reasoning: e.reasoning || e.label || "",
             })),
+            synthesis: {
+              systemSummary: rawSyn.systemSummary || "",
+              ghostConnections: Array.isArray(rawSyn.ghostConnections) ? rawSyn.ghostConnections : [],
+              blindSpots: Array.isArray(rawSyn.blindSpots) ? rawSyn.blindSpots : [],
+              socraticChallenges: Array.isArray(rawSyn.socraticChallenges)
+                ? rawSyn.socraticChallenges
+                : [],
+            },
             renderWorldBounds,
           };
         }
@@ -242,6 +259,7 @@ export async function compileCanvas(
         label: n.label,
         domain: n.domain || document.title || "General",
         tier: n.tier,
+        pacerRole: n.pacerRole || "NONE",
         summary: n.summary,
         box_2d: box2d,
       };
@@ -252,15 +270,14 @@ export async function compileCanvas(
       type: e.type,
       reasoning: e.reasoning,
     })),
+    synthesis: payload?.synthesis || { systemSummary: "", ghostConnections: [], blindSpots: [], socraticChallenges: [] },
     renderWorldBounds,
     legacyOutput: fallbackLocal,
   };
 }
 
-export async function compileCognitiveMap(
-  params: CompileParams
-): Promise<CognitiveCompilerOutput> {
-  const visionResult = await compileCanvas({
+export async function compileCognitiveMap(params: CompileParams): Promise<CognitiveCompilerOutput> {
+  const res = await compileCanvas({
     id: params.canvasId,
     title: params.title,
     strokes: params.strokes,
@@ -269,12 +286,7 @@ export async function compileCognitiveMap(
     imageBase64: params.imageBase64,
     apiUrl: params.apiUrl,
   });
-
-  if (visionResult.legacyOutput) {
-    return visionResult.legacyOutput;
-  }
-
-  return compileMapLocally({
+  return res.legacyOutput || compileMapLocally({
     canvasId: params.canvasId,
     title: params.title,
     visualAST: params.visualAST || null,

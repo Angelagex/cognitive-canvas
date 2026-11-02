@@ -21,32 +21,16 @@ async function ensureGraphsDir(): Promise<void> {
 
 export function slugifyConcept(label: string): string {
   return (
-    label
-      .toLowerCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "")
-      .slice(0, 48) || "concept-node"
+    label.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 48) || "concept-node"
   );
 }
 
-export function inferConceptDomain(
-  label: string,
-  canvasTitle: string,
-  explicitDomain?: string
-): string {
+export function inferConceptDomain(label: string, canvasTitle: string, explicitDomain?: string): string {
   if (explicitDomain?.trim()) return explicitDomain.trim();
   const combined = `${label} ${canvasTitle}`.toLowerCase();
-  if (/(photo|camera|iso|shutter|aperture|f-stop|lens|exposi|luz|sensor|optica)/.test(combined)) {
-    return "Photography";
-  }
-  if (/(tcp|syn|ack|packet|raft|consensus|network|socket|http|dns|latency|window)/.test(combined)) {
-    return "Networking & Systems";
-  }
-  if (/(code|react|typescript|function|class|compiler|ast|algorithm|memory|thread)/.test(combined)) {
-    return "Programming";
-  }
+  if (/(photo|camera|iso|shutter|aperture|f-stop|lens|exposi|luz|sensor|optica)/.test(combined)) return "Photography";
+  if (/(tcp|syn|ack|packet|raft|consensus|network|socket|http|dns|latency|window)/.test(combined)) return "Networking & Systems";
+  if (/(code|react|typescript|function|class|compiler|ast|algorithm|memory|thread)/.test(combined)) return "Programming";
   return canvasTitle.replace(/^(synthesis:\s*|mapa\s*)/i, "").trim().slice(0, 24) || "General";
 }
 
@@ -128,11 +112,22 @@ export function deriveCompiledPayloadFromDocument(doc: any): CanvasCompiledPaylo
         (a: any) => a.title?.toLowerCase() === label.toLowerCase() || a.consolidatedRef !== undefined
       );
       const b = n.visual_bounding_box;
+      const pacerRole =
+        n.pacerRole === "REFERENCE" ||
+        n.pacerRole === "PROCEDURAL" ||
+        n.pacerRole === "ANALOGOUS"
+          ? n.pacerRole
+          : n.pacer_classification === "REFERENCE" ||
+            n.pacer_classification === "PROCEDURAL" ||
+            n.pacer_classification === "ANALOGOUS"
+          ? n.pacer_classification
+          : "NONE";
       nodes.push({
         id: slugifyConcept(label),
         label,
         domain: inferConceptDomain(label, canvasTitle, n.domain),
         tier,
+        pacerRole,
         verificationState: n.deducible_from_context ? "unverified" : "ghost",
         provenance: [
           {
@@ -140,7 +135,7 @@ export function deriveCompiledPayloadFromDocument(doc: any): CanvasCompiledPaylo
             canvasTitle,
             boundingBox: b
               ? { minX: b.xmin ?? 100, minY: b.ymin ?? 100, maxX: b.xmax ?? 320, maxY: b.ymax ?? 240 }
-              : undefined,
+              : { minX: 100, minY: 100, maxX: 320, maxY: 240 },
           },
         ],
         summary:
@@ -166,6 +161,7 @@ export function deriveCompiledPayloadFromDocument(doc: any): CanvasCompiledPaylo
         label,
         domain: inferConceptDomain(label, canvasTitle, attr.domain),
         tier,
+        pacerRole: attr.type === "ANALOGY" ? "ANALOGOUS" : "NONE",
         verificationState: attr.thinkingMemo ? "verified" : "unverified",
         provenance: [
           {
@@ -200,7 +196,19 @@ export function deriveCompiledPayloadFromDocument(doc: any): CanvasCompiledPaylo
     })
     .filter(Boolean) as KnowledgeEdge[];
 
-  return { canvasId, canvasTitle, compiledAt: doc.metadata?.updated_at || Date.now(), nodes, edges };
+  return {
+    canvasId,
+    canvasTitle,
+    compiledAt: doc.metadata?.updated_at || Date.now(),
+    nodes,
+    edges,
+    synthesis: doc.compiled_cognitive_layer?.synthesis || {
+      systemSummary: "",
+      ghostConnections: [],
+      blindSpots: [],
+      socraticChallenges: [],
+    },
+  };
 }
 
 export async function updateKnowledgeNodeVerification(

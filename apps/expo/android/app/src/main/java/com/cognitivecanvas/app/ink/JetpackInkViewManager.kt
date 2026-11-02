@@ -78,6 +78,21 @@ class JetpackInkViewManager : SimpleViewManager<JetpackInkView>() {
         view.stylusOnly = enabled
     }
 
+    @ReactProp(name = "canvasScale", defaultFloat = 1.0f)
+    fun setCanvasScale(view: JetpackInkView, scale: Float) {
+        view.setTransformFromProps(scale, null, null)
+    }
+
+    @ReactProp(name = "panX", defaultFloat = 0.0f)
+    fun setPanX(view: JetpackInkView, panX: Float) {
+        view.setTransformFromProps(null, panX, null)
+    }
+
+    @ReactProp(name = "panY", defaultFloat = 0.0f)
+    fun setPanY(view: JetpackInkView, panY: Float) {
+        view.setTransformFromProps(null, null, panY)
+    }
+
     @ReactProp(name = "zoomInTrigger")
     fun setZoomInTrigger(view: JetpackInkView, trigger: Int) {
         if (trigger > 0) {

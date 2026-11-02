@@ -97,6 +97,7 @@ export const useCognitiveCompilation = (props?: UseCognitiveCompilationProps) =>
 
         return {
           ...node,
+          pacerRole: node.pacerRole || "NONE",
           verificationState: "unverified",
           provenance: [
             {
@@ -123,6 +124,7 @@ export const useCognitiveCompilation = (props?: UseCognitiveCompilationProps) =>
         compiledAt: Date.now(),
         nodes: enrichedNodes,
         edges: enrichedEdges,
+        synthesis: response.synthesis,
       };
 
       // 4. Construct CognitiveCompilerOutput for Canvas overlays & drawer
@@ -134,11 +136,9 @@ export const useCognitiveCompilation = (props?: UseCognitiveCompilationProps) =>
           maxY: 220,
         };
         const pacer: PacerClassification =
-          n.tier === "primitive"
-            ? "REFERENCE"
-            : n.tier === "mechanism"
-            ? "PROCEDURAL"
-            : "CONCEPTUAL";
+          n.pacerRole === "REFERENCE" || n.pacerRole === "PROCEDURAL" || n.pacerRole === "ANALOGOUS"
+            ? n.pacerRole
+            : "NONE";
         return {
           id: n.id,
           visual_bounding_box: {
@@ -150,7 +150,7 @@ export const useCognitiveCompilation = (props?: UseCognitiveCompilationProps) =>
           detected_content: n.label,
           passive_context: n.summary,
           pacer_classification: pacer,
-          deducible_from_context: n.tier !== "primitive",
+          deducible_from_context: n.pacerRole !== "REFERENCE",
         };
       });
 
@@ -177,6 +177,7 @@ export const useCognitiveCompilation = (props?: UseCognitiveCompilationProps) =>
         },
         nodes: overlayNodes,
         edges: overlayEdges,
+        synthesis: response.synthesis,
         compiled_graph_payload: compiledGraphPayload,
       };
 

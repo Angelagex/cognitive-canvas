@@ -84,11 +84,18 @@ export function buildLayeredGraphPayload(
     const matchingAttr = placedAttributes.find(
       (a) => a.title.toLowerCase() === n.detected_content.toLowerCase() || Boolean(a.thinkingMemo)
     );
+    const pacerRole =
+      n.pacer_classification === "REFERENCE" ||
+      n.pacer_classification === "PROCEDURAL" ||
+      n.pacer_classification === "ANALOGOUS"
+        ? n.pacer_classification
+        : "NONE";
     return {
       id: slugifyConcept(n.detected_content),
       label: n.detected_content,
       domain: inferConceptDomain(n.detected_content, canvasTitle),
       tier,
+      pacerRole,
       verificationState: matchingAttr?.thinkingMemo ? "verified" : "unverified",
       provenance: [
         {
@@ -125,7 +132,22 @@ export function buildLayeredGraphPayload(
     };
   });
 
-  return { canvasId, canvasTitle, compiledAt: Date.now(), nodes: knowledgeNodes, edges: knowledgeEdges };
+  return {
+    canvasId,
+    canvasTitle,
+    compiledAt: Date.now(),
+    nodes: knowledgeNodes,
+    edges: knowledgeEdges,
+    synthesis: {
+      systemSummary: `Síntesis estructural local para ${canvasTitle}.`,
+      ghostConnections: [],
+      blindSpots: [],
+      socraticChallenges: knowledgeEdges.map((ke) => ({
+        edgeTarget: `${ke.fromNodeId} ➔ ${ke.toNodeId}`,
+        counterfactualQuestion: ke.reasoning,
+      })),
+    },
+  };
 }
 
 export function compileMapLocally(params: LocalCompileInput): CognitiveCompilerOutput {

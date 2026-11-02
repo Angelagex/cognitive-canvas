@@ -1,6 +1,13 @@
 import { useState, useCallback } from "react";
-import { NativeSyntheticEvent } from "react-native";
+import { NativeSyntheticEvent, Dimensions } from "react-native";
 import { TransformEvent } from "../../types/canvas";
+
+export interface FocusWorldBox {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+}
 
 export const useCanvasViewport = () => {
   const [displayZoom, setDisplayZoom] = useState<number>(100);
@@ -37,6 +44,28 @@ export const useCanvasViewport = () => {
     setDisplayZoom(Math.round(scale * 100));
   }, []);
 
+  const focusOnBoundingBox = useCallback((box: FocusWorldBox) => {
+    const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
+    const boxWidth = box.maxX - box.minX;
+    const boxHeight = box.maxY - box.minY;
+    const centerX = (box.minX + box.maxX) / 2;
+    const centerY = (box.minY + box.maxY) / 2;
+
+    // Compute scale so the box fits with breathing room
+    const targetScale = Math.min(
+      Math.max(0.4, ((screenWidth || 1280) * 0.6) / Math.max(boxWidth, boxHeight, 200)),
+      1.2
+    );
+
+    const nextTranslateX = (screenWidth || 1280) / 2 - centerX * targetScale;
+    const nextTranslateY = (screenHeight || 800) / 2 - centerY * targetScale;
+
+    setCanvasScale(targetScale);
+    setCanvasTranslateX(nextTranslateX);
+    setCanvasTranslateY(nextTranslateY);
+    setDisplayZoom(Math.round(targetScale * 100));
+  }, []);
+
   return {
     displayZoom,
     setDisplayZoom,
@@ -53,5 +82,7 @@ export const useCanvasViewport = () => {
     handleZoomOut,
     handleResetZoom,
     handleTransform,
+    focusOnBoundingBox,
+    focusOnWorldBox: focusOnBoundingBox,
   };
 };

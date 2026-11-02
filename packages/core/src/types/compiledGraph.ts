@@ -10,6 +10,7 @@ export { COMPILER_JSON_SCHEMA } from "./compilerJsonSchema";
 // ============================================================================
 
 export type ConceptTier = "primitive" | "mechanism" | "system";
+export type PacerRole = "REFERENCE" | "PROCEDURAL" | "ANALOGOUS" | "NONE";
 export type NodeVerificationState = "verified" | "unverified" | "ghost";
 export type CausalEdgeType = "TRIGGERS" | "INHIBITS" | "PREREQUISITE_OF" | "EQUIVALENT";
 
@@ -24,37 +25,58 @@ export interface ThinkingMemoMetadata {
 }
 
 export interface KnowledgeNode {
-  id: string;                         // Canonical slug (e.g., "tcp-syn-packet")
-  label: string;                      // Display name (e.g., "SYN Packet")
-  domain?: string;                    // Thematic topic cluster (e.g., "Programming", "Photography")
-  tier: ConceptTier;                  // Hierarchical layer (Y-axis placement)
+  id: string;
+  label: string;
+  domain: string;
+  tier: ConceptTier;
+  pacerRole: PacerRole;
+  summary: string;
   verificationState: NodeVerificationState;
-  box_2d?: [number, number, number, number]; // [ymin, xmin, ymax, xmax] normalized 0-1000
+  box_2d?: [number, number, number, number];
   provenance: {
     canvasId: string;
     canvasTitle: string;
-    boundingBox?: { minX: number; minY: number; maxX: number; maxY: number };
+    boundingBox: { minX: number; minY: number; maxX: number; maxY: number };
   }[];
-  summary: string;
   consolidatedRef?: ConsolidatedReference;
 }
 
 export interface KnowledgeEdge {
-  id: string;
+  id?: string;
   fromNodeId: string;
   toNodeId: string;
   type: CausalEdgeType;
-  reasoning: string;                  // Causal explanation of why A affects B
-  confidence: number;                 // 0.0 to 1.0
+  reasoning: string;
+  confidence?: number;
 }
 
-export interface CanvasCompiledPayload {
+export interface CognitiveSynthesis {
+  systemSummary: string;
+  ghostConnections: {
+    clusterA: string;
+    clusterB: string;
+    tensionQuestion: string;
+  }[];
+  blindSpots: {
+    missingConcept: string;
+    significance: string;
+  }[];
+  socraticChallenges: {
+    edgeTarget: string;
+    counterfactualQuestion: string;
+  }[];
+}
+
+export interface CompiledGraphPayload {
   canvasId: string;
   canvasTitle: string;
   compiledAt: number;
   nodes: KnowledgeNode[];
   edges: KnowledgeEdge[];
+  synthesis: CognitiveSynthesis;
 }
+
+export type CanvasCompiledPayload = CompiledGraphPayload;
 
 export interface SocraticAuditResult {
   status: "question" | "passed" | "challenged";
@@ -85,7 +107,8 @@ export type PacerClassification =
   | "ANALOGOUS"
   | "CONCEPTUAL"
   | "EVIDENCE"
-  | "REFERENCE";
+  | "REFERENCE"
+  | "NONE";
 
 export type GrindeTrait =
   | "GROUPED"
@@ -243,7 +266,8 @@ export interface CompiledCognitiveMap {
   map_metadata?: MapMetadata;
   nodes?: CompiledNode[];
   edges?: CompiledEdge[];
+  synthesis?: CognitiveSynthesis;
   grinde_audit?: GrindeAudit;
   learning_engine_outputs?: LearningEngineOutputs;
-  compiled_graph_payload?: CanvasCompiledPayload;
+  compiled_graph_payload?: CompiledGraphPayload;
 }

@@ -10,6 +10,7 @@ export interface CognitiveSubLayers {
 export interface CognitiveLayerState {
   hasCompiledData: boolean;
   isOverlayVisible: boolean;
+  isCognitiveLayerVisible: boolean;
   isDirty: boolean; // True si el usuario modificó el mapa post-compilación
   compiledData: CompiledMacroCognitiveMap | null;
   subLayers: CognitiveSubLayers;
@@ -18,6 +19,7 @@ export interface CognitiveLayerState {
   // Acciones
   setCompiledData: (data: CompiledMacroCognitiveMap) => void;
   toggleOverlay: () => void;
+  toggleCognitiveLayer: () => void;
   setOverlayVisibility: (visible: boolean) => void;
   toggleSubLayer: (subLayer: keyof CognitiveSubLayers) => void;
   markAsDirty: () => void;
@@ -28,6 +30,7 @@ export interface CognitiveLayerState {
 interface InternalState {
   hasCompiledData: boolean;
   isOverlayVisible: boolean;
+  isCognitiveLayerVisible: boolean;
   isDirty: boolean;
   compiledData: CompiledMacroCognitiveMap | null;
   subLayers: CognitiveSubLayers;
@@ -37,6 +40,7 @@ interface InternalState {
 let state: InternalState = {
   hasCompiledData: false,
   isOverlayVisible: true,
+  isCognitiveLayerVisible: true,
   isDirty: false,
   compiledData: null,
   subLayers: {
@@ -66,19 +70,27 @@ export const cognitiveLayerStore = {
       compiledData: data,
       hasCompiledData: true,
       isOverlayVisible: true,
+      isCognitiveLayerVisible: true,
       isDirty: false,
     });
   },
 
   toggleOverlay: () => {
+    const next = !state.isOverlayVisible;
     updateState({
-      isOverlayVisible: !state.isOverlayVisible,
+      isOverlayVisible: next,
+      isCognitiveLayerVisible: next,
     });
+  },
+
+  toggleCognitiveLayer: () => {
+    cognitiveLayerStore.toggleOverlay();
   },
 
   setOverlayVisibility: (visible: boolean) => {
     updateState({
       isOverlayVisible: visible,
+      isCognitiveLayerVisible: visible,
     });
   },
 
@@ -121,21 +133,26 @@ export const cognitiveLayerStore = {
 /**
  * Hook reactivo para consumir y mutar el estado de la Capa Cognitiva HUD (Ghost Overlay)
  */
-export function useCognitiveLayerStore(): CognitiveLayerState {
+export function useCognitiveLayerStore(): CognitiveLayerState;
+export function useCognitiveLayerStore<T>(selector: (state: CognitiveLayerState) => T): T;
+export function useCognitiveLayerStore<T>(selector?: (state: CognitiveLayerState) => T) {
   const current = useSyncExternalStore(
     cognitiveLayerStore.subscribe,
     cognitiveLayerStore.getState,
     cognitiveLayerStore.getState
   );
 
-  return {
+  const fullState: CognitiveLayerState = {
     ...current,
     setCompiledData: cognitiveLayerStore.setCompiledData,
     toggleOverlay: cognitiveLayerStore.toggleOverlay,
+    toggleCognitiveLayer: cognitiveLayerStore.toggleCognitiveLayer,
     setOverlayVisibility: cognitiveLayerStore.setOverlayVisibility,
     toggleSubLayer: cognitiveLayerStore.toggleSubLayer,
     markAsDirty: cognitiveLayerStore.markAsDirty,
     focusInspectionTarget: cognitiveLayerStore.focusInspectionTarget,
     clearCompilation: cognitiveLayerStore.clearCompilation,
   };
+
+  return selector ? selector(fullState) : fullState;
 }

@@ -12,8 +12,11 @@ import {
   Maximize2,
   Minimize2,
   MoreVertical,
+  Eye,
+  EyeOff,
 } from "@sketchyicons/react-native";
 import { styles } from "./TopHeader.styles";
+import { useCognitiveLayerStore } from "../../stores/useCognitiveLayerStore";
 
 export interface TopHeaderProps {
   mapTitle: string;
@@ -49,6 +52,8 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
 }) => {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [tempTitle, setTempTitle] = useState(mapTitle);
+  const isCognitiveLayerVisible = useCognitiveLayerStore((s) => s.isCognitiveLayerVisible);
+  const toggleCognitiveLayer = useCognitiveLayerStore((s) => s.toggleCognitiveLayer);
 
   useEffect(() => {
     if (!isEditingTitle) {
@@ -180,6 +185,23 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
         <TouchableOpacity style={styles.compileButton} onPress={onOpenCompiler} activeOpacity={0.8}>
           <BrainCircuit size={17} color="#FFFFFF" strokeWidth={2.0} />
           <Text style={styles.compileText}>Compilar Mapa</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.zenButton}
+          onPress={toggleCognitiveLayer}
+          activeOpacity={0.7}
+          accessibilityLabel={
+            isCognitiveLayerVisible
+              ? "Ocultar capa cognitiva"
+              : "Mostrar capa cognitiva"
+          }
+        >
+          {isCognitiveLayerVisible ? (
+            <Eye size={16} color="#38BDF8" strokeWidth={2.0} />
+          ) : (
+            <EyeOff size={16} color="#94A3B8" strokeWidth={2.0} />
+          )}
         </TouchableOpacity>
 
         {onToggleZenMode && (

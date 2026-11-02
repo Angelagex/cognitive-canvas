@@ -270,6 +270,7 @@ export default function App() {
               onPacerFilterChange={canvas.setPacerFilter}
               showPacerOverlay={canvas.showPacerOverlay}
               onTogglePacerOverlay={canvas.handleTogglePacerOverlay}
+              onFocusNode={canvas.focusOnBoundingBox}
             />
 
             <AppModals

@@ -5,6 +5,7 @@ import { PlacedAttributeBadges } from "./PlacedAttributeBadges";
 import { SemanticAnchorTooltip } from "./SemanticAnchorTooltip";
 import { ContextualSelectionPill } from "../toolbar/popovers/ContextualToolPill";
 import { useCanvasState } from "../../hooks/useCanvasState";
+import { useCognitiveLayerStore } from "../../stores/useCognitiveLayerStore";
 
 export interface CanvasOverlaysProps {
   canvas: ReturnType<typeof useCanvasState>;
@@ -44,6 +45,12 @@ export const CanvasOverlays: React.FC<CanvasOverlaysProps> = ({ canvas }) => {
     handleClearSelection,
   } = canvas;
 
+  const isVisible = useCognitiveLayerStore((s) => s.isCognitiveLayerVisible);
+
+  if (!isVisible) {
+    return null;
+  }
+
   return (
     <>
       <GhostOverlay
@@ -61,7 +68,7 @@ export const CanvasOverlays: React.FC<CanvasOverlaysProps> = ({ canvas }) => {
           canvasTranslateX={canvasTranslateX}
           canvasTranslateY={canvasTranslateY}
           activeFilter={pacerFilter}
-          visible={showPacerOverlay}
+          visible={isVisible && showPacerOverlay}
         />
       )}
 

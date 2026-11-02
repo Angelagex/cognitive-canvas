@@ -10,6 +10,69 @@ import com.cognitivecanvas.app.ink.transform.CanvasTransformManager
 
 object OffscreenDocumentRenderer {
 
+    data class OffscreenRenderResult(
+        val bitmap: Bitmap,
+        val renderedRect: RectF
+    )
+
+    fun computeRenderedWorldRect(
+        completedStrokes: List<Stroke>,
+        fullDocument: Boolean,
+        viewWidth: Int,
+        viewHeight: Int,
+        density: Float,
+        transformManager: CanvasTransformManager,
+        getStrokeBounds: (Stroke) -> RectF?
+    ): RectF {
+        val viewW = if (viewWidth > 0) viewWidth.toFloat() else 1920f
+        val viewH = if (viewHeight > 0) viewHeight.toFloat() else 1080f
+        val safeDensity = if (density > 0f) density else 1f
+
+        if (fullDocument && completedStrokes.isNotEmpty()) {
+            var minX = Float.MAX_VALUE
+            var maxX = -Float.MAX_VALUE
+            var minY = Float.MAX_VALUE
+            var maxY = -Float.MAX_VALUE
+
+            for (stroke in completedStrokes) {
+                val b = getStrokeBounds(stroke) ?: continue
+                if (b.left < minX) minX = b.left
+                if (b.right > maxX) maxX = b.right
+                if (b.top < minY) minY = b.top
+                if (b.bottom > maxY) maxY = b.bottom
+            }
+
+            if (minX < maxX && minY < maxY) {
+                val padding = 40f
+                val contentLeft = minX - padding
+                val contentTop = minY - padding
+                val contentRight = maxX + padding
+                val contentBottom = maxY + padding
+                val contentW = (contentRight - contentLeft).coerceAtLeast(50f)
+                val contentH = (contentBottom - contentTop).coerceAtLeast(50f)
+
+                val calculatedFit = minOf(viewW / contentW, viewH / contentH)
+                val offsetX = (viewW - contentW * calculatedFit) / 2f
+                val offsetY = (viewH - contentH * calculatedFit) / 2f
+
+                val worldMinX = (contentLeft - offsetX / calculatedFit) / safeDensity
+                val worldMinY = (contentTop - offsetY / calculatedFit) / safeDensity
+                val worldMaxX = (contentLeft + (viewW - offsetX) / calculatedFit) / safeDensity
+                val worldMaxY = (contentTop + (viewH - offsetY) / calculatedFit) / safeDensity
+                return RectF(worldMinX, worldMinY, worldMaxX, worldMaxY)
+            }
+        }
+
+        val scale = transformManager.canvasScale.coerceAtLeast(0.01f)
+        val tx = transformManager.canvasTranslateX
+        val ty = transformManager.canvasTranslateY
+        val wMinX = (-tx / scale) / safeDensity
+        val wMinY = (-ty / scale) / safeDensity
+        val wMaxX = ((viewW - tx) / scale) / safeDensity
+        val wMaxY = ((viewH - ty) / scale) / safeDensity
+        return RectF(wMinX, wMinY, wMaxX, wMaxY)
+    }
+
     @OptIn(androidx.ink.brush.ExperimentalInkCustomBrushApi::class)
     fun renderToBitmap(
         completedStrokes: List<Stroke>,
