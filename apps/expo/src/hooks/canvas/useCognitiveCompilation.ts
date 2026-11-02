@@ -35,12 +35,18 @@ export const useCognitiveCompilation = (props?: UseCognitiveCompilationProps) =>
   const [compilation, setCompilation] = useState<CognitiveCompilerOutput | null>(null);
   const [pacerFilter, setPacerFilter] = useState<PacerClassification | "ALL">("ALL");
   const [showPacerOverlay, setShowPacerOverlay] = useState<boolean>(true);
+  const [showWalkthroughModal, setShowWalkthroughModal] = useState<boolean>(false);
 
   const handleTogglePacerOverlay = useCallback(() => {
     setShowPacerOverlay((prev) => !prev);
   }, []);
 
-  const handleCompile = useCallback(async () => {
+  const handleRequestCompile = useCallback(() => {
+    setShowWalkthroughModal(true);
+  }, []);
+
+  const handleCompile = useCallback(async (verbalWalkthroughTranscript?: string | null) => {
+    setShowWalkthroughModal(false);
     if (isCompilingRef.current) {
       console.warn("[useCognitiveCompilation] ⚠️ Compilation already in progress.");
       return;
@@ -62,14 +68,17 @@ export const useCognitiveCompilation = (props?: UseCognitiveCompilationProps) =>
         `[useCognitiveCompilation] 🧠 Vision-First compilation for: "${title}" (${canvasId})`
       );
 
-      // 1. Execute Vision-First Multimodal Compilation (PNG + lightweight context, ZERO flatPoints)
-      const response = await compileCanvas({
-        id: canvasId,
-        title,
-        strokes: localStrokes,
-        placedAttributes,
-        visualAST,
-      });
+      // 1. Execute Vision-First Multimodal Compilation (PNG + verbal walkthrough + lightweight context)
+      const response = await compileCanvas(
+        {
+          id: canvasId,
+          title,
+          strokes: localStrokes,
+          placedAttributes,
+          visualAST,
+        },
+        { verbalWalkthroughTranscript: verbalWalkthroughTranscript ?? null }
+      );
 
       const { renderWorldBounds } = response;
 
@@ -125,6 +134,7 @@ export const useCognitiveCompilation = (props?: UseCognitiveCompilationProps) =>
         nodes: enrichedNodes,
         edges: enrichedEdges,
         synthesis: response.synthesis,
+        reasoningDiagnosis: response.reasoningDiagnosis,
       };
 
       // 4. Construct CognitiveCompilerOutput for Canvas overlays & drawer
@@ -178,6 +188,7 @@ export const useCognitiveCompilation = (props?: UseCognitiveCompilationProps) =>
         nodes: overlayNodes,
         edges: overlayEdges,
         synthesis: response.synthesis,
+        reasoningDiagnosis: response.reasoningDiagnosis,
         compiled_graph_payload: compiledGraphPayload,
       };
 
@@ -230,6 +241,9 @@ export const useCognitiveCompilation = (props?: UseCognitiveCompilationProps) =>
     compilation,
     setCompilation,
     handleCompile,
+    handleRequestCompile,
+    showWalkthroughModal,
+    setShowWalkthroughModal,
     pacerFilter,
     setPacerFilter,
     showPacerOverlay,

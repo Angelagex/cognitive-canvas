@@ -50,6 +50,28 @@ export interface KnowledgeEdge {
   confidence?: number;
 }
 
+export interface ReasoningDiagnosis {
+  misconceptions: {
+    studentClaim: string;
+    flawExplanation: string;
+    remediationTarget: string;
+  }[];
+  omissions: {
+    missingConcept: string;
+    significance: string;
+  }[];
+  ghostConnections: {
+    clusterA: string;
+    clusterB: string;
+    tensionQuestion: string;
+  }[];
+  socraticChallenges: {
+    targetMechanism: string;
+    counterfactualQuestion: string;
+    expectedInvariant: string;
+  }[];
+}
+
 export interface CognitiveSynthesis {
   systemSummary: string;
   ghostConnections: {
@@ -74,6 +96,7 @@ export interface CompiledGraphPayload {
   nodes: KnowledgeNode[];
   edges: KnowledgeEdge[];
   synthesis: CognitiveSynthesis;
+  reasoningDiagnosis?: ReasoningDiagnosis;
 }
 
 export type CanvasCompiledPayload = CompiledGraphPayload;
@@ -267,6 +290,7 @@ export interface CompiledCognitiveMap {
   nodes?: CompiledNode[];
   edges?: CompiledEdge[];
   synthesis?: CognitiveSynthesis;
+  reasoningDiagnosis?: ReasoningDiagnosis;
   grinde_audit?: GrindeAudit;
   learning_engine_outputs?: LearningEngineOutputs;
   compiled_graph_payload?: CompiledGraphPayload;

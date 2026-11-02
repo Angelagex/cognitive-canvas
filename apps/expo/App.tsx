@@ -215,7 +215,11 @@ export default function App() {
                     canRedo={canvas.canRedo}
                     onUndo={canvas.handleUndo}
                     onRedo={canvas.handleRedo}
-                    onOpenCompiler={() => canvas.setIsDrawerOpen(true)}
+                    onOpenCompiler={() =>
+                      canvas.compilation
+                        ? canvas.setIsDrawerOpen(true)
+                        : canvas.handleRequestCompile()
+                    }
                     onOpenDocumentMenu={() => setShowDocumentMenu(true)}
                     onReturnToHub={handleReturnToHub}
                     isSaving={canvas.isSaving}
@@ -263,7 +267,7 @@ export default function App() {
               isOpen={canvas.isDrawerOpen}
               onClose={() => canvas.setIsDrawerOpen(false)}
               compilation={canvas.compilation}
-              onCompile={canvas.handleCompile}
+              onCompile={canvas.handleRequestCompile}
               isCompiling={canvas.isCompiling}
               strokeCount={canvas.strokeCount}
               pacerFilter={canvas.pacerFilter}

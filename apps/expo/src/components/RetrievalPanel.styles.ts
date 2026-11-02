@@ -117,6 +117,18 @@ export const styles = StyleSheet.create({
     borderColor: "#334155",
     gap: 8,
   },
+  misconceptionCard: {
+    backgroundColor: "rgba(239, 68, 68, 0.14)",
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 1.5,
+    borderColor: "#EF4444",
+    gap: 6,
+  },
+  misconceptionTitle: { color: "#FCA5A5", fontSize: 12, fontWeight: "800" },
+  misconceptionClaim: { color: "#FEE2E2", fontSize: 13, fontStyle: "italic", lineHeight: 19 },
+  misconceptionFlaw: { color: "#F8FAFC", fontSize: 13, lineHeight: 19 },
+  misconceptionTarget: { color: "#FBBF24", fontSize: 11, fontWeight: "700", marginTop: 2 },
   ghostCard: {
     backgroundColor: "rgba(88, 28, 135, 0.16)",
     borderRadius: 12,
@@ -179,6 +191,7 @@ export const styles = StyleSheet.create({
   edgeArrow: { color: "#C084FC", fontSize: 14, fontWeight: "900" },
   socraticTargetText: { color: "#38BDF8", fontSize: 12, fontWeight: "800" },
   socraticPromptText: { color: "#F1F5F9", fontSize: 13, lineHeight: 20 },
+  invariantText: { color: "#94A3B8", fontSize: 11, fontStyle: "italic", marginTop: 2 },
   actionButtonsRow: { flexDirection: "row", gap: 8, marginTop: 4, flexWrap: "wrap" },
   voiceActionBtn: {
     flexDirection: "row",

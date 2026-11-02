@@ -1,6 +1,7 @@
 import React from "react";
 import { ClearCanvasConfirmModal } from "./ClearCanvasConfirmModal";
 import { DocumentActionsModal } from "./DocumentActionsModal";
+import { VerbalWalkthroughModal } from "./VerbalWalkthroughModal";
 import { StickerPickerModal } from "../../features/stickers/StickerPickerModal";
 import { useCanvasState } from "../../hooks/useCanvasState";
 
@@ -68,6 +69,12 @@ export const AppModals: React.FC<AppModalsProps> = ({
         visible={stickerPickerVisible}
         targetWorld={stickerTargetWorld}
         onClose={onCloseStickerPicker}
+      />
+
+      <VerbalWalkthroughModal
+        visible={canvas.showWalkthroughModal}
+        onClose={() => canvas.setShowWalkthroughModal(false)}
+        onConfirmCompile={(transcript) => canvas.handleCompile(transcript)}
       />
     </>
   );

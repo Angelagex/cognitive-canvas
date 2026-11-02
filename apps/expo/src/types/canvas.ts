@@ -12,6 +12,7 @@ export type BrushType =
 export interface HighResPngExportResult {
   uri: string;
   path: string;
+  base64?: string;
   width: number;
   height: number;
   sizeBytes: number;
@@ -20,6 +21,8 @@ export interface HighResPngExportResult {
     minY: number;
     maxX: number;
     maxY: number;
+    width?: number;
+    height?: number;
   };
 }
 

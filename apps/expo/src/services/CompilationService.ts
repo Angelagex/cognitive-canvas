@@ -1,11 +1,6 @@
 import {
-  VisualAST,
-  CognitiveCompilerOutput,
-  RawInkStroke,
-  ConceptTier,
-  CausalEdgeType,
-  PacerRole,
-  CognitiveSynthesis,
+  VisualAST, CognitiveCompilerOutput, RawInkStroke, ConceptTier,
+  CausalEdgeType, PacerRole, CognitiveSynthesis, ReasoningDiagnosis,
 } from "@cognitive-canvas/core/types";
 import { PlacedAttribute, ThinkingMemo } from "../types/canvas";
 import { exportHighResPng, getCanvasStrokes } from "../components/JetpackInkCanvas";
@@ -16,6 +11,10 @@ import { computeRenderWorldBounds, RenderWorldBounds } from "../utils/SpatialHas
 
 export { compileMapLocally };
 export type { RenderWorldBounds };
+
+export interface CompilationOptions {
+  verbalWalkthroughTranscript?: string | null;
+}
 
 export interface VisionCompiledNode {
   id: string;
@@ -40,6 +39,7 @@ export interface VisionCompilerResponse {
   nodes: VisionCompiledNode[];
   edges: VisionCompiledEdge[];
   synthesis: CognitiveSynthesis;
+  reasoningDiagnosis: ReasoningDiagnosis;
   renderWorldBounds: RenderWorldBounds;
   legacyOutput?: CognitiveCompilerOutput;
 }
@@ -68,13 +68,12 @@ export interface CompileParams {
 }
 
 export async function compileCanvas(
-  document: CanvasDocumentInput
+  document: CanvasDocumentInput,
+  options?: CompilationOptions
 ): Promise<VisionCompilerResponse> {
   const apiKey = await KeyStorageService.getApiKey();
   if (!apiKey) {
-    throw new Error(
-      "No Gemini API Key found. Please add your API Key in Settings to compile canvases."
-    );
+    throw new Error("Debes configurar tu Gemini API Key en Ajustes antes de compilar.");
   }
 
   const apiUrl = document.apiUrl || process.env.EXPO_PUBLIC_API_URL;
@@ -91,13 +90,15 @@ export async function compileCanvas(
   if (!pngBase64String) {
     try {
       const capture = await exportHighResPng(1.0, true);
-      if (capture?.uri) {
+      if (capture) {
         capturedWidth = capture.width;
         capturedHeight = capture.height;
         capturedRect = capture.renderedRect;
-        pngBase64String = await FileSystem.readAsStringAsync(capture.uri, {
-          encoding: FileSystem.EncodingType.Base64,
-        });
+        pngBase64String =
+          capture.base64 ||
+          (capture.uri
+            ? await FileSystem.readAsStringAsync(capture.uri, { encoding: FileSystem.EncodingType.Base64 })
+            : "");
       }
     } catch (captureErr) {
       console.warn("[CompilationService] Offscreen PNG capture skipped:", captureErr);
@@ -115,10 +116,7 @@ export async function compileCanvas(
       : computeRenderWorldBounds(strokes, capturedWidth, capturedHeight);
 
   const rawAttrs = document.placedAttributes || document.metadata?.placed_attributes || [];
-
-  const extractedMemos: Array<{ id: string; transcript: string; worldX: number; worldY: number }> =
-    document.thinkingMemos ? [...document.thinkingMemos] : [];
-
+  const extractedMemos = document.thinkingMemos ? [...document.thinkingMemos] : [];
   rawAttrs.forEach((attr: any, idx: number) => {
     if (attr.thinkingMemo?.transcript?.trim()) {
       extractedMemos.push({
@@ -135,56 +133,66 @@ export async function compileCanvas(
     y: Number(((wy - renderWorldBounds.minY) / renderWorldBounds.height).toFixed(4)),
   });
 
-  const localizedThinkingMemos = extractedMemos.map((m) => ({
-    id: m.id,
-    transcript: m.transcript,
-    relativePosition: toRel(m.worldX, m.worldY),
-  }));
-
-  const localizedAttributes = rawAttrs.map((a: any) => ({
-    category: a.category || a.type || "CONCEPTUAL",
-    label: a.label || [a.title, a.note].filter(Boolean).join(": ") || "Attribute",
-    relativePosition: toRel(a.worldX ?? renderWorldBounds.minX, a.worldY ?? renderWorldBounds.minY),
-  }));
-
   const compilationRequest = {
     canvasId: document.id,
     canvasTitle: document.title || "Untitled",
     imageBase64: pngBase64String,
     renderWorldBounds,
-    thinkingMemos: localizedThinkingMemos,
-    passiveAttributes: localizedAttributes,
+    verbalWalkthroughTranscript: options?.verbalWalkthroughTranscript || null,
+    thinkingMemos: extractedMemos.map((m) => ({
+      id: m.id,
+      transcript: m.transcript,
+      relativePosition: toRel(m.worldX, m.worldY),
+    })),
+    passiveAttributes: rawAttrs.map((a: any) => ({
+      category: a.category || a.type || "CONCEPTUAL",
+      label: a.label || [a.title, a.note].filter(Boolean).join(": ") || "Attribute",
+      relativePosition: toRel(a.worldX ?? renderWorldBounds.minX, a.worldY ?? renderWorldBounds.minY),
+    })),
   };
 
   if (apiUrl && pngBase64String) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 45000);
-    const endpointUrl = `${apiUrl}/canvases/${document.id}/compile`;
-
     try {
-      const response = await fetch(endpointUrl, {
+      const response = await fetch(`${apiUrl}/canvases/${document.id}/compile`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-gemini-api-key": apiKey,
-        },
+        headers: { "Content-Type": "application/json", "x-gemini-api-key": apiKey },
         signal: controller.signal,
         body: JSON.stringify(compilationRequest),
       });
-
       clearTimeout(timeoutId);
 
       if (response.status === 401) {
-        throw new Error(
-          "Invalid or missing Gemini API Key. Please verify your key in Settings."
-        );
+        throw new Error("Invalid or missing Gemini API Key. Please verify your key in Settings.");
       }
 
       if (response.ok) {
         const data = await response.json();
         const resolved = data.output && Array.isArray(data.output.nodes) ? data.output : data;
         if (Array.isArray(resolved.nodes)) {
+          const rawDiag = resolved.reasoningDiagnosis || {};
           const rawSyn = resolved.synthesis || {};
+          const reasoningDiagnosis: ReasoningDiagnosis = {
+            misconceptions: Array.isArray(rawDiag.misconceptions) ? rawDiag.misconceptions : [],
+            omissions: Array.isArray(rawDiag.omissions)
+              ? rawDiag.omissions
+              : Array.isArray(rawSyn.blindSpots)
+              ? rawSyn.blindSpots
+              : [],
+            ghostConnections: Array.isArray(rawDiag.ghostConnections)
+              ? rawDiag.ghostConnections
+              : Array.isArray(rawSyn.ghostConnections)
+              ? rawSyn.ghostConnections
+              : [],
+            socraticChallenges: Array.isArray(rawDiag.socraticChallenges)
+              ? rawDiag.socraticChallenges
+              : (Array.isArray(rawSyn.socraticChallenges) ? rawSyn.socraticChallenges : []).map((c: any) => ({
+                  targetMechanism: c.targetMechanism || c.edgeTarget || "Mecanismo",
+                  counterfactualQuestion: c.counterfactualQuestion || "",
+                  expectedInvariant: c.expectedInvariant || "",
+                })),
+          };
           return {
             canvasId: resolved.canvasId || document.id,
             canvasTitle: resolved.canvasTitle || document.title || "Untitled",
@@ -194,16 +202,11 @@ export async function compileCanvas(
               domain: n.domain || document.title || "General",
               tier: n.tier || "mechanism",
               pacerRole:
-                n.pacerRole === "REFERENCE" ||
-                n.pacerRole === "PROCEDURAL" ||
-                n.pacerRole === "ANALOGOUS"
+                n.pacerRole === "REFERENCE" || n.pacerRole === "PROCEDURAL" || n.pacerRole === "ANALOGOUS"
                   ? n.pacerRole
                   : "NONE",
               summary: n.summary || n.passive_context || "",
-              box_2d:
-                Array.isArray(n.box_2d) && n.box_2d.length === 4
-                  ? n.box_2d
-                  : [150, 150, 350, 450],
+              box_2d: Array.isArray(n.box_2d) && n.box_2d.length === 4 ? n.box_2d : [150, 150, 350, 450],
             })),
             edges: (resolved.edges || []).map((e: any) => ({
               fromNodeId: e.fromNodeId || e.source_node_id,
@@ -213,26 +216,25 @@ export async function compileCanvas(
             })),
             synthesis: {
               systemSummary: rawSyn.systemSummary || "",
-              ghostConnections: Array.isArray(rawSyn.ghostConnections) ? rawSyn.ghostConnections : [],
-              blindSpots: Array.isArray(rawSyn.blindSpots) ? rawSyn.blindSpots : [],
-              socraticChallenges: Array.isArray(rawSyn.socraticChallenges)
-                ? rawSyn.socraticChallenges
-                : [],
+              ghostConnections: reasoningDiagnosis.ghostConnections,
+              blindSpots: reasoningDiagnosis.omissions,
+              socraticChallenges: reasoningDiagnosis.socraticChallenges.map((sc) => ({
+                edgeTarget: sc.targetMechanism,
+                counterfactualQuestion: sc.counterfactualQuestion,
+              })),
             },
+            reasoningDiagnosis,
             renderWorldBounds,
           };
         }
       }
     } catch (err: any) {
       clearTimeout(timeoutId);
-      if (err?.message?.includes("Gemini API Key")) {
-        throw err;
-      }
+      if (err?.message?.includes("Gemini API Key")) throw err;
       console.warn("[CompilationService] Cloud compilation fallback to local:", err);
     }
   }
 
-  // Offline / fallback synthesis
   const fallbackLocal = compileMapLocally({
     canvasId: document.id,
     title: document.title || "Untitled",
@@ -271,6 +273,7 @@ export async function compileCanvas(
       reasoning: e.reasoning,
     })),
     synthesis: payload?.synthesis || { systemSummary: "", ghostConnections: [], blindSpots: [], socraticChallenges: [] },
+    reasoningDiagnosis: { misconceptions: [], omissions: [], ghostConnections: [], socraticChallenges: [] },
     renderWorldBounds,
     legacyOutput: fallbackLocal,
   };

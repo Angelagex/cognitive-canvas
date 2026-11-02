@@ -196,6 +196,15 @@ class JetpackInkModule(private val reactContext: ReactApplicationContext) :
         }
     }
 
+    @ReactMethod
+    fun renderDocument(documentId: String?, promise: Promise) {
+        val options = Arguments.createMap().apply {
+            putDouble("scaleMultiplier", 1.0)
+            putBoolean("fullDocument", true)
+        }
+        exportHighResPng(options, promise)
+    }
+
     private fun saveBitmapAndResolve(
         bitmap: Bitmap,
         renderedRect: android.graphics.RectF,
@@ -206,14 +215,19 @@ class JetpackInkModule(private val reactContext: ReactApplicationContext) :
                 val fileName = "canvas_render_${System.currentTimeMillis()}.jpg"
                 val cacheDir = reactContext.cacheDir
                 val file = File(cacheDir, fileName)
-                val stream = FileOutputStream(file)
-                bitmap.compress(Bitmap.CompressFormat.JPEG, 80, stream)
-                stream.flush()
-                stream.close()
+                val byteStream = java.io.ByteArrayOutputStream()
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 85, byteStream)
+                val bytes = byteStream.toByteArray()
+                FileOutputStream(file).use { out ->
+                    out.write(bytes)
+                    out.flush()
+                }
+                val base64String = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
 
                 val result = Arguments.createMap().apply {
                     putString("uri", file.toURI().toString())
                     putString("path", file.absolutePath)
+                    putString("base64", base64String)
                     putString("mimeType", "image/jpeg")
                     putInt("width", bitmap.width)
                     putInt("height", bitmap.height)
@@ -223,6 +237,8 @@ class JetpackInkModule(private val reactContext: ReactApplicationContext) :
                         putDouble("minY", renderedRect.top.toDouble())
                         putDouble("maxX", renderedRect.right.toDouble())
                         putDouble("maxY", renderedRect.bottom.toDouble())
+                        putDouble("width", renderedRect.width().toDouble())
+                        putDouble("height", renderedRect.height().toDouble())
                     }
                     putMap("renderedRect", rectMap)
                 }

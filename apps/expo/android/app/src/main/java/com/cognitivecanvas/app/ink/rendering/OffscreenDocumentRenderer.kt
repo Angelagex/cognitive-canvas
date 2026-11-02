@@ -2,6 +2,7 @@ package com.cognitivecanvas.app.ink.rendering
 
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.Matrix
 import android.graphics.RectF
 import androidx.ink.rendering.android.canvas.CanvasStrokeRenderer
@@ -15,6 +16,44 @@ object OffscreenDocumentRenderer {
         val renderedRect: RectF
     )
 
+    /**
+     * Computes the document-wide bounding box in World DP across all stroke input points,
+     * completely independent of screen dimensions or active camera zoom/pan offsets.
+     */
+    fun computeDocumentWorldRect(
+        completedStrokes: List<Stroke>,
+        density: Float
+    ): RectF {
+        val safeDensity = if (density > 0f) density else 1f
+        var minX = Float.MAX_VALUE
+        var minY = Float.MAX_VALUE
+        var maxX = -Float.MAX_VALUE
+        var maxY = -Float.MAX_VALUE
+
+        for (stroke in completedStrokes) {
+            val inputs = stroke.inputs
+            for (i in 0 until inputs.size) {
+                val pt = inputs.get(i)
+                val wx = pt.x / safeDensity
+                val wy = pt.y / safeDensity
+                if (wx < minX) minX = wx
+                if (wy < minY) minY = wy
+                if (wx > maxX) maxX = wx
+                if (wy > maxY) maxY = wy
+            }
+        }
+
+        if (minX >= maxX || minY >= maxY || !minX.isFinite() || !minY.isFinite()) {
+            minX = 0f
+            minY = 0f
+            maxX = 1000f
+            maxY = 1000f
+        }
+
+        val padding = 80f // 80dp margin around all perimeter strokes
+        return RectF(minX - padding, minY - padding, maxX + padding, maxY + padding)
+    }
+
     fun computeRenderedWorldRect(
         completedStrokes: List<Stroke>,
         fullDocument: Boolean,
@@ -24,53 +63,7 @@ object OffscreenDocumentRenderer {
         transformManager: CanvasTransformManager,
         getStrokeBounds: (Stroke) -> RectF?
     ): RectF {
-        val viewW = if (viewWidth > 0) viewWidth.toFloat() else 1920f
-        val viewH = if (viewHeight > 0) viewHeight.toFloat() else 1080f
-        val safeDensity = if (density > 0f) density else 1f
-
-        if (fullDocument && completedStrokes.isNotEmpty()) {
-            var minX = Float.MAX_VALUE
-            var maxX = -Float.MAX_VALUE
-            var minY = Float.MAX_VALUE
-            var maxY = -Float.MAX_VALUE
-
-            for (stroke in completedStrokes) {
-                val b = getStrokeBounds(stroke) ?: continue
-                if (b.left < minX) minX = b.left
-                if (b.right > maxX) maxX = b.right
-                if (b.top < minY) minY = b.top
-                if (b.bottom > maxY) maxY = b.bottom
-            }
-
-            if (minX < maxX && minY < maxY) {
-                val padding = 40f
-                val contentLeft = minX - padding
-                val contentTop = minY - padding
-                val contentRight = maxX + padding
-                val contentBottom = maxY + padding
-                val contentW = (contentRight - contentLeft).coerceAtLeast(50f)
-                val contentH = (contentBottom - contentTop).coerceAtLeast(50f)
-
-                val calculatedFit = minOf(viewW / contentW, viewH / contentH)
-                val offsetX = (viewW - contentW * calculatedFit) / 2f
-                val offsetY = (viewH - contentH * calculatedFit) / 2f
-
-                val worldMinX = (contentLeft - offsetX / calculatedFit) / safeDensity
-                val worldMinY = (contentTop - offsetY / calculatedFit) / safeDensity
-                val worldMaxX = (contentLeft + (viewW - offsetX) / calculatedFit) / safeDensity
-                val worldMaxY = (contentTop + (viewH - offsetY) / calculatedFit) / safeDensity
-                return RectF(worldMinX, worldMinY, worldMaxX, worldMaxY)
-            }
-        }
-
-        val scale = transformManager.canvasScale.coerceAtLeast(0.01f)
-        val tx = transformManager.canvasTranslateX
-        val ty = transformManager.canvasTranslateY
-        val wMinX = (-tx / scale) / safeDensity
-        val wMinY = (-ty / scale) / safeDensity
-        val wMaxX = ((viewW - tx) / scale) / safeDensity
-        val wMaxY = ((viewH - ty) / scale) / safeDensity
-        return RectF(wMinX, wMinY, wMaxX, wMaxY)
+        return computeDocumentWorldRect(completedStrokes, density)
     }
 
     @OptIn(androidx.ink.brush.ExperimentalInkCustomBrushApi::class)
@@ -85,88 +78,49 @@ object OffscreenDocumentRenderer {
         strokeRenderer: CanvasStrokeRenderer,
         backgroundRenderer: CanvasBackgroundRenderer,
         backgroundType: String,
-        getStrokeBounds: (Stroke) -> RectF?
+        getStrokeBounds: (Stroke) -> RectF?,
+        density: Float = 2.0f
     ): Bitmap {
-        val viewW = if (viewWidth > 0) viewWidth.toFloat() else 1920f
-        val viewH = if (viewHeight > 0) viewHeight.toFloat() else 1080f
+        val safeDensity = if (density > 0f) density else 1f
+        val docRect = computeDocumentWorldRect(completedStrokes, safeDensity)
 
-        val targetW = (viewW * scaleMultiplier).toInt().coerceAtLeast(1)
-        val targetH = (viewH * scaleMultiplier).toInt().coerceAtLeast(1)
+        val targetWidth = (docRect.width() * scaleMultiplier).toInt().coerceIn(1024, 4096)
+        val targetHeight = (docRect.height() * scaleMultiplier).toInt().coerceIn(1024, 4096)
 
-        var fitScale = 0f
-        val renderMatrix: Matrix = if (fullDocument && completedStrokes.isNotEmpty()) {
-            var minX = Float.MAX_VALUE
-            var maxX = -Float.MAX_VALUE
-            var minY = Float.MAX_VALUE
-            var maxY = -Float.MAX_VALUE
+        val docLeftPx = docRect.left * safeDensity
+        val docTopPx = docRect.top * safeDensity
+        val docWidthPx = (docRect.width() * safeDensity).coerceAtLeast(1f)
+        val docHeightPx = (docRect.height() * safeDensity).coerceAtLeast(1f)
 
-            for (stroke in completedStrokes) {
-                val b = getStrokeBounds(stroke) ?: continue
-                if (b.left < minX) minX = b.left
-                if (b.right > maxX) maxX = b.right
-                if (b.top < minY) minY = b.top
-                if (b.bottom > maxY) maxY = b.bottom
-            }
+        val scaleX = targetWidth.toFloat() / docWidthPx
+        val scaleY = targetHeight.toFloat() / docHeightPx
+        val effectiveScale = minOf(scaleX, scaleY).coerceAtLeast(0.1f)
 
-            if (minX < maxX && minY < maxY) {
-                val padding = 40f
-                val contentLeft = minX - padding
-                val contentTop = minY - padding
-                val contentRight = maxX + padding
-                val contentBottom = maxY + padding
-                val contentW = (contentRight - contentLeft).coerceAtLeast(50f)
-                val contentH = (contentBottom - contentTop).coerceAtLeast(50f)
-
-                val calculatedFit = minOf(viewW / contentW, viewH / contentH)
-                fitScale = calculatedFit
-                val offsetX = (viewW - contentW * calculatedFit) / 2f
-                val offsetY = (viewH - contentH * calculatedFit) / 2f
-
-                Matrix().apply {
-                    postTranslate(-contentLeft, -contentTop)
-                    postScale(calculatedFit, calculatedFit)
-                    postTranslate(offsetX, offsetY)
-                }
-            } else {
-                transformManager.getRenderMatrix()
-            }
-        } else {
-            transformManager.getRenderMatrix()
+        val renderMatrix = Matrix().apply {
+            postTranslate(-docLeftPx, -docTopPx)
+            postScale(scaleX, scaleY)
         }
 
-        val exportMatrix = Matrix(renderMatrix).apply {
-            postScale(scaleMultiplier, scaleMultiplier)
-        }
-        val exportScale = (if (fitScale > 0f) fitScale else transformManager.canvasScale) * scaleMultiplier
+        val bgColor = if (backgroundColor != 0) backgroundColor else Color.parseColor("#0A0F1D")
 
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
             try {
                 val renderNode = android.graphics.RenderNode("ink_export").apply {
-                    setPosition(0, 0, targetW, targetH)
+                    setPosition(0, 0, targetWidth, targetHeight)
                 }
-                val canvas = renderNode.beginRecording(targetW, targetH)
-                canvas.drawColor(backgroundColor)
-                canvas.scale(scaleMultiplier, scaleMultiplier)
+                val canvas = renderNode.beginRecording(targetWidth, targetHeight)
+                canvas.drawColor(bgColor)
                 canvas.save()
                 canvas.concat(renderMatrix)
-                backgroundRenderer.draw(
-                    canvas,
-                    viewW,
-                    viewH,
-                    transformManager.canvasScale,
-                    transformManager.canvasTranslateX,
-                    transformManager.canvasTranslateY,
-                    backgroundType
-                )
                 for (stroke in completedStrokes) {
-                    strokeRenderer.draw(canvas, stroke, exportMatrix, exportScale)
+                    strokeRenderer.draw(canvas, stroke, renderMatrix, effectiveScale)
                 }
                 canvas.restore()
                 renderNode.endRecording()
 
                 val imageReader = android.media.ImageReader.newInstance(
-                    targetW,
-                    targetH,
+                    targetWidth,
+                    targetHeight,
                     android.graphics.PixelFormat.RGBA_8888,
                     1,
                     android.hardware.HardwareBuffer.USAGE_GPU_SAMPLED_IMAGE or android.hardware.HardwareBuffer.USAGE_GPU_COLOR_OUTPUT
@@ -198,30 +152,19 @@ object OffscreenDocumentRenderer {
                     return softwareBitmap
                 }
             } catch (e: Exception) {
-                android.util.Log.w("OffscreenDocumentRenderer", "HardwareRenderer offscreen capture failed: ${e.message}", e)
+                android.util.Log.w("OffscreenDocumentRenderer", "HardwareRenderer capture fallback: ${e.message}", e)
             }
         }
 
-        // Fallback for devices without HardwareRenderer
-        val fallbackBitmap = Bitmap.createBitmap(targetW, targetH, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(fallbackBitmap)
-        canvas.drawColor(backgroundColor)
-        canvas.scale(scaleMultiplier, scaleMultiplier)
+        val bitmap = Bitmap.createBitmap(targetWidth, targetHeight, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        canvas.drawColor(bgColor)
         canvas.save()
         canvas.concat(renderMatrix)
-        backgroundRenderer.draw(
-            canvas,
-            viewW,
-            viewH,
-            transformManager.canvasScale,
-            transformManager.canvasTranslateX,
-            transformManager.canvasTranslateY,
-            backgroundType
-        )
         for (stroke in completedStrokes) {
-            strokeRenderer.draw(canvas, stroke, exportMatrix, exportScale)
+            strokeRenderer.draw(canvas, stroke, renderMatrix, effectiveScale)
         }
         canvas.restore()
-        return fallbackBitmap
+        return bitmap
     }
 }

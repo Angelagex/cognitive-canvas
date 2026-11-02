@@ -108,6 +108,7 @@ export const handler: Handler = async (event) => {
       text: JSON.stringify({
         canvasId: resolvedCanvasId,
         canvasTitle: resolvedCanvasTitle,
+        verbalWalkthroughTranscript: payload.verbalWalkthroughTranscript || null,
         thinkingMemos: payload.thinkingMemos || payload.thinking_memos || [],
         passiveAttributes:
           payload.passiveAttributes || payload.passive_context_dictionary || [],

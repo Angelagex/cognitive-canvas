@@ -1252,7 +1252,8 @@ class JetpackInkView(context: Context) : FrameLayout(context) {
             strokeRenderer = strokeRenderer,
             backgroundRenderer = backgroundRenderer,
             backgroundType = backgroundType,
-            getStrokeBounds = { stroke -> getStrokeBounds(stroke) }
+            getStrokeBounds = { stroke -> getStrokeBounds(stroke) },
+            density = context.resources.displayMetrics.density
         )
     }
 

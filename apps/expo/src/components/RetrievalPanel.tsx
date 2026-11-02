@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from "react";
 import { View, Text, ScrollView, TouchableOpacity, Alert } from "react-native";
 import { Layers, GitBranch, HelpCircle, Eye, EyeOff, Sparkles } from "@sketchyicons/react-native";
-import { CognitiveCompilerOutput, PacerClassification, KnowledgeNode, KnowledgeEdge, ConceptTier, PacerRole, CognitiveSynthesis } from "@cognitive-canvas/core/types";
+import { CognitiveCompilerOutput, PacerClassification, KnowledgeNode, KnowledgeEdge, ConceptTier, PacerRole, ReasoningDiagnosis } from "@cognitive-canvas/core/types";
 import { useCognitiveLayerStore } from "../stores/useCognitiveLayerStore";
 import { styles } from "./RetrievalPanel.styles";
 
@@ -28,43 +28,28 @@ const PACER_ROLE_BADGE: Record<Exclude<PacerRole, "NONE">, { label: string; bg: 
 };
 
 export const RetrievalPanel: React.FC<RetrievalPanelProps> = ({
-  compilation,
-  pacerFilter = "ALL",
-  onPacerFilterChange,
-  onFocusNode,
-  onCloseDrawer,
+  compilation, pacerFilter = "ALL", onPacerFilterChange, onFocusNode, onCloseDrawer,
 }) => {
-  const [activeTab, setActiveTab] = useState<"STRUCTURE" | "SYNTHESIS" | "SOCRATIC">("STRUCTURE");
+  const [activeTab, setActiveTab] = useState<"STRUCTURE" | "DIAGNOSIS" | "SOCRATIC">("STRUCTURE");
+  const [expandedOmissions, setExpandedOmissions] = useState<Record<number, boolean>>({});
   const isCognitiveLayerVisible = useCognitiveLayerStore((s) => s.isCognitiveLayerVisible);
   const toggleCognitiveLayer = useCognitiveLayerStore((s) => s.toggleCognitiveLayer);
 
   const graphNodes: KnowledgeNode[] = useMemo(() => {
-    if (compilation.compiled_graph_payload?.nodes?.length) {
-      return compilation.compiled_graph_payload.nodes;
-    }
+    if (compilation.compiled_graph_payload?.nodes?.length) return compilation.compiled_graph_payload.nodes;
     return (compilation.nodes || []).map((n) => ({
       id: n.id,
       label: n.detected_content,
       domain: compilation.map_metadata?.domain_theme || "General",
       tier: n.pacer_classification === "REFERENCE" ? "primitive" : n.pacer_classification === "PROCEDURAL" ? "mechanism" : "system",
-      pacerRole:
-        n.pacer_classification === "REFERENCE" || n.pacer_classification === "PROCEDURAL" || n.pacer_classification === "ANALOGOUS"
-          ? n.pacer_classification
-          : "NONE",
+      pacerRole: (n.pacer_classification === "REFERENCE" || n.pacer_classification === "PROCEDURAL" || n.pacer_classification === "ANALOGOUS") ? n.pacer_classification : "NONE",
       summary: n.passive_context || "",
       verificationState: "unverified" as const,
-      provenance: [
-        {
-          canvasId: "active",
-          canvasTitle: compilation.map_metadata?.title || "Lienzo",
-          boundingBox: {
-            minX: n.visual_bounding_box.xmin,
-            minY: n.visual_bounding_box.ymin,
-            maxX: n.visual_bounding_box.xmax,
-            maxY: n.visual_bounding_box.ymax,
-          },
-        },
-      ],
+      provenance: [{
+        canvasId: "active",
+        canvasTitle: compilation.map_metadata?.title || "Lienzo",
+        boundingBox: { minX: n.visual_bounding_box.xmin, minY: n.visual_bounding_box.ymin, maxX: n.visual_bounding_box.xmax, maxY: n.visual_bounding_box.ymax },
+      }],
     }));
   }, [compilation]);
 
@@ -80,21 +65,35 @@ export const RetrievalPanel: React.FC<RetrievalPanelProps> = ({
     }));
   }, [compilation]);
 
-  const synthesis: CognitiveSynthesis = useMemo(() => {
-    const raw = compilation.synthesis || compilation.compiled_graph_payload?.synthesis;
+  const diagnosis: ReasoningDiagnosis = useMemo(() => {
+    const rawDiag = compilation.reasoningDiagnosis || compilation.compiled_graph_payload?.reasoningDiagnosis;
+    const rawSyn = compilation.synthesis || compilation.compiled_graph_payload?.synthesis;
     const fallbackChallenges = graphEdges.map((e) => ({
-      edgeTarget: `${e.fromNodeId} ➔ ${e.toNodeId}`,
+      targetMechanism: `${e.fromNodeId} ➔ ${e.toNodeId}`,
       counterfactualQuestion: e.reasoning,
+      expectedInvariant: "Preservación de estado y causalidad entre mecanismos.",
     }));
     return {
-      systemSummary: raw?.systemSummary || compilation.map_overview?.maturity_diagnosis || "",
-      ghostConnections: raw?.ghostConnections || [],
-      blindSpots: raw?.blindSpots || [],
-      socraticChallenges: raw?.socraticChallenges?.length ? raw.socraticChallenges : fallbackChallenges,
+      misconceptions: rawDiag?.misconceptions || [],
+      omissions: rawDiag?.omissions?.length ? rawDiag.omissions : rawSyn?.blindSpots || [],
+      ghostConnections: rawDiag?.ghostConnections?.length ? rawDiag.ghostConnections : rawSyn?.ghostConnections || [],
+      socraticChallenges: rawDiag?.socraticChallenges?.length
+        ? rawDiag.socraticChallenges
+        : rawSyn?.socraticChallenges?.length
+        ? rawSyn.socraticChallenges.map((c) => ({ targetMechanism: c.edgeTarget, counterfactualQuestion: c.counterfactualQuestion, expectedInvariant: "" }))
+        : fallbackChallenges,
     };
   }, [compilation, graphEdges]);
 
   const mapTitle = compilation.compiled_graph_payload?.canvasTitle || compilation.map_metadata?.title || "Mapa Cognitivo";
+
+  const focusMechanismByName = (targetText: string) => {
+    const t = targetText.toLowerCase();
+    const matched = graphNodes.find((n) => t.includes(n.label.toLowerCase()) || t.includes(n.id.toLowerCase()));
+    const box = matched?.provenance?.[0]?.boundingBox || graphNodes[0]?.provenance?.[0]?.boundingBox;
+    if (box && onFocusNode) onFocusNode(box);
+    else onCloseDrawer?.();
+  };
 
   return (
     <View style={styles.container}>
@@ -102,7 +101,7 @@ export const RetrievalPanel: React.FC<RetrievalPanelProps> = ({
         <View style={styles.headerTopRow}>
           <View style={styles.brandPill}>
             <Sparkles size={12} color="#38BDF8" strokeWidth={2.0} />
-            <Text style={styles.brandPillText}>COGNITIVE CANVAS • ARCHITECT</Text>
+            <Text style={styles.brandPillText}>COGNITIVE CANVAS • LEARNHARNESS</Text>
           </View>
           <View style={styles.statsBadge}>
             <Text style={styles.statsBadgeText}>{graphNodes.length} nodos • {graphEdges.length} enlaces</Text>
@@ -138,7 +137,7 @@ export const RetrievalPanel: React.FC<RetrievalPanelProps> = ({
       <View style={styles.tabsBar}>
         {([
           { id: "STRUCTURE", label: "Arquitectura y Nodos", Icon: Layers },
-          { id: "SYNTHESIS", label: "Síntesis y Puntos Ciegos", Icon: GitBranch },
+          { id: "DIAGNOSIS", label: "Puntos Ciegos y Falacias", Icon: GitBranch },
           { id: "SOCRATIC", label: "Auditoría Socrática", Icon: HelpCircle },
         ] as const).map(({ id, label, Icon }) => (
           <TouchableOpacity
@@ -199,49 +198,60 @@ export const RetrievalPanel: React.FC<RetrievalPanelProps> = ({
             );
           })}
 
-        {activeTab === "SYNTHESIS" && (
-          <View style={{ gap: 14 }}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Resumen Global del Sistema</Text>
-            </View>
-            <View style={styles.card}>
-              <Text style={styles.summaryText}>
-                {synthesis.systemSummary || "Compila tu mapa con IA para generar el diagnóstico arquitectónico global del sistema."}
-              </Text>
-            </View>
-
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Conexiones Ocultas (Ghost Links)</Text>
-            </View>
-            {synthesis.ghostConnections.length === 0 ? (
+        {activeTab === "DIAGNOSIS" && (
+          <View style={{ gap: 12 }}>
+            <Text style={styles.sectionTitle}>Falacias y Modelos Inválidos ({diagnosis.misconceptions.length})</Text>
+            {diagnosis.misconceptions.length === 0 ? (
               <View style={styles.emptyBox}>
-                <Text style={styles.emptyBoxText}>No se detectaron enlaces fantasma pendientes entre islas.</Text>
+                <Text style={styles.emptyBoxText}>No se detectaron contradicciones causales en tu explicación.</Text>
               </View>
             ) : (
-              synthesis.ghostConnections.map((gc, idx) => (
-                <View key={`ghost_${idx}`} style={styles.ghostCard}>
-                  <View style={styles.edgeRouteRow}>
-                    <Text style={styles.edgeEndpoint}>{gc.clusterA}</Text>
-                    <Text style={styles.edgeArrow}>⟷</Text>
-                    <Text style={styles.edgeEndpoint}>{gc.clusterB}</Text>
-                  </View>
-                  <Text style={styles.summaryText}>{gc.tensionQuestion}</Text>
+              diagnosis.misconceptions.map((mc, idx) => (
+                <View key={`mc_${idx}`} style={styles.misconceptionCard}>
+                  <Text style={styles.misconceptionTitle}>🚨 RUPTURA DE MODELO DETECTADA</Text>
+                  <Text style={styles.misconceptionClaim}>{`Aseveración del Estudiante: "${mc.studentClaim}"`}</Text>
+                  <Text style={styles.misconceptionFlaw}>{`Ruptura de Modelo: "${mc.flawExplanation}"`}</Text>
+                  {!!mc.remediationTarget && <Text style={styles.misconceptionTarget}>Objetivo: {mc.remediationTarget}</Text>}
                 </View>
               ))
             )}
 
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Puntos Ciegos Detectados</Text>
-            </View>
-            {synthesis.blindSpots.length === 0 ? (
+            <Text style={styles.sectionTitle}>Omisiones Estructurales ({diagnosis.omissions.length})</Text>
+            {diagnosis.omissions.length === 0 ? (
               <View style={styles.emptyBox}>
                 <Text style={styles.emptyBoxText}>No se detectaron omisiones estructurales críticas.</Text>
               </View>
             ) : (
-              synthesis.blindSpots.map((bs, idx) => (
-                <View key={`blind_${idx}`} style={styles.blindSpotCard}>
-                  <Text style={styles.nodeLabel}>⚠️ {bs.missingConcept}</Text>
-                  <Text style={styles.summaryText}>{bs.significance}</Text>
+              diagnosis.omissions.map((om, idx) => {
+                const isExp = expandedOmissions[idx] ?? true;
+                return (
+                  <TouchableOpacity
+                    key={`om_${idx}`}
+                    style={styles.blindSpotCard}
+                    onPress={() => setExpandedOmissions((prev) => ({ ...prev, [idx]: !isExp }))}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={styles.nodeLabel}>⚠️ {om.missingConcept} {isExp ? "▾" : "▸"}</Text>
+                    {isExp && <Text style={styles.summaryText}>{om.significance}</Text>}
+                  </TouchableOpacity>
+                );
+              })
+            )}
+
+            <Text style={styles.sectionTitle}>Conexiones Cruzadas (Ghost Links)</Text>
+            {diagnosis.ghostConnections.length === 0 ? (
+              <View style={styles.emptyBox}>
+                <Text style={styles.emptyBoxText}>No se detectaron enlaces fantasma pendientes entre islas.</Text>
+              </View>
+            ) : (
+              diagnosis.ghostConnections.map((gc, idx) => (
+                <View key={`ghost_${idx}`} style={styles.ghostCard}>
+                  <View style={styles.edgeRouteRow}>
+                    <Text style={styles.edgeEndpoint}>{gc.clusterA}</Text>
+                    <Text style={styles.edgeArrow}>⇄</Text>
+                    <Text style={styles.edgeEndpoint}>{gc.clusterB}</Text>
+                  </View>
+                  <Text style={styles.summaryText}>{gc.tensionQuestion}</Text>
                 </View>
               ))
             )}
@@ -249,45 +259,30 @@ export const RetrievalPanel: React.FC<RetrievalPanelProps> = ({
         )}
 
         {activeTab === "SOCRATIC" &&
-          (synthesis.socraticChallenges.length === 0 ? (
+          (diagnosis.socraticChallenges.length === 0 ? (
             <View style={styles.emptyBox}>
               <Text style={styles.emptyBoxText}>
-                Tu mapa aún no tiene flechas causales explícitas. Conecta tus conceptos con flechas direccionales para desbloquear la auditoría socrática.
+                Conecta tus conceptos con flechas direccionales o graba tu explicación verbal para desbloquear la auditoría socrática.
               </Text>
             </View>
           ) : (
-            synthesis.socraticChallenges.map((ch, idx) => (
+            diagnosis.socraticChallenges.map((ch, idx) => (
               <View key={`soc_${idx}`} style={styles.card}>
-                <Text style={styles.socraticTargetText}>🎯 Objetivo: {ch.edgeTarget}</Text>
+                <Text style={styles.socraticTargetText}>Target: {ch.targetMechanism}</Text>
                 <Text style={styles.socraticPromptText}>{ch.counterfactualQuestion}</Text>
+                {!!ch.expectedInvariant && <Text style={styles.invariantText}>Invariante: {ch.expectedInvariant}</Text>}
                 <View style={styles.actionButtonsRow}>
                   <TouchableOpacity
                     style={styles.voiceActionBtn}
                     onPress={() => {
                       onCloseDrawer?.();
-                      Alert.alert(
-                        "🎙️ Responder con Voz",
-                        `Selecciona el mecanismo "${ch.edgeTarget}" con el lazo en el lienzo y graba un Thinking Memo explicando tu defensa causal.`
-                      );
+                      Alert.alert("🎙️ Responder por Voz", `Selecciona "${ch.targetMechanism}" con el lazo en el lienzo y graba un Thinking Memo defendiendo este invariante.`);
                     }}
                   >
-                    <Text style={styles.voiceActionText}>[ 🎙️ Responder con Voz ]</Text>
+                    <Text style={styles.voiceActionText}>[ 🎙️ Responder por Voz ]</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.canvasActionBtn}
-                    onPress={() => {
-                      const matched = graphNodes.find(
-                        (n) => ch.edgeTarget.toLowerCase().includes(n.label.toLowerCase()) || ch.edgeTarget.toLowerCase().includes(n.id.toLowerCase())
-                      );
-                      const box = matched?.provenance?.[0]?.boundingBox || graphNodes[0]?.provenance?.[0]?.boundingBox;
-                      if (box && onFocusNode) {
-                        onFocusNode(box);
-                      } else {
-                        onCloseDrawer?.();
-                      }
-                    }}
-                  >
-                    <Text style={styles.canvasActionText}>[ ✍️ Defender en Canvas ]</Text>
+                  <TouchableOpacity style={styles.canvasActionBtn} onPress={() => focusMechanismByName(ch.targetMechanism)}>
+                    <Text style={styles.canvasActionText}>[ 🎯 Enfocar en Canvas ]</Text>
                   </TouchableOpacity>
                 </View>
               </View>

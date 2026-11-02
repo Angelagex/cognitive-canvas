@@ -63,6 +63,7 @@ export interface CanvasCompilerRequest {
   image_s3_key?: string;
   image_base64?: string;
   imageBase64?: string;
+  verbalWalkthroughTranscript?: string | null;
   renderWorldBounds?: {
     minX: number;
     minY: number;
