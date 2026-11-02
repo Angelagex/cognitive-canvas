@@ -1,16 +1,16 @@
 import * as FileSystem from "expo-file-system";
-import { getUserPreferences } from "./StorageService";
+import { NativeModules, PermissionsAndroid, Platform } from "react-native";
 import { ThinkingMemo } from "../types/canvas";
+import { TranscriptionService, DEEPGRAM_NOVA3_ENDPOINT } from "./TranscriptionService";
 
-export const DEEPGRAM_LISTEN_ENDPOINT =
-  "https://api.deepgram.com/v1/listen?model=nova-2&smart_format=true";
-export const MAX_RECORDING_DURATION_MS = 45000;
+export const DEEPGRAM_LISTEN_ENDPOINT = DEEPGRAM_NOVA3_ENDPOINT;
+export const MAX_RECORDING_DURATION_MS = 180000;
 
 interface ActiveSession {
   startedAt: number;
   maxTimer: ReturnType<typeof setTimeout> | null;
   nativeRecording: any | null;
-  audioUri: string | null;
+  usesJetpackRecorder: boolean;
 }
 
 let activeSession: ActiveSession | null = null;
@@ -22,12 +22,23 @@ export async function startThinkingAudioRecording(
   onMaxDurationReached?: () => void
 ): Promise<void> {
   if (activeSession) {
-    await stopAndTranscribeThinkingAudio();
+    await stopAndTranscribeThinkingAudio().catch(() => {});
+  }
+
+  if (Platform.OS === "android") {
+    const granted = await PermissionsAndroid.request(
+      PermissionsAndroid.PERMISSIONS.RECORD_AUDIO
+    );
+    console.log("[DeepgramService] Android RECORD_AUDIO permission:", granted);
+    if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+      throw new Error("Microphone permission denied.");
+    }
   }
 
   let nativeRecording: any = null;
+  let usesJetpackRecorder = false;
+
   try {
-    // Optional dynamic resolution if expo-av is linked in the dev client
     const dynamicRequire = typeof require !== "undefined" ? require : null;
     const expoAv = dynamicRequire ? dynamicRequire("expo-av") : null;
     if (expoAv?.Audio) {
@@ -42,7 +53,18 @@ export async function startThinkingAudioRecording(
       nativeRecording = rec;
     }
   } catch {
-    // Graceful fallback when native audio module is not linked in bare build
+    nativeRecording = null;
+  }
+
+  if (!nativeRecording && NativeModules.JetpackInkModule?.startAudioRecording) {
+    await NativeModules.JetpackInkModule.startAudioRecording();
+    usesJetpackRecorder = true;
+  }
+
+  if (!nativeRecording && !usesJetpackRecorder) {
+    throw new Error(
+      "Native audio recorder is not linked in the current APK. Rebuild Android (npx expo run:android) to enable microphone recording."
+    );
   }
 
   const maxTimer = setTimeout(() => {
@@ -53,12 +75,12 @@ export async function startThinkingAudioRecording(
     startedAt: Date.now(),
     maxTimer,
     nativeRecording,
-    audioUri: null,
+    usesJetpackRecorder,
   };
 }
 
 /**
- * Stops the active recording and dispatches audio bytes to Deepgram Nova-2.
+ * Stops the active recording and dispatches audio bytes to TranscriptionService.
  */
 export async function stopAndTranscribeThinkingAudio(): Promise<ThinkingMemo> {
   const session = activeSession;
@@ -70,16 +92,21 @@ export async function stopAndTranscribeThinkingAudio(): Promise<ThinkingMemo> {
 
   let audioUri: string | null = null;
   if (session?.nativeRecording) {
-    try {
-      await session.nativeRecording.stopAndUnloadAsync();
-      audioUri = session.nativeRecording.getURI();
-    } catch {
-      audioUri = null;
-    }
+    await session.nativeRecording.stopAndUnloadAsync();
+    audioUri = session.nativeRecording.getURI();
+  } else if (session?.usesJetpackRecorder && NativeModules.JetpackInkModule?.stopAudioRecording) {
+    audioUri = await NativeModules.JetpackInkModule.stopAudioRecording();
   }
 
+  if (!audioUri) {
+    throw new Error("No audio file URI was produced by the recorder.");
+  }
+
+  const fileInfo = await FileSystem.getInfoAsync(audioUri);
+  console.log("[DeepgramService] Recorded Audio File Info:", JSON.stringify(fileInfo));
+
   const recordedAt = Date.now();
-  const transcript = await transcribeAudioWithDeepgram(audioUri);
+  const transcript = await TranscriptionService.transcribeAudio(audioUri);
 
   return {
     transcript,
@@ -87,54 +114,12 @@ export async function stopAndTranscribeThinkingAudio(): Promise<ThinkingMemo> {
   };
 }
 
-/**
- * Dispatches recorded audio bytes to Deepgram Nova-2 REST endpoint.
- */
 export async function transcribeAudioWithDeepgram(
   audioUri: string | null,
   explicitApiKey?: string
 ): Promise<string> {
-  try {
-    const prefs = await getUserPreferences();
-    const apiKey =
-      explicitApiKey ||
-      prefs.deepgram_api_key ||
-      process.env.EXPO_PUBLIC_DEEPGRAM_API_KEY ||
-      "";
-
-    if (apiKey && audioUri) {
-      const base64Audio = await FileSystem.readAsStringAsync(audioUri, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
-      const binaryString =
-        typeof atob === "function" ? atob(base64Audio) : "";
-      const bytes = new Uint8Array(binaryString.length);
-      for (let i = 0; i < binaryString.length; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
-      }
-
-      const response = await fetch(DEEPGRAM_LISTEN_ENDPOINT, {
-        method: "POST",
-        headers: {
-          Authorization: `Token ${apiKey}`,
-          "Content-Type": "audio/m4a",
-        },
-        body: bytes.buffer,
-      });
-
-      if (response.ok) {
-        const json = await response.json();
-        const text: string | undefined =
-          json?.results?.channels?.[0]?.alternatives?.[0]?.transcript;
-        if (text && text.trim().length > 0) {
-          return text.trim();
-        }
-      }
-    }
-  } catch (err) {
-    console.warn("[DeepgramService] Deepgram transcription request fallback:", err);
+  if (!audioUri) {
+    throw new Error("Audio URI is missing; cannot transcribe empty recording.");
   }
-
-  return "Este mecanismo actúa como disparador causal directo; si falla la precondición, el estado aguas abajo se bloquea.";
+  return TranscriptionService.transcribeAudio(audioUri, explicitApiKey);
 }
-

@@ -1,6 +1,7 @@
 import { getUserPreferences, saveUserPreferences } from "./StorageService";
 
 const GEMINI_KEY_STORAGE_KEY = "cognitive_canvas_gemini_api_key";
+const DEEPGRAM_KEY_STORAGE_KEY = "cognitive_canvas_deepgram_api_key";
 
 /**
  * Safely resolves `expo-secure-store` at runtime only if the native `ExpoSecureStore`
@@ -54,6 +55,40 @@ export class KeyStorageService {
     return null;
   }
 
+  /**
+   * Retrieves the Deepgram API key.
+   * Priority:
+   * 1. EXPO_PUBLIC_DEEPGRAM_API_KEY from .env.local (local dev override)
+   * 2. Encrypted value in SecureStore (if native module is linked)
+   * 3. Local user preferences in FileSystem (fallback)
+   */
+  static async getDeepgramApiKey(): Promise<string | null> {
+    if (process.env.EXPO_PUBLIC_DEEPGRAM_API_KEY?.trim()) {
+      return process.env.EXPO_PUBLIC_DEEPGRAM_API_KEY.trim();
+    }
+
+    const secureStore = getNativeSecureStore();
+    if (secureStore) {
+      try {
+        const storedKey = await secureStore.getItemAsync(DEEPGRAM_KEY_STORAGE_KEY);
+        if (storedKey && storedKey.trim().length > 0) {
+          return storedKey.trim();
+        }
+      } catch (error) {
+        console.warn("SecureStore read fallback for Deepgram key:", error);
+      }
+    }
+
+    try {
+      const prefs = await getUserPreferences();
+      if (prefs.deepgram_api_key && prefs.deepgram_api_key.trim().length > 0) {
+        return prefs.deepgram_api_key.trim();
+      }
+    } catch {}
+
+    return null;
+  }
+
   static async setApiKey(apiKey: string): Promise<void> {
     const clean = apiKey.trim();
     const secureStore = getNativeSecureStore();
@@ -77,6 +112,31 @@ export class KeyStorageService {
       }
     }
     await saveUserPreferences({ gemini_api_key: "" });
+  }
+
+  static async setDeepgramApiKey(apiKey: string): Promise<void> {
+    const clean = apiKey.trim();
+    const secureStore = getNativeSecureStore();
+    if (secureStore) {
+      try {
+        await secureStore.setItemAsync(DEEPGRAM_KEY_STORAGE_KEY, clean);
+      } catch (error) {
+        console.warn("SecureStore write fallback for Deepgram key:", error);
+      }
+    }
+    await saveUserPreferences({ deepgram_api_key: clean });
+  }
+
+  static async clearDeepgramApiKey(): Promise<void> {
+    const secureStore = getNativeSecureStore();
+    if (secureStore) {
+      try {
+        await secureStore.deleteItemAsync(DEEPGRAM_KEY_STORAGE_KEY);
+      } catch (error) {
+        console.warn("SecureStore delete fallback for Deepgram key:", error);
+      }
+    }
+    await saveUserPreferences({ deepgram_api_key: "" });
   }
 
   /**

@@ -2,6 +2,7 @@ package com.cognitivecanvas.app.ink
 
 import android.graphics.Bitmap
 import android.graphics.Rect
+import android.media.MediaRecorder
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -23,6 +24,9 @@ import kotlinx.coroutines.launch
 class JetpackInkModule(private val reactContext: ReactApplicationContext) :
     ReactContextBaseJavaModule(reactContext) {
 
+    private var mediaRecorder: MediaRecorder? = null
+    private var currentAudioFile: File? = null
+
     init {
         // Precargar modelo offline en segundo plano al iniciar la app
         CoroutineScope(Dispatchers.IO).launch {
@@ -31,6 +35,60 @@ class JetpackInkModule(private val reactContext: ReactApplicationContext) :
     }
 
     override fun getName(): String = "JetpackInkModule"
+
+    @ReactMethod
+    fun startAudioRecording(promise: Promise) {
+        try {
+            stopRecorderInternal()
+            val outFile = File(reactContext.cacheDir, "walkthrough_${System.currentTimeMillis()}.m4a")
+            val recorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                MediaRecorder(reactContext)
+            } else {
+                @Suppress("DEPRECATION")
+                MediaRecorder()
+            }
+            recorder.setAudioSource(MediaRecorder.AudioSource.MIC)
+            recorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+            recorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+            recorder.setAudioSamplingRate(44100)
+            recorder.setAudioEncodingBitRate(128000)
+            recorder.setOutputFile(outFile.absolutePath)
+            recorder.prepare()
+            recorder.start()
+            mediaRecorder = recorder
+            currentAudioFile = outFile
+            promise.resolve(outFile.toURI().toString())
+        } catch (e: Exception) {
+            stopRecorderInternal()
+            promise.reject("ERR_AUDIO_START", e.message, e)
+        }
+    }
+
+    @ReactMethod
+    fun stopAudioRecording(promise: Promise) {
+        try {
+            val outFile = currentAudioFile
+            stopRecorderInternal()
+            if (outFile != null && outFile.exists()) {
+                promise.resolve(outFile.toURI().toString())
+            } else {
+                promise.resolve(null)
+            }
+        } catch (e: Exception) {
+            promise.reject("ERR_AUDIO_STOP", e.message, e)
+        }
+    }
+
+    private fun stopRecorderInternal() {
+        try {
+            mediaRecorder?.apply {
+                try { stop() } catch (_: Exception) {}
+                reset()
+                release()
+            }
+        } catch (_: Exception) {}
+        mediaRecorder = null
+    }
 
     @ReactMethod
     fun insertStickerInSelectionMode(stickerData: ReadableMap, worldX: Double, worldY: Double) {
@@ -135,17 +193,8 @@ class JetpackInkModule(private val reactContext: ReactApplicationContext) :
             return
         }
 
-        val scaleMultiplier = if (options?.hasKey("scaleMultiplier") == true) {
-            options.getDouble("scaleMultiplier").toFloat()
-        } else {
-            2.0f
-        }
-
-        val fullDocument = if (options?.hasKey("fullDocument") == true) {
-            options.getBoolean("fullDocument")
-        } else {
-            false
-        }
+        val scaleMultiplier = if (options?.hasKey("scaleMultiplier") == true) options.getDouble("scaleMultiplier").toFloat() else 2.0f
+        val fullDocument = if (options?.hasKey("fullDocument") == true) options.getBoolean("fullDocument") else false
 
         Handler(Looper.getMainLooper()).post {
             try {
@@ -167,26 +216,12 @@ class JetpackInkModule(private val reactContext: ReactApplicationContext) :
                 if (activity != null && activity.window != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     val location = IntArray(2)
                     inkView.getLocationInWindow(location)
-                    val rect = Rect(
-                        location[0],
-                        location[1],
-                        location[0] + inkView.width,
-                        location[1] + inkView.height
-                    )
+                    val rect = Rect(location[0], location[1], location[0] + inkView.width, location[1] + inkView.height)
                     val copyBitmap = Bitmap.createBitmap(inkView.width, inkView.height, Bitmap.Config.ARGB_8888)
-                    PixelCopy.request(
-                        activity.window,
-                        rect,
-                        copyBitmap,
-                        { copyResult ->
-                            if (copyResult == PixelCopy.SUCCESS) {
-                                saveBitmapAndResolve(copyBitmap, renderedRect, promise)
-                            } else {
-                                promise.reject("ERR_PIXEL_COPY", "PixelCopy failed with code: $copyResult")
-                            }
-                        },
-                        Handler(Looper.getMainLooper())
-                    )
+                    PixelCopy.request(activity.window, rect, copyBitmap, { copyResult ->
+                        if (copyResult == PixelCopy.SUCCESS) saveBitmapAndResolve(copyBitmap, renderedRect, promise)
+                        else promise.reject("ERR_PIXEL_COPY", "PixelCopy failed with code: $copyResult")
+                    }, Handler(Looper.getMainLooper()))
                 } else {
                     promise.reject("ERR_CAPTURE_FAILED", "No valid bitmap captured.")
                 }

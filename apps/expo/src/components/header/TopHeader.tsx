@@ -9,6 +9,8 @@ import {
   Undo2,
   Redo2,
   BrainCircuit,
+  Zap,
+  Mic,
   Maximize2,
   Minimize2,
   MoreVertical,
@@ -26,7 +28,13 @@ export interface TopHeaderProps {
   onUndo: () => void;
   onRedo: () => void;
   onRequestClear?: () => void;
-  onOpenCompiler: () => void;
+  isDrawerOpen?: boolean;
+  onToggleDrawer?: () => void;
+  onFastCompile?: () => void;
+  onStartExplanation?: () => void;
+  isCompiling?: boolean;
+  isRecordingWalkthrough?: boolean;
+  onOpenCompiler?: () => void;
   onOpenDocumentMenu?: () => void;
   onReturnToHub?: () => void;
   isSaving?: boolean;
@@ -36,19 +44,11 @@ export interface TopHeaderProps {
 }
 
 export const TopHeader: React.FC<TopHeaderProps> = ({
-  mapTitle,
-  onTitleChange,
-  canUndo,
-  canRedo,
-  onUndo,
-  onRedo,
-  onOpenCompiler,
-  onOpenDocumentMenu,
-  onReturnToHub,
-  isSaving = false,
-  lastSavedAt = null,
-  isZenMode = false,
-  onToggleZenMode,
+  mapTitle, onTitleChange, canUndo, canRedo, onUndo, onRedo,
+  isDrawerOpen = false, onToggleDrawer, onFastCompile, onStartExplanation,
+  isCompiling = false, isRecordingWalkthrough = false, onOpenCompiler,
+  onOpenDocumentMenu, onReturnToHub, isSaving = false, lastSavedAt = null,
+  isZenMode = false, onToggleZenMode,
 }) => {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [tempTitle, setTempTitle] = useState(mapTitle);
@@ -56,9 +56,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
   const toggleCognitiveLayer = useCognitiveLayerStore((s) => s.toggleCognitiveLayer);
 
   useEffect(() => {
-    if (!isEditingTitle) {
-      setTempTitle(mapTitle);
-    }
+    if (!isEditingTitle) setTempTitle(mapTitle);
   }, [mapTitle, isEditingTitle]);
 
   const handleStartEditing = () => {
@@ -68,17 +66,24 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
 
   const handleSaveTitle = () => {
     const trimmed = tempTitle.trim();
-    if (trimmed.length > 0 && trimmed !== mapTitle) {
-      onTitleChange(trimmed);
-    } else {
-      setTempTitle(mapTitle);
-    }
+    if (trimmed.length > 0 && trimmed !== mapTitle) onTitleChange(trimmed);
+    else setTempTitle(mapTitle);
     setIsEditingTitle(false);
   };
 
   const handleCancelEditing = () => {
     setTempTitle(mapTitle);
     setIsEditingTitle(false);
+  };
+
+  const handleDrawerToggle = () => {
+    if (onToggleDrawer) onToggleDrawer();
+    else if (onOpenCompiler) onOpenCompiler();
+  };
+
+  const handleFastCompileAction = () => {
+    if (onFastCompile) onFastCompile();
+    else if (onOpenCompiler) onOpenCompiler();
   };
 
   return (
@@ -180,21 +185,52 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
         </TouchableOpacity>
       </View>
 
-      {/* Far Right: [⚡ Compilar Mapa] & [Modo Enfoque] */}
+      {/* Far Right: [🧠 Análisis], [⚡ Compilar], [🎙️ Explicar] & Controls */}
       <View style={styles.rightSection}>
-        <TouchableOpacity style={styles.compileButton} onPress={onOpenCompiler} activeOpacity={0.8}>
-          <BrainCircuit size={17} color="#FFFFFF" strokeWidth={2.0} />
-          <Text style={styles.compileText}>Compilar Mapa</Text>
+        {/* 1. Drawer Toggle (Inspection) */}
+        <TouchableOpacity
+          style={[styles.inspectionButton, isDrawerOpen && styles.inspectionButtonActive]}
+          onPress={handleDrawerToggle}
+          activeOpacity={0.75}
+        >
+          <BrainCircuit size={17} color={isDrawerOpen ? "#38BDF8" : "#94A3B8"} strokeWidth={2.0} />
+          <Text style={[styles.inspectionButtonText, isDrawerOpen && styles.inspectionButtonTextActive]}>
+            Análisis
+          </Text>
         </TouchableOpacity>
+
+        {/* 2. Fast Direct Compilation */}
+        <TouchableOpacity
+          style={[styles.fastCompileButton, isCompiling && styles.buttonDisabled]}
+          onPress={handleFastCompileAction}
+          disabled={isCompiling}
+          activeOpacity={0.8}
+        >
+          <Zap size={14} color="#FFFFFF" strokeWidth={2.2} />
+          <Text style={styles.fastCompileText}>
+            {isCompiling ? "Compilando..." : "Compilar"}
+          </Text>
+        </TouchableOpacity>
+
+        {/* 3. Walkthrough Explanation Tool */}
+        {onStartExplanation && (
+          <TouchableOpacity
+            style={[styles.explainButton, (isCompiling || isRecordingWalkthrough) && styles.buttonDisabled]}
+            onPress={onStartExplanation}
+            disabled={isCompiling || isRecordingWalkthrough}
+            activeOpacity={0.8}
+          >
+            <Mic size={14} color="#38BDF8" strokeWidth={2.2} />
+            <Text style={styles.explainText}>Explicar</Text>
+          </TouchableOpacity>
+        )}
 
         <TouchableOpacity
           style={styles.zenButton}
           onPress={toggleCognitiveLayer}
           activeOpacity={0.7}
           accessibilityLabel={
-            isCognitiveLayerVisible
-              ? "Ocultar capa cognitiva"
-              : "Mostrar capa cognitiva"
+            isCognitiveLayerVisible ? "Ocultar capa cognitiva" : "Mostrar capa cognitiva"
           }
         >
           {isCognitiveLayerVisible ? (

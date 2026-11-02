@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
-import { StyleSheet, Modal, View, Text, TouchableOpacity, TextInput, ActivityIndicator } from "react-native";
+import { StyleSheet, Modal, View, Text, TouchableOpacity, TextInput, ActivityIndicator, Alert, NativeModules, PermissionsAndroid, Platform } from "react-native";
+import * as FileSystem from "expo-file-system";
 import { Mic, X, Sparkles } from "@sketchyicons/react-native";
-import { startThinkingAudioRecording, stopAndTranscribeThinkingAudio } from "../../services/DeepgramService";
+import { TranscriptionService } from "../../services/TranscriptionService";
 
 export interface VerbalWalkthroughModalProps {
   visible: boolean;
@@ -9,7 +10,7 @@ export interface VerbalWalkthroughModalProps {
   onConfirmCompile: (verbalWalkthroughTranscript: string | null) => void;
 }
 
-const MAX_WALKTHROUGH_SECONDS = 60;
+const MAX_RECORDING_DURATION_SEC = 180; // 3 minutes
 
 export const VerbalWalkthroughModal: React.FC<VerbalWalkthroughModalProps> = ({
   visible,
@@ -20,6 +21,7 @@ export const VerbalWalkthroughModal: React.FC<VerbalWalkthroughModalProps> = ({
   const [audioDuration, setAudioDuration] = useState(0);
   const [transcript, setTranscript] = useState("");
   const [isTranscribing, setIsTranscribing] = useState(false);
+  const recordingRef = useRef<any | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
@@ -34,40 +36,116 @@ export const VerbalWalkthroughModal: React.FC<VerbalWalkthroughModalProps> = ({
     };
   }, [visible]);
 
-  const stopRecordingFlow = async () => {
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
-    setIsRecording(false);
-    setIsTranscribing(true);
+  const startRecording = async () => {
     try {
-      const memo = await stopAndTranscribeThinkingAudio();
-      if (memo?.transcript) {
-        setTranscript((prev) => (prev ? `${prev} ${memo.transcript}`.trim() : memo.transcript));
+      console.log("[VerbalWalkthrough] Requesting microphone permissions...");
+      let permissionStatus = "granted";
+      if (Platform.OS === "android") {
+        const res = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO);
+        permissionStatus = res === PermissionsAndroid.RESULTS.GRANTED ? "granted" : res;
       }
-    } finally {
-      setIsTranscribing(false);
+      console.log("[VerbalWalkthrough] Permission status:", permissionStatus);
+
+      if (permissionStatus !== "granted") {
+        console.warn("[VerbalWalkthrough] Microphone permission denied");
+        Alert.alert("Permiso requerido", "Debes permitir el acceso al micrófono para grabar tu explicación.");
+        return;
+      }
+
+      console.log("[VerbalWalkthrough] Preparing audio recorder...");
+      const dynamicRequire = typeof require !== "undefined" ? require : null;
+      let expoAv: any = null;
+      try {
+        expoAv = dynamicRequire ? dynamicRequire("expo-av") : null;
+      } catch {
+        expoAv = null;
+      }
+
+      if (expoAv?.Audio) {
+        const permission = await expoAv.Audio.requestPermissionsAsync();
+        console.log("[VerbalWalkthrough] Expo Audio permission status:", permission.status);
+        await expoAv.Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
+        const { recording } = await expoAv.Audio.Recording.createAsync(
+          expoAv.Audio.RecordingOptionsPresets.HIGH_QUALITY
+        );
+        recordingRef.current = { type: "expo-av", instance: recording };
+      } else if (NativeModules.JetpackInkModule?.startAudioRecording) {
+        const uri = await NativeModules.JetpackInkModule.startAudioRecording();
+        recordingRef.current = { type: "native-ink", uri };
+      } else {
+        throw new Error(
+          "Módulo nativo de grabación no encontrado en este APK. Ejecuta 'npx expo run:android' o escribe/dicta con el teclado en el cuadro inferior."
+        );
+      }
+
+      setAudioDuration(0);
+      setIsRecording(true);
+      console.log("[VerbalWalkthrough] Recording started successfully");
+      timerRef.current = setInterval(() => {
+        setAudioDuration((prev) => {
+          if (prev + 1 >= MAX_RECORDING_DURATION_SEC) {
+            stopRecording();
+            return MAX_RECORDING_DURATION_SEC;
+          }
+          return prev + 1;
+        });
+      }, 1000);
+    } catch (error: any) {
+      console.error("[VerbalWalkthrough] Error starting recording:", error);
+      Alert.alert("Grabación de Voz", error?.message || "No se pudo iniciar la grabación de audio.");
     }
   };
 
-  const handleToggleRecording = async () => {
-    if (isRecording) {
-      await stopRecordingFlow();
-      return;
+  const stopRecording = async () => {
+    try {
+      console.log("[VerbalWalkthrough] Stopping recording...");
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+      if (!recordingRef.current) {
+        console.warn("[VerbalWalkthrough] No active recording found in ref");
+        setIsRecording(false);
+        return;
+      }
+
+      setIsRecording(false);
+      let uri: string | null = null;
+      if (recordingRef.current.type === "expo-av") {
+        await recordingRef.current.instance.stopAndUnloadAsync();
+        uri = recordingRef.current.instance.getURI();
+      } else if (recordingRef.current.type === "native-ink") {
+        uri = await NativeModules.JetpackInkModule.stopAudioRecording();
+      }
+      console.log("[VerbalWalkthrough] Recording stopped. File URI:", uri);
+
+      if (!uri) {
+        console.error("[VerbalWalkthrough] Recording URI is null or undefined");
+        return;
+      }
+
+      const fileInfo = await FileSystem.getInfoAsync(uri);
+      console.log("[VerbalWalkthrough] Audio File Info:", JSON.stringify(fileInfo));
+
+      if (!fileInfo.exists || (fileInfo as any).size === 0) {
+        console.error("[VerbalWalkthrough] Recorded audio file is empty or missing!");
+        Alert.alert("Error de Audio", "El archivo de audio grabado está vacío o no se pudo guardar.");
+        return;
+      }
+
+      setIsTranscribing(true);
+      console.log("[VerbalWalkthrough] Dispatching audio to transcription service...");
+      const transcribedText = await TranscriptionService.transcribeAudio(uri);
+      console.log("[VerbalWalkthrough] Transcription received:", transcribedText);
+
+      setTranscript((prev) => (prev ? `${prev} ${transcribedText}`.trim() : transcribedText));
+    } catch (error: any) {
+      console.error("[VerbalWalkthrough] Error stopping or transcribing audio:", error);
+      Alert.alert("Error de Transcripción", error?.message || "No se pudo transcribir el audio.");
+    } finally {
+      setIsTranscribing(false);
+      recordingRef.current = null;
     }
-    setAudioDuration(0);
-    setIsRecording(true);
-    await startThinkingAudioRecording(() => stopRecordingFlow());
-    timerRef.current = setInterval(() => {
-      setAudioDuration((prev) => {
-        if (prev + 1 >= MAX_WALKTHROUGH_SECONDS) {
-          stopRecordingFlow();
-          return MAX_WALKTHROUGH_SECONDS;
-        }
-        return prev + 1;
-      });
-    }, 1000);
   };
 
   const formatTime = (sec: number) => `${Math.floor(sec / 60)}:${sec % 60 < 10 ? "0" : ""}${sec % 60}`;
@@ -85,48 +163,28 @@ export const VerbalWalkthroughModal: React.FC<VerbalWalkthroughModalProps> = ({
               <X size={16} color="#94A3B8" strokeWidth={2.0} />
             </TouchableOpacity>
           </View>
-
-          <Text style={styles.promptTitle}>
-            ¿Deseas explicar tu mapa en voz alta antes de compilar? (Opcional)
-          </Text>
+          <Text style={styles.promptTitle}>¿Deseas explicar tu mapa en voz alta antes de compilar? (Opcional)</Text>
           <Text style={styles.promptSubtitle}>
-            La IA contrastará tu explicación verbal con tu dibujo para detectar vacíos conceptuales y falacias lógicas.
+            Explica tu mapa en voz alta (hasta 3 minutos). La IA contrastará tu explicación verbal con tu dibujo para detectar vacíos conceptuales y falacias lógicas.
           </Text>
-
           <View style={styles.recorderSection}>
             <TouchableOpacity
               style={[styles.recordBtn, isRecording && styles.recordBtnActive]}
-              onPress={handleToggleRecording}
+              onPress={() => (isRecording ? stopRecording() : startRecording())}
               disabled={isTranscribing}
             >
               <Mic size={16} color={isRecording ? "#FECACA" : "#38BDF8"} strokeWidth={2.0} />
               <Text style={[styles.recordBtnText, isRecording && styles.recordBtnTextActive]}>
-                {isRecording
-                  ? `[ ⏹️ Detener (${formatTime(audioDuration)} / 1:00) ]`
-                  : "[ 🎙️ Grabar Explicación (30-60s) ]"}
+                {isRecording ? `[ ⏹️ Detener (${formatTime(audioDuration)} / 3:00) ]` : "[ 🎙️ Grabar Explicación (hasta 3 min) ]"}
               </Text>
             </TouchableOpacity>
-
-            {isRecording && (
-              <View style={styles.waveRow}>
-                {[0.4, 0.8, 1.0, 0.6, 0.9, 0.5, 0.75, 0.95, 0.45].map((h, idx) => (
-                  <View
-                    key={idx}
-                    style={[styles.waveBar, { height: 8 + Math.round(((audioDuration + idx) % 4) * 6 * h) }]}
-                  />
-                ))}
-                <Text style={styles.waveStatusText}>Escuchando razonamiento causal...</Text>
-              </View>
-            )}
-
             {isTranscribing && (
               <View style={styles.transcribingBox}>
                 <ActivityIndicator size="small" color="#38BDF8" />
-                <Text style={styles.transcribingText}>Transcribiendo explicación...</Text>
+                <Text style={styles.transcribingText}>Transcribiendo explicación con IA...</Text>
               </View>
             )}
           </View>
-
           <TextInput
             style={styles.transcriptInput}
             value={transcript}
@@ -135,16 +193,10 @@ export const VerbalWalkthroughModal: React.FC<VerbalWalkthroughModalProps> = ({
             placeholderTextColor="#64748B"
             multiline
           />
-
           <View style={styles.actionsFooter}>
-            <TouchableOpacity
-              style={styles.skipBtn}
-              onPress={() => onConfirmCompile(null)}
-              disabled={isRecording || isTranscribing}
-            >
+            <TouchableOpacity style={styles.skipBtn} onPress={() => onConfirmCompile(null)} disabled={isRecording || isTranscribing}>
               <Text style={styles.skipBtnText}>[ Omitir y Compilar solo Imagen ]</Text>
             </TouchableOpacity>
-
             <TouchableOpacity
               style={[styles.confirmBtn, (!transcript.trim() || isRecording || isTranscribing) && styles.btnDisabled]}
               onPress={() => onConfirmCompile(transcript.trim())}
@@ -173,9 +225,6 @@ const styles = StyleSheet.create({
   recordBtnActive: { backgroundColor: "rgba(239, 68, 68, 0.2)", borderColor: "#EF4444" },
   recordBtnText: { color: "#38BDF8", fontSize: 13, fontWeight: "800" },
   recordBtnTextActive: { color: "#FECACA" },
-  waveRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, height: 32, backgroundColor: "#0B1120", borderRadius: 8, paddingHorizontal: 12 },
-  waveBar: { width: 4, borderRadius: 2, backgroundColor: "#EF4444" },
-  waveStatusText: { color: "#FCA5A5", fontSize: 11, fontWeight: "700", marginLeft: 8 },
   transcribingBox: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 6 },
   transcribingText: { color: "#38BDF8", fontSize: 12, fontWeight: "700" },
   transcriptInput: { backgroundColor: "#0B1120", borderColor: "#334155", borderWidth: 1, borderRadius: 10, color: "#F8FAFC", fontSize: 13, padding: 12, minHeight: 84, textAlignVertical: "top" },

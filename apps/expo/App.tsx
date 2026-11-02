@@ -10,6 +10,7 @@ import { FloatingFooter } from "./src/components/footer/FloatingFooter";
 import { ZenZoomToast } from "./src/components/footer/ZenZoomToast";
 import { CompilerDrawer } from "./src/components/drawer/CompilerDrawer";
 import { CanvasOverlays } from "./src/components/canvas/CanvasOverlays";
+import { FloatingRecordingPill } from "./src/components/canvas/FloatingRecordingPill";
 import { AppModals } from "./src/components/modals/AppModals";
 import { WorkspaceHubScreen } from "./src/features/hub/WorkspaceHubScreen";
 import { cognitiveLayerStore } from "./src/stores/useCognitiveLayerStore";
@@ -21,10 +22,7 @@ export default function App() {
   const [currentScreen, setCurrentScreen] = useState<RootScreen>("hub");
   const [showDocumentMenu, setShowDocumentMenu] = useState(false);
   const [stickerPickerVisible, setStickerPickerVisible] = useState(false);
-  const [stickerTargetWorld, setStickerTargetWorld] = useState<{ x: number; y: number }>({
-    x: 0,
-    y: 0,
-  });
+  const [stickerTargetWorld, setStickerTargetWorld] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [dragGhost, setDragGhost] = useState<{ screenX: number; screenY: number } | null>(null);
   const [isZenMode, setIsZenMode] = useState(false);
   const [zoomToastVisible, setZoomToastVisible] = useState(false);
@@ -204,10 +202,7 @@ export default function App() {
               )}
 
               {!isZenMode && (
-                <Animated.View
-                  style={[styles.topHeaderContainer, headerAnimStyle]}
-                  pointerEvents="box-none"
-                >
+                <Animated.View style={[styles.topHeaderContainer, headerAnimStyle]} pointerEvents="box-none">
                   <TopHeader
                     mapTitle={canvas.mapTitle}
                     onTitleChange={canvas.handleTitleChange}
@@ -215,11 +210,12 @@ export default function App() {
                     canRedo={canvas.canRedo}
                     onUndo={canvas.handleUndo}
                     onRedo={canvas.handleRedo}
-                    onOpenCompiler={() =>
-                      canvas.compilation
-                        ? canvas.setIsDrawerOpen(true)
-                        : canvas.handleRequestCompile()
-                    }
+                    isDrawerOpen={canvas.isDrawerOpen}
+                    onToggleDrawer={() => canvas.setIsDrawerOpen(!canvas.isDrawerOpen)}
+                    onFastCompile={canvas.handleFastCompile}
+                    onStartExplanation={canvas.handleStartExplanation}
+                    isCompiling={canvas.isCompiling}
+                    isRecordingWalkthrough={canvas.isRecordingWalkthrough}
                     onOpenDocumentMenu={() => setShowDocumentMenu(true)}
                     onReturnToHub={handleReturnToHub}
                     isSaving={canvas.isSaving}
@@ -230,11 +226,17 @@ export default function App() {
                 </Animated.View>
               )}
 
+              {canvas.isRecordingWalkthrough && (
+                <FloatingRecordingPill
+                  elapsedSeconds={canvas.walkthroughSeconds}
+                  maxSeconds={180}
+                  onStop={canvas.handleStopAndCompileExplanation}
+                  statusMessage={canvas.compilationStatusMessage}
+                />
+              )}
+
               {!isZenMode && (
-                <Animated.View
-                  style={[styles.floatingFooterContainer, footerAnimStyle]}
-                  pointerEvents="box-none"
-                >
+                <Animated.View style={[styles.floatingFooterContainer, footerAnimStyle]} pointerEvents="box-none">
                   <FloatingFooter
                     stylusOnly={canvas.stylusOnly}
                     onToggleStylusOnly={canvas.handleToggleStylusOnly}
@@ -248,26 +250,20 @@ export default function App() {
 
               {isZenMode && (
                 <Animated.View style={[styles.exitZenButtonWrapper, { opacity: zenAnim }]}>
-                  <TouchableOpacity
-                    style={styles.exitZenButton}
-                    onPress={() => setIsZenMode(false)}
-                    activeOpacity={0.7}
-                  >
+                  <TouchableOpacity style={styles.exitZenButton} onPress={() => setIsZenMode(false)} activeOpacity={0.7}>
                     <Minimize2 size={18} color="#38BDF8" strokeWidth={2.0} />
                   </TouchableOpacity>
                 </Animated.View>
               )}
 
-              {isZenMode && (
-                <ZenZoomToast displayZoom={canvas.displayZoom} visible={zoomToastVisible} />
-              )}
+              {isZenMode && <ZenZoomToast displayZoom={canvas.displayZoom} visible={zoomToastVisible} />}
             </View>
 
             <CompilerDrawer
               isOpen={canvas.isDrawerOpen}
               onClose={() => canvas.setIsDrawerOpen(false)}
               compilation={canvas.compilation}
-              onCompile={canvas.handleRequestCompile}
+              onCompile={canvas.handleFastCompile}
               isCompiling={canvas.isCompiling}
               strokeCount={canvas.strokeCount}
               pacerFilter={canvas.pacerFilter}
@@ -275,6 +271,7 @@ export default function App() {
               showPacerOverlay={canvas.showPacerOverlay}
               onTogglePacerOverlay={canvas.handleTogglePacerOverlay}
               onFocusNode={canvas.focusOnBoundingBox}
+              activeTab={canvas.activeDrawerTab}
             />
 
             <AppModals

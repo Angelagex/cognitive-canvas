@@ -16,6 +16,7 @@ interface CompilerDrawerProps {
   showPacerOverlay?: boolean;
   onTogglePacerOverlay?: () => void;
   onFocusNode?: (box: { minX: number; minY: number; maxX: number; maxY: number }) => void;
+  activeTab?: "STRUCTURE" | "DIAGNOSIS" | "SOCRATIC";
 }
 
 export const CompilerDrawer: React.FC<CompilerDrawerProps> = ({
@@ -30,6 +31,7 @@ export const CompilerDrawer: React.FC<CompilerDrawerProps> = ({
   showPacerOverlay,
   onTogglePacerOverlay,
   onFocusNode,
+  activeTab,
 }) => {
   const handleFocusNode = (box: { minX: number; minY: number; maxX: number; maxY: number }) => {
     onFocusNode?.(box);
@@ -91,6 +93,7 @@ export const CompilerDrawer: React.FC<CompilerDrawerProps> = ({
                 onTogglePacerOverlay={onTogglePacerOverlay}
                 onFocusNode={handleFocusNode}
                 onCloseDrawer={onClose}
+                initialTab={activeTab}
               />
             ) : (
               <View style={styles.emptyStateContainer}>

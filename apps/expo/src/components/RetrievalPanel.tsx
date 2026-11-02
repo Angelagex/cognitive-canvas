@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { View, Text, ScrollView, TouchableOpacity, Alert } from "react-native";
 import { Layers, GitBranch, HelpCircle, Eye, EyeOff, Sparkles } from "@sketchyicons/react-native";
 import { CognitiveCompilerOutput, PacerClassification, KnowledgeNode, KnowledgeEdge, ConceptTier, PacerRole, ReasoningDiagnosis } from "@cognitive-canvas/core/types";
@@ -13,6 +13,7 @@ export interface RetrievalPanelProps {
   onTogglePacerOverlay?: () => void;
   onFocusNode?: (box: { minX: number; minY: number; maxX: number; maxY: number }) => void;
   onCloseDrawer?: () => void;
+  initialTab?: "STRUCTURE" | "DIAGNOSIS" | "SOCRATIC";
 }
 
 const TIER_CONFIG: Record<ConceptTier, { title: string; badge: string; bg: string; border: string; color: string }> = {
@@ -28,12 +29,16 @@ const PACER_ROLE_BADGE: Record<Exclude<PacerRole, "NONE">, { label: string; bg: 
 };
 
 export const RetrievalPanel: React.FC<RetrievalPanelProps> = ({
-  compilation, pacerFilter = "ALL", onPacerFilterChange, onFocusNode, onCloseDrawer,
+  compilation, pacerFilter = "ALL", onPacerFilterChange, onFocusNode, onCloseDrawer, initialTab,
 }) => {
-  const [activeTab, setActiveTab] = useState<"STRUCTURE" | "DIAGNOSIS" | "SOCRATIC">("STRUCTURE");
+  const [activeTab, setActiveTab] = useState<"STRUCTURE" | "DIAGNOSIS" | "SOCRATIC">(initialTab || "STRUCTURE");
   const [expandedOmissions, setExpandedOmissions] = useState<Record<number, boolean>>({});
   const isCognitiveLayerVisible = useCognitiveLayerStore((s) => s.isCognitiveLayerVisible);
   const toggleCognitiveLayer = useCognitiveLayerStore((s) => s.toggleCognitiveLayer);
+
+  useEffect(() => {
+    if (initialTab) setActiveTab(initialTab);
+  }, [initialTab]);
 
   const graphNodes: KnowledgeNode[] = useMemo(() => {
     if (compilation.compiled_graph_payload?.nodes?.length) return compilation.compiled_graph_payload.nodes;
@@ -91,8 +96,7 @@ export const RetrievalPanel: React.FC<RetrievalPanelProps> = ({
     const t = targetText.toLowerCase();
     const matched = graphNodes.find((n) => t.includes(n.label.toLowerCase()) || t.includes(n.id.toLowerCase()));
     const box = matched?.provenance?.[0]?.boundingBox || graphNodes[0]?.provenance?.[0]?.boundingBox;
-    if (box && onFocusNode) onFocusNode(box);
-    else onCloseDrawer?.();
+    if (box && onFocusNode) onFocusNode(box); else onCloseDrawer?.();
   };
 
   return (

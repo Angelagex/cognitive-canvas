@@ -247,6 +247,14 @@ export const useCanvasState = () => {
     isCompiling: compiler.isCompiling,
     compilation: compiler.compilation,
     handleCompile: compiler.handleCompile,
+    handleFastCompile: compiler.handleFastCompile,
+    handleStartExplanation: compiler.handleStartExplanation,
+    handleStopAndCompileExplanation: compiler.handleStopAndCompileExplanation,
+    isRecordingWalkthrough: compiler.isRecordingWalkthrough,
+    walkthroughSeconds: compiler.walkthroughSeconds,
+    compilationStatusMessage: compiler.compilationStatusMessage,
+    activeDrawerTab: compiler.activeDrawerTab,
+    setActiveDrawerTab: compiler.setActiveDrawerTab,
     handleRequestCompile: compiler.handleRequestCompile,
     showWalkthroughModal: compiler.showWalkthroughModal,
     setShowWalkthroughModal: compiler.setShowWalkthroughModal,
@@ -276,12 +284,8 @@ export const useCanvasState = () => {
     handleSaveAnchorTooltip: handleSaveAnchorTooltipWithLassoClear,
 
     // Modals
-    showVaultModal,
-    setShowVaultModal,
-    showClearConfirmModal,
-    setShowClearConfirmModal,
-    handleRequestClear,
-    handleConfirmClear,
-    handleCancelClear,
+    showVaultModal, setShowVaultModal,
+    showClearConfirmModal, setShowClearConfirmModal,
+    handleRequestClear, handleConfirmClear, handleCancelClear,
   };
 };
