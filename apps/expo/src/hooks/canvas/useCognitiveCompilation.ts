@@ -1,25 +1,16 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { Alert } from "react-native";
-import {
-  CognitiveCompilerOutput,
-  VisualAST,
-  PacerClassification,
-  RawInkStroke,
-  KnowledgeNode,
-  KnowledgeEdge,
-  CanvasCompiledPayload,
-  CompiledNode,
-  CompiledEdge,
-} from "@cognitive-canvas/core/types";
+import { CognitiveCompilerOutput, VisualAST, PacerClassification, RawInkStroke } from "@cognitive-canvas/core/types";
 import { PlacedAttribute } from "../../types/canvas";
 import { compileCanvas } from "../../services/CompilationService";
 import { saveCompiledGraph } from "../../services/CompiledGraphStorage";
-import { loadDocument, saveDocument } from "../../services/StorageService";
+import { loadDocument, saveDocument, getCompilationForCanvas } from "../../services/StorageService";
 import { getCanvasStrokes } from "../../components/JetpackInkCanvas";
-import { SpatialHashGrid } from "../../utils/SpatialHashGrid";
 import { cognitiveLayerStore } from "../../stores/useCognitiveLayerStore";
 import { WalkthroughAudioService } from "../../services/WalkthroughAudioService";
 import { TranscriptionService } from "../../services/TranscriptionService";
+import { WalkthroughConfirmParams } from "../../components/modals/VerbalWalkthroughModal";
+import { mapVisionResponseToOutput } from "./compilationMapper";
 
 export interface UseCognitiveCompilationProps {
   getVisualAST?: () => VisualAST | null | Promise<VisualAST | null>;
@@ -30,33 +21,39 @@ export interface UseCognitiveCompilationProps {
   onCompilationComplete?: (output: CognitiveCompilerOutput) => void;
 }
 
+export interface ExecuteCompilationParams {
+  verbalWalkthroughTranscript?: string | null;
+  isIncremental?: boolean;
+}
+
 export const useCognitiveCompilation = (props?: UseCognitiveCompilationProps) => {
   const [isDrawerOpen, setIsDrawerOpen] = useState<boolean>(false);
   const [isCompiling, setIsCompiling] = useState<boolean>(false);
   const isCompilingRef = useRef<boolean>(false);
+  const isStoppingRef = useRef<boolean>(false);
   const [compilation, setCompilation] = useState<CognitiveCompilerOutput | null>(null);
   const [pacerFilter, setPacerFilter] = useState<PacerClassification | "ALL">("ALL");
   const [showPacerOverlay, setShowPacerOverlay] = useState<boolean>(true);
   const [showWalkthroughModal, setShowWalkthroughModal] = useState<boolean>(false);
+  const [walkthroughModalTranscript, setWalkthroughModalTranscript] = useState<string>("");
+  const [walkthroughModalPhase, setWalkthroughModalPhase] = useState<"idle" | "recording" | "transcribing" | "review">("idle");
 
-  // Walkthrough & Auto-drawer lifecycle state
   const [isRecordingWalkthrough, setIsRecordingWalkthrough] = useState(false);
   const [walkthroughSeconds, setWalkthroughSeconds] = useState(0);
   const [compilationStatusMessage, setCompilationStatusMessage] = useState<string | null>(null);
   const [activeDrawerTab, setActiveDrawerTab] = useState<"STRUCTURE" | "DIAGNOSIS" | "SOCRATIC">("STRUCTURE");
 
-  const handleTogglePacerOverlay = useCallback(() => {
-    setShowPacerOverlay((prev) => !prev);
-  }, []);
-
+  const handleTogglePacerOverlay = useCallback(() => setShowPacerOverlay((prev) => !prev), []);
   const handleRequestCompile = useCallback(() => {
+    setWalkthroughModalPhase("idle");
+    setWalkthroughModalTranscript("");
     setShowWalkthroughModal(true);
   }, []);
 
   const executeCompilation = useCallback(
-    async (options?: { verbalWalkthroughTranscript?: string | null }) => {
+    async ({ verbalWalkthroughTranscript = null, isIncremental = false }: ExecuteCompilationParams = {}) => {
       if (isCompilingRef.current) {
-        console.warn("[useCognitiveCompilation] ⚠️ Compilation already in progress.");
+        console.warn("[Compilation] Blocked: compilation already in progress.");
         return null;
       }
       isCompilingRef.current = true;
@@ -72,91 +69,22 @@ export const useCognitiveCompilation = (props?: UseCognitiveCompilationProps) =>
           localStrokes = await getCanvasStrokes().catch(() => []);
         }
 
+        let previousAnalysis: { nodes?: any[]; edges?: any[] } | null = null;
+        if (isIncremental) {
+          const stored = await getCompilationForCanvas(canvasId);
+          if (stored?.nodes || stored?.edges) {
+            previousAnalysis = { nodes: stored.nodes || [], edges: stored.edges || [] };
+          }
+        }
+
         const response = await compileCanvas(
           { id: canvasId, title, strokes: localStrokes, placedAttributes, visualAST },
-          { verbalWalkthroughTranscript: options?.verbalWalkthroughTranscript ?? null }
+          { verbalWalkthroughTranscript, previousAnalysis }
         );
 
-        const { renderWorldBounds } = response;
-        const spatialGrid = new SpatialHashGrid(64);
-        for (const stroke of localStrokes) spatialGrid.insert(stroke);
-
-        const enrichedNodes: KnowledgeNode[] = response.nodes.map((node) => {
-          const [ymin, xmin, ymax, xmax] = node.box_2d;
-          const worldBounds = {
-            minX: renderWorldBounds.minX + (xmin / 1000) * renderWorldBounds.width,
-            minY: renderWorldBounds.minY + (ymin / 1000) * renderWorldBounds.height,
-            maxX: renderWorldBounds.minX + (xmax / 1000) * renderWorldBounds.width,
-            maxY: renderWorldBounds.minY + (ymax / 1000) * renderWorldBounds.height,
-          };
-          for (const s of spatialGrid.query(worldBounds)) s.associatedNodeId = node.id;
-          return {
-            ...node,
-            pacerRole: node.pacerRole || "NONE",
-            verificationState: "unverified",
-            provenance: [{ canvasId: response.canvasId, canvasTitle: response.canvasTitle, boundingBox: worldBounds }],
-          };
-        });
-
-        const enrichedEdges: KnowledgeEdge[] = response.edges.map((edge, idx) => ({
-          id: `edge_${response.canvasId}_${idx}`,
-          fromNodeId: edge.fromNodeId,
-          toNodeId: edge.toNodeId,
-          type: edge.type,
-          reasoning: edge.reasoning,
-          confidence: 0.9,
-        }));
-
-        const compiledGraphPayload: CanvasCompiledPayload = {
-          canvasId: response.canvasId,
-          canvasTitle: response.canvasTitle,
-          compiledAt: Date.now(),
-          nodes: enrichedNodes,
-          edges: enrichedEdges,
-          synthesis: response.synthesis,
-          reasoningDiagnosis: response.reasoningDiagnosis,
-        };
-
-        const overlayNodes: CompiledNode[] = enrichedNodes.map((n) => {
-          const b = n.provenance[0]?.boundingBox || { minX: 100, minY: 100, maxX: 300, maxY: 220 };
-          const pacer: PacerClassification =
-            n.pacerRole === "REFERENCE" || n.pacerRole === "PROCEDURAL" || n.pacerRole === "ANALOGOUS"
-              ? n.pacerRole
-              : "NONE";
-          return {
-            id: n.id,
-            visual_bounding_box: { xmin: b.minX, ymin: b.minY, xmax: b.maxX, ymax: b.maxY },
-            detected_content: n.label,
-            passive_context: n.summary,
-            pacer_classification: pacer,
-            deducible_from_context: n.pacerRole !== "REFERENCE",
-          };
-        });
-
-        const overlayEdges: CompiledEdge[] = enrichedEdges.map((e) => ({
-          source_node_id: e.fromNodeId,
-          target_node_id: e.toNodeId,
-          label: e.reasoning,
-          is_cross_link: false,
-          relation_nature: e.type === "INHIBITS" ? "OPPOSITION_CONTRAST" : e.type === "PREREQUISITE_OF" ? "CONDITIONAL" : "CAUSAL",
-        }));
-
-        const output: CognitiveCompilerOutput = {
-          ...(response.legacyOutput || {}),
-          map_metadata: {
-            title: response.canvasTitle,
-            domain_theme: enrichedNodes[0]?.domain || response.canvasTitle,
-            total_nodes: enrichedNodes.length,
-            total_edges: enrichedEdges.length,
-          },
-          nodes: overlayNodes,
-          edges: overlayEdges,
-          synthesis: response.synthesis,
-          reasoningDiagnosis: response.reasoningDiagnosis,
-          compiled_graph_payload: compiledGraphPayload,
-        };
-
+        const { output, compiledGraphPayload } = mapVisionResponseToOutput(response, localStrokes);
         await saveCompiledGraph(compiledGraphPayload);
+
         const existingDoc = await loadDocument(canvasId);
         if (existingDoc) {
           const nodeStrokeMap = new Map<string, string>();
@@ -178,12 +106,13 @@ export const useCognitiveCompilation = (props?: UseCognitiveCompilationProps) =>
         props?.onCompilationComplete?.(output);
         return output;
       } catch (err: any) {
-        console.error("[useCognitiveCompilation] Compilation error:", err);
-        Alert.alert("Compilation Error", err?.message || "Failed to compile canvas. Please check your Gemini API Key in Settings.");
+        console.error("[Compilation] Execution error:", err);
+        Alert.alert("Error de Compilación", err?.message || "Failed to compile canvas.");
         throw err;
       } finally {
         isCompilingRef.current = false;
         setIsCompiling(false);
+        setCompilationStatusMessage(null);
       }
     },
     [props]
@@ -191,43 +120,79 @@ export const useCognitiveCompilation = (props?: UseCognitiveCompilationProps) =>
 
   const handleFastCompile = useCallback(async () => {
     try {
-      await executeCompilation({ verbalWalkthroughTranscript: null });
+      await executeCompilation({ verbalWalkthroughTranscript: null, isIncremental: false });
       setActiveDrawerTab("STRUCTURE");
       setIsDrawerOpen(true);
-    } catch {
-      // Handled in executeCompilation
-    }
+    } catch {}
   }, [executeCompilation]);
 
-  const handleStartExplanation = useCallback(async () => {
+  const handleLongPressFastCompile = useCallback(() => {
+    Alert.alert(
+      "Opciones de Compilación",
+      "Selecciona cómo evaluar el lienzo con la IA:",
+      [
+        {
+          text: "Actualización Incremental (Preservar nodos)",
+          onPress: async () => {
+            await executeCompilation({ verbalWalkthroughTranscript: null, isIncremental: true });
+            setActiveDrawerTab("STRUCTURE");
+            setIsDrawerOpen(true);
+          },
+        },
+        {
+          text: "Evaluación Completa (Desde cero)",
+          onPress: async () => {
+            await executeCompilation({ verbalWalkthroughTranscript: null, isIncremental: false });
+            setActiveDrawerTab("STRUCTURE");
+            setIsDrawerOpen(true);
+          },
+        },
+        { text: "Cancelar", style: "cancel" },
+      ]
+    );
+  }, [executeCompilation]);
+
+  const handleStartExplanation = useCallback(() => {
     setIsDrawerOpen(false);
-    const started = await WalkthroughAudioService.startRecording();
-    if (started) {
-      setWalkthroughSeconds(0);
-      setIsRecordingWalkthrough(true);
-    } else {
-      Alert.alert("Micrófono", "No se pudo acceder al micrófono para grabar la explicación.");
-    }
+    setShowWalkthroughModal(true);
   }, []);
 
-  const handleStopAndCompileExplanation = useCallback(async () => {
+  const handleStopAndReviewExplanation = useCallback(async () => {
+    if (isStoppingRef.current) return;
+    isStoppingRef.current = true;
     try {
       const audioUri = await WalkthroughAudioService.stopRecording();
       setIsRecordingWalkthrough(false);
-      setCompilationStatusMessage("Transcribiendo razonamiento...");
-      const transcript = audioUri ? await TranscriptionService.transcribeAudio(audioUri) : null;
-      setCompilationStatusMessage("Compilando mapa y razonamiento...");
-      await executeCompilation({ verbalWalkthroughTranscript: transcript });
-      setActiveDrawerTab("DIAGNOSIS");
-      setIsDrawerOpen(true);
+      if (audioUri) {
+        setCompilationStatusMessage("Transcribiendo razonamiento...");
+        const transcript = await TranscriptionService.transcribeAudio(audioUri);
+        setWalkthroughModalTranscript(transcript);
+        setWalkthroughModalPhase("review");
+        setShowWalkthroughModal(true);
+      }
     } catch (error: any) {
-      console.error("[useCognitiveCompilation] Walkthrough error:", error);
-      Alert.alert("Error de Explicación", error?.message || "No se pudo completar la compilación con audio.");
+      console.error("[Compilation] Transcribe error:", error);
+      Alert.alert("Audio", error?.message || "No se pudo transcribir la explicación.");
     } finally {
       setCompilationStatusMessage(null);
       setIsRecordingWalkthrough(false);
+      isStoppingRef.current = false;
     }
-  }, [executeCompilation]);
+  }, []);
+
+  const handleConfirmWalkthrough = useCallback(
+    async (result: WalkthroughConfirmParams | string | null) => {
+      setShowWalkthroughModal(false);
+      const transcript = typeof result === "string" ? result : result?.transcript ?? null;
+      const isIncremental = typeof result === "object" && result !== null ? Boolean(result.isIncremental) : true;
+      try {
+        await executeCompilation({ verbalWalkthroughTranscript: transcript, isIncremental });
+        setActiveDrawerTab("DIAGNOSIS");
+        setIsDrawerOpen(true);
+      } catch {}
+    },
+    [executeCompilation]
+  );
 
   useEffect(() => {
     let interval: ReturnType<typeof setInterval> | null = null;
@@ -235,26 +200,15 @@ export const useCognitiveCompilation = (props?: UseCognitiveCompilationProps) =>
       interval = setInterval(() => {
         setWalkthroughSeconds((prev) => {
           if (prev + 1 >= 180) {
-            handleStopAndCompileExplanation();
+            handleStopAndReviewExplanation();
             return 180;
           }
           return prev + 1;
         });
       }, 1000);
     }
-    return () => {
-      if (interval) clearInterval(interval);
-    };
-  }, [isRecordingWalkthrough, handleStopAndCompileExplanation]);
-
-  const handleCompile = useCallback(
-    async (verbalWalkthroughTranscript?: string | null) => {
-      setShowWalkthroughModal(false);
-      await executeCompilation({ verbalWalkthroughTranscript: verbalWalkthroughTranscript ?? null });
-      setIsDrawerOpen(true);
-    },
-    [executeCompilation]
-  );
+    return () => { if (interval) clearInterval(interval); };
+  }, [isRecordingWalkthrough, handleStopAndReviewExplanation]);
 
   return {
     isDrawerOpen,
@@ -263,10 +217,12 @@ export const useCognitiveCompilation = (props?: UseCognitiveCompilationProps) =>
     setIsCompiling,
     compilation,
     setCompilation,
-    handleCompile,
+    handleCompile: handleConfirmWalkthrough,
     handleFastCompile,
+    handleLongPressFastCompile,
     handleStartExplanation,
-    handleStopAndCompileExplanation,
+    handleStopAndCompileExplanation: handleStopAndReviewExplanation,
+    handleConfirmWalkthrough,
     isRecordingWalkthrough,
     walkthroughSeconds,
     compilationStatusMessage,
@@ -275,6 +231,8 @@ export const useCognitiveCompilation = (props?: UseCognitiveCompilationProps) =>
     handleRequestCompile,
     showWalkthroughModal,
     setShowWalkthroughModal,
+    walkthroughModalTranscript,
+    walkthroughModalPhase,
     pacerFilter,
     setPacerFilter,
     showPacerOverlay,

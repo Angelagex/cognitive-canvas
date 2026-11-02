@@ -31,6 +31,7 @@ export interface TopHeaderProps {
   isDrawerOpen?: boolean;
   onToggleDrawer?: () => void;
   onFastCompile?: () => void;
+  onLongPressFastCompile?: () => void;
   onStartExplanation?: () => void;
   isCompiling?: boolean;
   isRecordingWalkthrough?: boolean;
@@ -45,8 +46,8 @@ export interface TopHeaderProps {
 
 export const TopHeader: React.FC<TopHeaderProps> = ({
   mapTitle, onTitleChange, canUndo, canRedo, onUndo, onRedo,
-  isDrawerOpen = false, onToggleDrawer, onFastCompile, onStartExplanation,
-  isCompiling = false, isRecordingWalkthrough = false, onOpenCompiler,
+  isDrawerOpen = false, onToggleDrawer, onFastCompile, onLongPressFastCompile,
+  onStartExplanation, isCompiling = false, isRecordingWalkthrough = false, onOpenCompiler,
   onOpenDocumentMenu, onReturnToHub, isSaving = false, lastSavedAt = null,
   isZenMode = false, onToggleZenMode,
 }) => {
@@ -203,6 +204,8 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
         <TouchableOpacity
           style={[styles.fastCompileButton, isCompiling && styles.buttonDisabled]}
           onPress={handleFastCompileAction}
+          onLongPress={onLongPressFastCompile}
+          delayLongPress={400}
           disabled={isCompiling}
           activeOpacity={0.8}
         >

@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
-import { View, Text, TouchableOpacity, TextInput, ScrollView } from "react-native";
-import { Zap, ExternalLink, GitMerge, X, Check } from "@sketchyicons/react-native";
+import { View, Text, TouchableOpacity, TextInput, ScrollView, Alert, Platform, Share } from "react-native";
+import { Zap, ExternalLink, GitMerge, X, Check, Download } from "@sketchyicons/react-native";
+import * as FileSystem from "expo-file-system";
+import { StorageAccessFramework } from "expo-file-system";
 import { CanvasCompiledPayload, KnowledgeNode, KnowledgeEdge } from "@cognitive-canvas/core";
 import {
   loadAllCompiledGraphs,
@@ -93,6 +95,59 @@ export const KnowledgeMatrixTab: React.FC<KnowledgeMatrixTabProps> = ({
     refreshGraphs();
   };
 
+  const handleExportKnowledgeMatrix = async () => {
+    try {
+      if (mergedNodes.length === 0) {
+        Alert.alert("Matriz Vacía", "No hay nodos ni estructura compilada para exportar.");
+        return;
+      }
+      const matrixData = {
+        exportedAt: Date.now(),
+        totalNodes: mergedNodes.length,
+        totalEdges: mergedEdges.length,
+        canvasesCount: payloads.length,
+        nodes: mergedNodes,
+        edges: mergedEdges,
+        payloads,
+      };
+      const filename = `knowledge_matrix_${Date.now()}.json`;
+      const fileUri = `${FileSystem.cacheDirectory}${filename}`;
+      const jsonContent = JSON.stringify(matrixData, null, 2);
+      await FileSystem.writeAsStringAsync(fileUri, jsonContent, { encoding: FileSystem.EncodingType.UTF8 });
+
+      let shared = false;
+      try {
+        const dynamicRequire = typeof require !== "undefined" ? require : null;
+        const expoSharing = dynamicRequire ? dynamicRequire("expo-sharing") : null;
+        if (expoSharing && (await expoSharing.isAvailableAsync())) {
+          await expoSharing.shareAsync(fileUri, {
+            mimeType: "application/json",
+            dialogTitle: "Exportar Matriz de Conocimiento",
+            UTI: "public.json",
+          });
+          shared = true;
+        }
+      } catch {}
+
+      if (!shared && Platform.OS === "android" && StorageAccessFramework) {
+        const permissions = await StorageAccessFramework.requestDirectoryPermissionsAsync();
+        if (permissions.granted) {
+          const safUri = await StorageAccessFramework.createFileAsync(permissions.directoryUri, filename, "application/json");
+          await FileSystem.writeAsStringAsync(safUri, jsonContent, { encoding: FileSystem.EncodingType.UTF8 });
+          Alert.alert("Matriz Guardada", `Archivo guardado exitosamente:\n${filename}`);
+          shared = true;
+        }
+      }
+
+      if (!shared) {
+        await Share.share({ title: "Exportar Matriz de Conocimiento", message: jsonContent });
+      }
+    } catch (error: any) {
+      console.error("Error al exportar matriz:", error);
+      Alert.alert("Error", error?.message || "No se pudo exportar el archivo de la Matriz.");
+    }
+  };
+
   return (
     <View style={styles.container}>
       <View style={styles.topBar}>
@@ -102,18 +157,28 @@ export const KnowledgeMatrixTab: React.FC<KnowledgeMatrixTabProps> = ({
             {mergedNodes.length} canonical concepts across {payloads.length} compiled canvases
           </Text>
         </View>
-        {overlappingNode && (
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
           <TouchableOpacity
-            style={styles.consolidateBannerBtn}
-            onPress={() => setConsolidationModalOpen(true)}
+            style={styles.exportMatrixBtn}
+            onPress={handleExportKnowledgeMatrix}
             activeOpacity={0.85}
           >
-            <GitMerge size={14} color="#FBBF24" strokeWidth={2.0} />
-            <Text style={styles.consolidateBannerText}>
-              Overlap Detected: "{overlappingNode.label}" · Consolidate
-            </Text>
+            <Download size={14} color="#38BDF8" strokeWidth={2.0} />
+            <Text style={styles.exportMatrixText}>Exportar Matriz (JSON)</Text>
           </TouchableOpacity>
-        )}
+          {overlappingNode && (
+            <TouchableOpacity
+              style={styles.consolidateBannerBtn}
+              onPress={() => setConsolidationModalOpen(true)}
+              activeOpacity={0.85}
+            >
+              <GitMerge size={14} color="#FBBF24" strokeWidth={2.0} />
+              <Text style={styles.consolidateBannerText}>
+                Overlap: "{overlappingNode.label}" · Consolidate
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
 
       <DagGraphRenderer

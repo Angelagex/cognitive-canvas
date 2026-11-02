@@ -221,5 +221,21 @@ export const styles = StyleSheet.create({
     borderColor: "#334155",
   },
   submitDefenseBtn: { backgroundColor: "#10B981", padding: 9, borderRadius: 8 },
+  exportMatrixBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(56, 189, 248, 0.12)",
+    borderColor: "#38BDF8",
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 8,
+  },
+  exportMatrixText: {
+    color: "#38BDF8",
+    fontSize: 12,
+    fontWeight: "700",
+  },
   feedbackText: { color: "#34D399", fontSize: 11, fontWeight: "600", marginTop: 6 },
 });

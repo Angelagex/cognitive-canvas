@@ -74,7 +74,9 @@ export const AppModals: React.FC<AppModalsProps> = ({
       <VerbalWalkthroughModal
         visible={canvas.showWalkthroughModal}
         onClose={() => canvas.setShowWalkthroughModal(false)}
-        onConfirmCompile={(transcript) => canvas.handleCompile(transcript)}
+        canvasId={canvas.currentMapId}
+        initialTranscript={canvas.walkthroughModalTranscript}
+        onConfirmCompile={canvas.handleConfirmWalkthrough}
       />
     </>
   );

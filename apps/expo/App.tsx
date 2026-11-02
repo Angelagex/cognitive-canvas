@@ -213,6 +213,7 @@ export default function App() {
                     isDrawerOpen={canvas.isDrawerOpen}
                     onToggleDrawer={() => canvas.setIsDrawerOpen(!canvas.isDrawerOpen)}
                     onFastCompile={canvas.handleFastCompile}
+                    onLongPressFastCompile={canvas.handleLongPressFastCompile}
                     onStartExplanation={canvas.handleStartExplanation}
                     isCompiling={canvas.isCompiling}
                     isRecordingWalkthrough={canvas.isRecordingWalkthrough}

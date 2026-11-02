@@ -26,6 +26,7 @@ export interface ExtendedDocumentMetadata {
   canvas_translate_y?: number;
   placed_attributes?: PlacedAttribute[];
   synthesis_cards?: SynthesisReferenceCard[];
+  verbalWalkthroughTranscript?: string;
 }
 
 export interface ExtendedCognitiveMapDocument extends Omit<CognitiveMapDocument, "metadata"> {
@@ -277,5 +278,16 @@ export async function getCompilationForCanvas(canvasId: string): Promise<any | n
   } catch (err) {
     console.warn(`[StorageService] Failed to read compilation for ${canvasId}:`, err);
     return null;
+  }
+}
+
+export async function updateDocumentMetadata(
+  mapId: string,
+  updates: Partial<ExtendedDocumentMetadata>
+): Promise<void> {
+  const doc = await loadDocument(mapId);
+  if (doc) {
+    doc.metadata = { ...doc.metadata, ...updates, updated_at: Date.now() };
+    await saveDocument(doc);
   }
 }

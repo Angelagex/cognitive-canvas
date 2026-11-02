@@ -14,23 +14,16 @@ export type { RenderWorldBounds };
 
 export interface CompilationOptions {
   verbalWalkthroughTranscript?: string | null;
+  previousAnalysis?: { nodes?: any[]; edges?: any[] } | null;
 }
 
 export interface VisionCompiledNode {
-  id: string;
-  label: string;
-  domain: string;
-  tier: ConceptTier;
-  pacerRole: PacerRole;
-  summary: string;
-  box_2d: [number, number, number, number];
+  id: string; label: string; domain: string; tier: ConceptTier;
+  pacerRole: PacerRole; summary: string; box_2d: [number, number, number, number];
 }
 
 export interface VisionCompiledEdge {
-  fromNodeId: string;
-  toNodeId: string;
-  type: CausalEdgeType;
-  reasoning: string;
+  fromNodeId: string; toNodeId: string; type: CausalEdgeType; reasoning: string;
 }
 
 export interface VisionCompilerResponse {
@@ -139,6 +132,7 @@ export async function compileCanvas(
     imageBase64: pngBase64String,
     renderWorldBounds,
     verbalWalkthroughTranscript: options?.verbalWalkthroughTranscript || null,
+    previousAnalysis: options?.previousAnalysis || null,
     thinkingMemos: extractedMemos.map((m) => ({
       id: m.id,
       transcript: m.transcript,

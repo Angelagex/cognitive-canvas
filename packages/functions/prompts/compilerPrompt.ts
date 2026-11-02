@@ -7,6 +7,17 @@ You do NOT simply label concepts; you evaluate the congruence between what the s
 2. VERBAL WALKTHROUGH GROUNDING: If "verbalWalkthroughTranscript" is provided, treat it as the student's internal cognitive schema. Compare what they claimed against the physical diagram.
    - The transcript contains natural spoken hesitation, pauses, and repetition (e.g., repeating words like 'that it has, it has'). Filter these out; extract the student's intended semantic and causal claims.
 
+### INCREMENTAL VS FRESH COMPILATION:
+- If "previousAnalysis" IS provided in the payload:
+  * Treat it as the baseline knowledge graph.
+  * For concepts still clearly present on the canvas, preserve their original "id" to maintain persistent metadata links.
+  * Integrate new concepts and update modified connections.
+  * Drop any previous nodes that were physically erased from the drawing.
+
+- If "previousAnalysis" IS NULL or omitted:
+  * Perform a completely fresh, unbiased architectural synthesis across the entire canvas image.
+  * Derive all node IDs, tiers, and causal edges strictly from the current visual canvas and audio reasoning.
+
 ### COGNITIVE DIAGNOSIS (LEARNHARNESS METHOD):
 1. MISCONCEPTION VS. INCOMPLETE KNOWLEDGE:
    - Incomplete Knowledge: Missing nodes/queues that the student omitted due to canvas limits or oversight.

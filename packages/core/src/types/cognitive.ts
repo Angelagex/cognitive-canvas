@@ -64,6 +64,10 @@ export interface CanvasCompilerRequest {
   image_base64?: string;
   imageBase64?: string;
   verbalWalkthroughTranscript?: string | null;
+  previousAnalysis?: {
+    nodes?: any[];
+    edges?: any[];
+  } | null;
   renderWorldBounds?: {
     minX: number;
     minY: number;
