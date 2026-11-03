@@ -166,54 +166,56 @@ Cognitive Canvas implementa una **separación ortogonal estricta**:
 
 ---
 
-## 4. Compilación Macro con Gemini
+## 4. Pipeline de Compilación Asíncrono y Gemini 3.8 Flash
 
-Cuando el estudiante concluye una fase de construcción del mapa, solicita una **Compilación Cognitiva**:
+Cuando el estudiante concluye una fase de construcción del mapa, solicita una **Compilación Cognitiva**. Para superar el límite no configurable de 30 segundos de integración en AWS API Gateway HTTP API ante inferencias multimodales complejas, el pipeline opera de forma completamente desacoplada y asíncrona:
 
-### 4.1 Exportación de Alta Resolución Fuera de Pantalla
+### 4.1 Exportación Optimizada Fuera de Pantalla (`OffscreenDocumentRenderer.kt`)
 
-El método nativo `exportHighResPng` renderiza la totalidad de los trazos del lienzo (independientemente del viewport actual del usuario) en un bitmap fuera de pantalla de $2048 \times 2048 \text{ px}$ con fondo transparente o sólido. Este archivo se transmite directamente a Amazon S3 mediante una URL prefirmada.
+* **Escalado Acotado (Max Edge 1536 px):** La totalidad de los trazos del documento se proyecta en un buffer fuera de pantalla con su arista mayor acotada a $1536 \text{ px}$ y compresión JPEG al $85\%$. Esto reduce drásticamente el consumo de tokens visuales y la latencia de subida sin sacrificar legibilidad.
+* **Invariante de Mapeo de Coordenadas:** Se preservan con exactitud las cotas canónicas en World DP (`renderedRect: { minX, minY, maxX, maxY }`), asegurando un mapeo afín 1:1 estricto entre el espacio visual proyectado y las coordenadas reales de tinta en el cliente.
 
-### 4.2 Prompt del Evaluador Macro y Diagnóstico de Madurez
+### 4.2 Arquitectura de Trabajos Asíncronos (Queue & Polling)
 
-El backend serverless en AWS invoca a Google Gemini con un prompt multimodal estricto que analiza la imagen renderizada y el Visual AST, respondiendo bajo un esquema JSON rígido:
-
-```json
-{
-  "maturity_level": 3,
-  "macro_islands": [
-    {
-      "id": "island_fotosistemas",
-      "label": "Complejos de Captación de Luz",
-      "bbox": { "xmin": 100, "ymin": 150, "xmax": 450, "ymax": 520 },
-      "concept_density": "HIGH"
-    }
-  ],
-  "linear_thinking_risk": "LOW",
-  "isolated_islands": [],
-  "cognitive_interventions": [
-    {
-      "type": "CROSS_ISLAND_QUESTION",
-      "prompt": "¿Qué ocurriría con la fijación de carbono en el Estroma si se inhibe la Plastocianina en el Tilacoide?",
-      "target_islands": ["island_fotosistemas", "island_ciclo_calvin"]
-    },
-    {
-      "type": "HIGH_ROAD_TRANSFER",
-      "prompt": "¿Cómo se asemeja este gradiente de protones a una presa hidroeléctrica en términos de energía potencial y disipación entrópica?"
-    }
-  ]
-}
+```
+ Cliente (App Expo)             API Gateway                Worker Lambda              DynamoDB / S3
+      │                              │                          │                           │
+      │── 1. POST /compile ─────────▶│                          │                           │
+      │   (Payload + Audio Memo)     │── 2. Invoke Async ──────▶│                           │
+      │                              │   (202 Accepted)         │── 3. PutJob(status=RUN) ─▶│
+      │◀── 202 Accepted + jobId ─────│                          │                           │
+      │                                                         │── 4. Gemini 3.8 Flash ───▶│ (Inferencia)
+      │── 5. GET /compile/status/id ─▶                          │   (Timeout: 120s)         │
+      │   (Polling cada 2s)          │                          │                           │
+      │                              │                          │── 6. PutJob(status=DONE) ─▶│ (Resultado JSON)
+      │── 7. GET /compile/status/id ─▶│                          │                           │
+      │◀── 200 OK + Graph Payload ───│                          │                           │
 ```
 
-#### Escala de Madurez (Niveles 1 al 4)
-* **Nivel 1 (Listado Fragmentado):** Nodos dispersos, sin conectores claros; alto riesgo de pensamiento lineal.
-* **Nivel 2 (Árbol Jerárquico):** Estructura lógica pero unidireccional; falta de enlaces cruzados y analogías.
-* **Nivel 3 (Red Emergente):** Múltiples macro-islas bien diferenciadas con conectores de causa-efecto y al menos un atributo causal/análogo.
-* **Nivel 4 (Mirror Map Avanzado):** Red densa no lineal; transferencia de alto orden evidente; conceptos interconectados con evidencias y cero redundancia pasiva.
+1. **Ingreso Inmediato (`POST /compile`):** El cliente envía la imagen compilada y la justificación razonada (texto o audio). El endpoint registra el registro del job en DynamoDB (`status: "RUNNING"`), despierta al worker en segundo plano mediante invocación asíncrona (`InvocationType: "Event"`) y responde en menos de $400 \text{ ms}$ con `202 Accepted` y el `jobId`.
+2. **Worker Lambda Extendido (120 s):** Ejecuta la inferencia de razonamiento profundo con Google Gemini 3.8 Flash, con un timeout configurado de $120 \text{ segundos}$, liberando la ejecución de la barrera de los $30 \text{ s}$ de API Gateway.
+3. **Persistencia y Polling Liviano:** Al completar la inferencia, el worker almacena el resultado estructurado en DynamoDB (`status: "COMPLETED"`, `result: compiled_graph_payload`). El cliente sondea `GET /compile/status/{jobId}` cada $2 \text{ segundos}$ hasta recibir el estado terminal.
 
-### 4.3 Visualización en Ghost Overlay
+---
 
-Los resultados de la compilación macro regresan al cliente y se proyectan sobre el componente reactivo `GhostOverlay.tsx`:
-* **Auras de Macro-Islas:** Polígonos de resplandor suave que delimitan las agrupaciones temáticas detectadas.
-* **Puentes Inter-Isla:** Líneas fantasma vectoriales animadas que sugieren conexiones que el estudiante pasó por alto.
-* **Invarianza Gráfica:** Toda la proyección de Ghost Overlay se realiza en una capa HUD independiente; los trazos manuscritos del usuario permanecen $100\%$ intactos y no modificados.
+## 5. Ontología de la Matriz de Conocimiento (Knowledge Matrix DAG)
+
+La compilación cognitiva no se limita a un resumen plano; sintetiza una estructura DAG profunda que clasifica los componentes del dominio en tres niveles de abstracción:
+
+### 5.1 Niveles de Abstracción Ontológica (Tiers)
+* **Tier 2 - Sistemas y Arquitectura Macro ($Y \in [0, 240]$):**
+  Orquestadores, subsistemas globales y componentes de orden superior (ej. Node.js Event Loop, Motor V8, Runtime de Red).
+* **Tier 1 - Mecanismos Causales y Algoritmos ($Y \in [270, 530]$):**
+  Estructuras intermedias, canales de comunicación y tuberías de ejecución (ej. Call Stack, Libuv Thread Pool, Microtask Queue).
+* **Tier 0 - Primitivas, Hardware y Estructuras Fundamentales ($Y \in [560, 820]$):**
+  Llamadas al sistema, operaciones atómicas de memoria, timers del kernel y abstracciones de bajo nivel (ej. `epoll`/`kqueue`, Registros CPU, Descriptores de Archivo).
+
+### 5.2 Estructura de Auditoría por Nodo: Invariante, Fragilidad y Tradeoff
+Cada nodo card generado en la pestaña de arquitectura contiene tres contratos analíticos indispensables:
+1. **`invariant` (Contrato No Negociable):** La regla fundamental o axioma operacional del componente que jamás debe violarse.
+2. **`fragility` (Modo de Falla / Cuello de Botella):** El escenario exacto bajo el cual el mecanismo colapsa, satura memoria o entra en condición de carrera.
+3. **`tradeoff` (Compromiso Arquitectónico):** Qué sacrificio explícito de diseño se realizó (ej. concurrencia monohilo simple vs. incapacidad de paralelizar cálculos intensivos en CPU).
+
+### 5.3 Auras Ambientales y Trazado de Prerrequisitos
+* **Auras Radiales por Clúster de Dominio:** Los nodos pertenecientes a un mismo dominio funcional (ej. V8, Asincronía, Seguridad) calculan su centro de gravedad $(cx, cy)$ y proyectan una tenue aura radial translúcida (opacidad $0.12 - 0.18$), erradicando divisiones artificiales de columnas rectangulares.
+* **Trazado de Prerrequisitos (DAG Tracing):** Al seleccionar un nodo, el visor resalta su linaje causal: todos los nodos predecesores necesarios para comprenderlo (`prerequisites`) y los nodos dependientes de orden superior.

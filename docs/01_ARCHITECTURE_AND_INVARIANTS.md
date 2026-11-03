@@ -19,10 +19,13 @@ El núcleo de Cognitive Canvas está construido sobre una arquitectura desacopla
 
 * **Infraestructura Cloud Serverless (AWS via SST Ion):**
   - **SST Ion (v3)** orquestando infraestructura como código basada en Pulumi/Terraform.
-  - **AWS Lambda** para procesamiento asíncrono y endpoints HTTP de compilación cognitiva.
-  - **Amazon S3** para almacenamiento de imágenes de exportación de alta resolución (`HighResPngExport`) y snapshots vectoriales de mapas `.cmn`.
-  - **Amazon DynamoDB** para metadatos de documentos, índices de auditoría GRINDE y sesiones de usuario.
-  - **Google Gemini 2.5 Flash / Pro** como motor de razonamiento multimodal y diagnóstico de esquemas cognitivos.
+  - **AWS Lambda & Pipeline Asíncrono:** Arquitectura desacoplada en dos fases para superar el límite rígido de 30 segundos de API Gateway HTTP API:
+    * `POST /compile`: Registra el trabajo, despierta la ejecución asíncrona y responde inmediatamente (< 400 ms) con `202 Accepted` y `jobId`.
+    * `Worker Lambda`: Procesa la inferencia multimodal pesada con timeout extendido a 120 segundos.
+    * `GET /compile/status/{jobId}`: Endpoint liviano de consulta con polling cliente cada 2 segundos.
+  - **Amazon S3** para almacenamiento de imágenes de exportación comprimidas (`OffscreenDocumentRenderer`) y snapshots vectoriales de mapas `.cmn`.
+  - **Amazon DynamoDB** para persistencia de jobs de compilación (`CompilationJobs`), metadatos de documentos, índices de auditoría GRINDE y sesiones.
+  - **Google Gemini 3.8 Flash / Pro** como motor de razonamiento multimodal, extracción ontológica de invariantes, fragilidades y tradeoffs, y diagnóstico de madurez cognitiva.
 
 ---
 
@@ -309,6 +312,22 @@ Cognitive Canvas es una aplicación de inmersión total concebida para transform
    - En Android, el componente `<Modal>` de React Native instancia un `android.app.Dialog` nativo con su propia ventana subordinada (`Window`).
    - La apertura y cierre de un `Dialog` resetea los flags de inmersión de la ventana principal, provocando que la barra de navegación del sistema parpadee, emerja forzadamente o empuje el contenido hacia arriba.
    - **Regla Arquitectónica:** Todos los popovers, selectores, menús contextuales y paletas de herramientas deben construirse mediante componentes `View` absolutos controlados dentro del árbol principal de React Native (`position: 'absolute'`), preservando intacta la inmersión de la ventana única.
+
+### 6.2 Invariantes Espaciales en la Matriz de Conocimiento (Knowledge Matrix DAG)
+
+1. **Carriles Jerárquicos Anclados al Mundo (Tiers):**
+   - El espacio vertical se particiona en tres bandas ontológicas continuas:
+     * **Tier 2 (Sistemas):** $Y \in [0, 240]$, centro de atracción $Y = 120$.
+     * **Tier 1 (Mecanismos):** $Y \in [270, 530]$, centro de atracción $Y = 400$.
+     * **Tier 0 (Primitivas / Fundamentos):** $Y \in [560, 820]$, centro de atracción $Y = 690$.
+   - Los divisores horizontales y marcas de agua de los tiers se renderizan dentro del mismo contenedor SVG del lienzo; al realizar pan o zoom, se desplazan en sincronía absoluta con los nodos.
+
+2. **Prohibición de Barras Verticales Rígidas y Adopción de Auras Radiales:**
+   - Quedan terminantemente prohibidas las franjas rectangulares verticales a altura completa (`<Rect height="100%" />`) que desvirtúan la visualización hacia una hoja de cálculo rígida.
+   - La cohesión por dominio técnico se proyecta exclusivamente mediante halos radiales ambientales suaves (`<RadialGradient>`) calculados sobre el centro de masa $(cx, cy)$ de cada clúster.
+
+3. **Hashing Determinista de Temas de Dominio (`getDomainColor`):**
+   - Se erradican diccionarios estáticos de dominios fijos. Todo dominio actual o emergente resuelve su paleta de color (borde, fondo, halo) mediante un algoritmo de hashing determinista (DJB2) sobre una paleta armónica curada, evitando fallos por dominios no catalogados.
 
 ---
 

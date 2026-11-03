@@ -227,3 +227,27 @@ Para evitar que los menús emergentes (selector de color, selector de grosores, 
   - Como el indicador de zoom del footer está oculto, el motor activa un **toast flotante centralizado** que muestra el porcentaje entero actual:
     $$\text{zoomPercent} = \text{Math.round}(\text{canvasScale} \times 100)\%$$
   - Se activa un temporizador que desvanece suavemente el toast a los **1800 ms** de cesar el gesto multitáctil, manteniendo el espacio visual despejado.
+
+---
+
+## 8. Navegación Gestual en Knowledge Matrix y Grabación No-Bloqueante
+
+### 8.1 Gestor Nativo de Gestos (`react-native-gesture-handler`)
+
+Para evitar congelamientos y bloqueos de eventos táctiles en Android causados por la interceptación prematura de contenedores padre de navegación y pestañas:
+1. **Desacoplamiento de `PanResponder` Nativo:**
+   - La vista de grafo (`MatrixGraphView.tsx`) prescinde de `PanResponder` debido a que en Android los subelementos SVG (`<Rect>`, `<Circle>`, `<Text>`) provocan mutaciones abruptas en `evt.nativeEvent.locationX/locationY`.
+2. **Gestos Nativos Simultáneos (`Gesture.Simultaneous`):**
+   - Se instancian `Gesture.Pan()` y `Gesture.Pinch()` ejecutándose en paralelo.
+   - **Pan 2D:** Rastrear el desplazamiento relativo acumulado (`translationX`, `translationY`) y aplicarlo al offset del mundo $(W_x, W_y)$ sin depender del objetivo SVG sobre el cual inició el puntero.
+   - **Pinch-to-Zoom:** Escalar el viewport suavemente entre las cotas seguras $[0.35, 2.5]$, ajustando el centroide visual para evitar saltos.
+
+### 8.2 Modal de Explicación Verbal con Visión Continua del Mapa
+
+Durante el proceso de justificación cognitiva previo a la compilación:
+1. **Ocultamiento Momentáneo durante la Grabación:**
+   - Al pulsar el botón de grabación de memorando de voz (`Record`), el modal de explicación razonada se oculta temporalmente de la pantalla.
+   - Se presenta únicamente un botón flotante minimalista de detención (`Stop Recording`), dejando el lienzo completamente visible y accesible para que el estudiante examine sus trazos e interactúe con el mapa mental mientras dicta su explicación.
+2. **Restauración y Anexado de Transcripción:**
+   - Al pulsar detener, el modal vuelve a desplegarse automáticamente.
+   - El texto transcrito (Deepgram / ML Kit) se anexa al final del contenido preexistente en el campo de texto, respetando la posición del cursor y permitiendo grabaciones consecutivas acumulativas.
