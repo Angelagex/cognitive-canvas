@@ -6,7 +6,11 @@
 
 declare module "sst" {
   export interface Resource {
-    "CompilerWorker": {
+    "CompilationJobs": {
+      "name": string
+      "type": "sst.aws.Dynamo"
+    }
+    "CompileWorker": {
       "name": string
       "type": "sst.aws.Function"
     }

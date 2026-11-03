@@ -1,64 +1,62 @@
-import {
-  VisualAST, CognitiveCompilerOutput, RawInkStroke, ConceptTier,
-  CausalEdgeType, PacerRole, CognitiveSynthesis, ReasoningDiagnosis,
-} from "@cognitive-canvas/core/types";
-import { PlacedAttribute, ThinkingMemo } from "../types/canvas";
+import { CognitiveCompilerOutput, RawInkStroke } from "@cognitive-canvas/core/types";
+import { PlacedAttribute } from "../types/canvas";
 import { exportHighResPng, getCanvasStrokes } from "../components/JetpackInkCanvas";
 import * as FileSystem from "expo-file-system";
 import { compileMapLocally } from "./LocalCognitiveCompiler";
 import { KeyStorageService } from "./KeyStorageService";
 import { computeRenderWorldBounds, RenderWorldBounds } from "../utils/SpatialHashGrid";
+import { formatCompilerResponse } from "./compilationResponseMapper";
+import {
+  CompilationOptions,
+  VisionCompilerResponse,
+  CanvasDocumentInput,
+  CompileParams,
+  VisionCompiledNode,
+  VisionCompiledEdge,
+} from "./CompilationService.types";
 
 export { compileMapLocally };
-export type { RenderWorldBounds };
+export type {
+  RenderWorldBounds,
+  CompilationOptions,
+  VisionCompilerResponse,
+  CanvasDocumentInput,
+  CompileParams,
+  VisionCompiledNode,
+  VisionCompiledEdge,
+};
 
-export interface CompilationOptions {
-  verbalWalkthroughTranscript?: string | null;
-  previousAnalysis?: { nodes?: any[]; edges?: any[] } | null;
-}
+async function pollJobStatus(
+  apiUrl: string,
+  jobId: string,
+  maxTimeoutMs = 120000,
+  pollIntervalMs = 2000
+): Promise<any> {
+  const startTime = Date.now();
+  console.log(`[CompilationService] Job iniciado: ${jobId}. Iniciando polling cada ${pollIntervalMs}ms...`);
 
-export interface VisionCompiledNode {
-  id: string; label: string; domain: string; tier: ConceptTier;
-  pacerRole: PacerRole; summary: string; box_2d: [number, number, number, number];
-  invariant?: string; fragility?: string; tradeoff?: string;
-}
+  while (Date.now() - startTime < maxTimeoutMs) {
+    await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
 
-export interface VisionCompiledEdge {
-  fromNodeId: string; toNodeId: string; type: CausalEdgeType; reasoning: string;
-}
+    try {
+      const pollRes = await fetch(`${apiUrl}/compile/status/${jobId}`);
+      if (!pollRes.ok) continue;
 
-export interface VisionCompilerResponse {
-  canvasId: string;
-  canvasTitle: string;
-  nodes: VisionCompiledNode[];
-  edges: VisionCompiledEdge[];
-  synthesis: CognitiveSynthesis;
-  reasoningDiagnosis: ReasoningDiagnosis;
-  renderWorldBounds: RenderWorldBounds;
-  legacyOutput?: CognitiveCompilerOutput;
-}
+      const data = await pollRes.json();
+      if (data.status === "completed") {
+        console.log(`[CompilationService] Job ${jobId} finalizado exitosamente.`);
+        return data.result;
+      }
+      if (data.status === "failed") {
+        throw new Error(data.error || "La compilación falló en el servidor.");
+      }
+    } catch (e: any) {
+      if (e?.message?.includes("falló en el servidor")) throw e;
+      console.warn(`[CompilationService] Polling warning for ${jobId}:`, e?.message);
+    }
+  }
 
-export interface CanvasDocumentInput {
-  id: string;
-  title: string;
-  strokes?: RawInkStroke[];
-  placedAttributes?: PlacedAttribute[];
-  thinkingMemos?: Array<{ id: string; transcript: string; worldX: number; worldY: number }>;
-  metadata?: { placed_attributes?: any[] };
-  visualAST?: VisualAST | null;
-  imageBase64?: string;
-  apiUrl?: string;
-}
-
-export interface CompileParams {
-  canvasId: string;
-  title: string;
-  strokes?: RawInkStroke[];
-  visualAST?: VisualAST | null;
-  placedAttributes: PlacedAttribute[];
-  thinkingMemos?: ThinkingMemo[];
-  imageBase64?: string;
-  apiUrl?: string;
+  throw new Error("Tiempo de espera agotado (120s) mientras se procesaba la síntesis del mapa.");
 }
 
 export async function compileCanvas(
@@ -71,7 +69,7 @@ export async function compileCanvas(
   }
 
   const apiUrl = document.apiUrl || process.env.EXPO_PUBLIC_API_URL;
-  const strokes =
+  const strokes: RawInkStroke[] =
     document.strokes && document.strokes.length > 0
       ? document.strokes
       : await getCanvasStrokes().catch(() => []);
@@ -123,8 +121,8 @@ export async function compileCanvas(
   });
 
   const toRel = (wx: number, wy: number) => ({
-    x: Number(((wx - renderWorldBounds.minX) / renderWorldBounds.width).toFixed(4)),
-    y: Number(((wy - renderWorldBounds.minY) / renderWorldBounds.height).toFixed(4)),
+    x: Number(((wx - renderWorldBounds.minX) / (renderWorldBounds.width || 1)).toFixed(4)),
+    y: Number(((wy - renderWorldBounds.minY) / (renderWorldBounds.height || 1)).toFixed(4)),
   });
 
   const compilationRequest = {
@@ -147,89 +145,39 @@ export async function compileCanvas(
   };
 
   if (apiUrl && pngBase64String) {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 45000);
     try {
-      const response = await fetch(`${apiUrl}/canvases/${document.id}/compile`, {
+      const response = await fetch(`${apiUrl}/compile`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-gemini-api-key": apiKey },
-        signal: controller.signal,
         body: JSON.stringify(compilationRequest),
       });
-      clearTimeout(timeoutId);
 
       if (response.status === 401) {
         throw new Error("Invalid or missing Gemini API Key. Please verify your key in Settings.");
       }
 
-      if (response.ok) {
-        const data = await response.json();
-        const resolved = data.output && Array.isArray(data.output.nodes) ? data.output : data;
-        if (Array.isArray(resolved.nodes)) {
-          const rawDiag = resolved.reasoningDiagnosis || {};
-          const rawSyn = resolved.synthesis || {};
-          const reasoningDiagnosis: ReasoningDiagnosis = {
-            misconceptions: Array.isArray(rawDiag.misconceptions) ? rawDiag.misconceptions : [],
-            omissions: Array.isArray(rawDiag.omissions)
-              ? rawDiag.omissions
-              : Array.isArray(rawSyn.blindSpots)
-              ? rawSyn.blindSpots
-              : [],
-            ghostConnections: Array.isArray(rawDiag.ghostConnections)
-              ? rawDiag.ghostConnections
-              : Array.isArray(rawSyn.ghostConnections)
-              ? rawSyn.ghostConnections
-              : [],
-            socraticChallenges: Array.isArray(rawDiag.socraticChallenges)
-              ? rawDiag.socraticChallenges
-              : (Array.isArray(rawSyn.socraticChallenges) ? rawSyn.socraticChallenges : []).map((c: any) => ({
-                  targetMechanism: c.targetMechanism || c.edgeTarget || "Mecanismo",
-                  counterfactualQuestion: c.counterfactualQuestion || "",
-                  expectedInvariant: c.expectedInvariant || "",
-                })),
-          };
-          return {
-            canvasId: resolved.canvasId || document.id,
-            canvasTitle: resolved.canvasTitle || document.title || "Untitled",
-            nodes: resolved.nodes.map((n: any, idx: number) => ({
-              id: n.id || `node-${idx + 1}`,
-              label: n.label || n.detected_content || `Concept ${idx + 1}`,
-              domain: n.domain || document.title || "General",
-              tier: n.tier || "mechanism",
-              pacerRole:
-                n.pacerRole === "REFERENCE" || n.pacerRole === "PROCEDURAL" || n.pacerRole === "ANALOGOUS"
-                  ? n.pacerRole
-                  : "NONE",
-              summary: n.summary || n.passive_context || "",
-              box_2d: Array.isArray(n.box_2d) && n.box_2d.length === 4 ? n.box_2d : [150, 150, 350, 450],
-            })),
-            edges: (resolved.edges || []).map((e: any) => ({
-              fromNodeId: e.fromNodeId || e.source_node_id,
-              toNodeId: e.toNodeId || e.target_node_id,
-              type: e.type || "TRIGGERS",
-              reasoning: e.reasoning || e.label || "",
-            })),
-            synthesis: {
-              systemSummary: rawSyn.systemSummary || "",
-              ghostConnections: reasoningDiagnosis.ghostConnections,
-              blindSpots: reasoningDiagnosis.omissions,
-              socraticChallenges: reasoningDiagnosis.socraticChallenges.map((sc) => ({
-                edgeTarget: sc.targetMechanism,
-                counterfactualQuestion: sc.counterfactualQuestion,
-              })),
-            },
-            reasoningDiagnosis,
-            renderWorldBounds,
-          };
+      if (response.ok || response.status === 202) {
+        const initialData = await response.json();
+        let finalResult = initialData;
+
+        // If asynchronous job dispatched, poll status
+        if (initialData.jobId) {
+          finalResult = await pollJobStatus(apiUrl, initialData.jobId);
+        }
+
+        const resolved = finalResult?.result || finalResult?.output || finalResult;
+        if (Array.isArray(resolved?.nodes)) {
+          return formatCompilerResponse(resolved, document, renderWorldBounds);
         }
       }
     } catch (err: any) {
-      clearTimeout(timeoutId);
       if (err?.message?.includes("Gemini API Key")) throw err;
+      if (err?.message?.includes("falló en el servidor")) throw err;
       console.warn("[CompilationService] Cloud compilation fallback to local:", err);
     }
   }
 
+  // Local deterministic fallback
   const fallbackLocal = compileMapLocally({
     canvasId: document.id,
     title: document.title || "Untitled",
@@ -241,26 +189,15 @@ export async function compileCanvas(
   return {
     canvasId: document.id,
     canvasTitle: document.title || "Untitled",
-    nodes: (payload?.nodes || []).map((n) => {
-      const b = n.provenance?.[0]?.boundingBox;
-      const box2d: [number, number, number, number] = b
-        ? [
-            Math.round(((b.minY - renderWorldBounds.minY) / renderWorldBounds.height) * 1000),
-            Math.round(((b.minX - renderWorldBounds.minX) / renderWorldBounds.width) * 1000),
-            Math.round(((b.maxY - renderWorldBounds.minY) / renderWorldBounds.height) * 1000),
-            Math.round(((b.maxX - renderWorldBounds.minX) / renderWorldBounds.width) * 1000),
-          ]
-        : [200, 200, 400, 500];
-      return {
-        id: n.id,
-        label: n.label,
-        domain: n.domain || document.title || "General",
-        tier: n.tier,
-        pacerRole: n.pacerRole || "NONE",
-        summary: n.summary,
-        box_2d: box2d,
-      };
-    }),
+    nodes: (payload?.nodes || []).map((n) => ({
+      id: n.id,
+      label: n.label,
+      domain: n.domain || document.title || "General",
+      tier: n.tier,
+      pacerRole: n.pacerRole || "NONE",
+      summary: n.summary,
+      box_2d: [200, 200, 400, 500],
+    })),
     edges: (payload?.edges || []).map((e) => ({
       fromNodeId: e.fromNodeId,
       toNodeId: e.toNodeId,
@@ -272,6 +209,10 @@ export async function compileCanvas(
     renderWorldBounds,
     legacyOutput: fallbackLocal,
   };
+}
+
+export class CompilationService {
+  static compileCanvas = compileCanvas;
 }
 
 export async function compileCognitiveMap(params: CompileParams): Promise<CognitiveCompilerOutput> {

@@ -1,29 +1,43 @@
-import { bucket, database } from "./storage";
+import { bucket, database, compilationJobsTable } from "./storage";
 
-export const compilerWorker = new sst.aws.Function("CompilerWorker", {
-  handler: "packages/functions/src/compileWorker.handler",
-  link: [bucket, database],
-  timeout: "30 seconds",
+export const compileWorker = new sst.aws.Function("CompileWorker", {
+  handler: "packages/functions/src/workers/compileWorker.handler",
+  link: [bucket, database, compilationJobsTable],
+  timeout: "120 seconds",
   memory: "1024 MB",
+  environment: {
+    GEMINI_API_KEY: process.env.GEMINI_API_KEY || "",
+  },
 });
 
+export const compilerWorker = compileWorker;
+
 export const myApi = new sst.aws.ApiGatewayV2("MyApi", {
-  link: [bucket, database, compilerWorker],
+  link: [bucket, database, compilationJobsTable, compileWorker],
 });
 
 myApi.route("GET /", "packages/functions/src/api.handler");
 
-// Cognitive Compiler Dispatcher Endpoint (Increased to API Gateway max 30s limit)
+// Cognitive Compiler Asynchronous Pipeline
 myApi.route("POST /compile", {
-  handler: "packages/functions/src/compile.handler",
-  timeout: "30 seconds",
-  memory: "1024 MB",
+  handler: "packages/functions/src/api/startCompile.handler",
+  timeout: "10 seconds",
+  memory: "512 MB",
+  link: [compilationJobsTable, compileWorker],
 });
 
 myApi.route("POST /canvases/{id}/compile", {
-  handler: "packages/functions/src/compile.handler",
-  timeout: "30 seconds",
-  memory: "1024 MB",
+  handler: "packages/functions/src/api/startCompile.handler",
+  timeout: "10 seconds",
+  memory: "512 MB",
+  link: [compilationJobsTable, compileWorker],
+});
+
+myApi.route("GET /compile/status/{jobId}", {
+  handler: "packages/functions/src/api/getCompileStatus.handler",
+  timeout: "10 seconds",
+  memory: "512 MB",
+  link: [compilationJobsTable],
 });
 
 // Canvas Compilation Status & Output Polling Endpoint

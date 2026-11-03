@@ -1,25 +1,23 @@
 import { Handler } from "aws-lambda";
 import { CanvasCompilerRequest } from "@cognitive-canvas/core/types";
-import { handler as compileWorkerHandler } from "./compileWorker";
+import { executeGeminiCompilation } from "./services/geminiService";
 
 /**
- * Vision-First Multimodal Compilation Endpoint (`POST /canvases/{id}/compile`)
- * Validates the BYOK `x-gemini-api-key` header and executes single-pass Gemini multimodal compilation.
+ * Direct Synchronous Multimodal Compilation Endpoint
  */
-export const handler: Handler = async (event, context, callback) => {
+export const handler: Handler = async (event) => {
   try {
     const apiKey =
       event?.headers?.["x-gemini-api-key"] ||
       event?.headers?.["X-Gemini-Api-Key"] ||
-      event?.headers?.["X-GEMINI-API-KEY"];
+      event?.headers?.["X-GEMINI-API-KEY"] ||
+      process.env.GEMINI_API_KEY;
 
     if (!apiKey || apiKey.trim().length === 0) {
       return {
         statusCode: 401,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          error: "Unauthorized: Missing x-gemini-api-key header.",
-        }),
+        body: JSON.stringify({ error: "Unauthorized: Missing x-gemini-api-key header." }),
       };
     }
 
@@ -37,42 +35,15 @@ export const handler: Handler = async (event, context, callback) => {
       };
     }
 
-    const enrichedEvent = {
-      ...event,
-      headers: {
-        ...(event?.headers || {}),
-        "x-gemini-api-key": apiKey.trim(),
-      },
-      body: JSON.stringify({
-        ...body,
-        canvasId: resolvedCanvasId,
-        canvas_id: resolvedCanvasId,
-      }),
-    };
-
-    const result: any = await compileWorkerHandler(enrichedEvent, context, callback);
-    if (result && typeof result === "object" && "statusCode" in result) {
-      return result;
-    }
-
-    const cleanResponse = {
-      canvasId: result?.canvasId || resolvedCanvasId,
-      canvasTitle: result?.canvasTitle || body?.canvasTitle || "Untitled",
-      compiledAt: Date.now(),
-      nodes: result?.nodes || [],
-      edges: result?.edges || [],
-      reasoningDiagnosis: result?.reasoningDiagnosis || {
-        misconceptions: [],
-        omissions: [],
-        ghostConnections: [],
-        socraticChallenges: [],
-      },
-    };
+    const result = await executeGeminiCompilation(
+      { ...body, canvasId: resolvedCanvasId, canvas_id: resolvedCanvasId },
+      apiKey.trim()
+    );
 
     return {
       statusCode: 200,
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(cleanResponse),
+      body: JSON.stringify(result),
     };
   } catch (error: any) {
     console.error("[Lambda:compile] 💥 Error in multimodal compilation endpoint:", error);

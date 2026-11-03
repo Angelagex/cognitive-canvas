@@ -18,3 +18,12 @@ export const database = new sst.aws.Dynamo("Database", {
     },
   },
 });
+
+// DynamoDB para estado de trabajos de compilación asíncrona (TTL para expiración en 24h)
+export const compilationJobsTable = new sst.aws.Dynamo("CompilationJobs", {
+  fields: {
+    jobId: "string",
+  },
+  primaryIndex: { hashKey: "jobId" },
+  ttl: "expiresAt",
+});
