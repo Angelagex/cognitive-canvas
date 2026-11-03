@@ -47,6 +47,14 @@ For every node in "nodes", do NOT repeat basic definitions. Provide deep systems
    3. "ANALOGOUS": ONLY for deliberate visual metaphors drawn by the student.
    4. "NONE": For everything else. When in doubt, output "NONE".
 
+### TAXONOMY & SUB-DOMAIN RULES:
+- Under NO circumstances set "domain" to the raw canvas filename (e.g. do NOT use "node").
+- Assign a precise technical sub-domain reflecting the component's true engineering discipline:
+  * "Systems Architecture" or "V8 Engine" (for Call Stack, Memory Heap, AST/Bytecode Pipeline).
+  * "Asynchronous Runtime" or "Event Loop" (for Libuv, Task Queue, Event Loop).
+  * "Application Security" (for Prototype Pollution, Timing Attacks, DoS mitigations).
+  * "Computer Networking" (for TCP Sockets, Handshake, Network I/O).
+
 ### STRICT OUTPUT JSON SCHEMA (FLAT ONLY - DO NOT DUPLICATE DATA):
 Return ONLY this single JSON object. Do NOT nest or replicate nodes/edges under "compiled_cognitive_layer" or "compiled_graph_payload":
 

@@ -1,10 +1,5 @@
 import * as FileSystem from "expo-file-system";
-import {
-  CognitiveMapDocument,
-  RawInkStroke,
-  VisualASTLayer,
-  CompiledCognitiveLayer,
-} from "@cognitive-canvas/core";
+import { CognitiveMapDocument } from "@cognitive-canvas/core";
 import {
   PlacedAttribute,
   ToolbarDockEdge,
@@ -13,6 +8,9 @@ import {
   DEFAULT_THEME_PALETTES,
   SynthesisReferenceCard,
 } from "../types/canvas";
+import { getGlobalKnowledgeMatrix, saveGlobalKnowledgeMatrix } from "./matrixStorage";
+
+export { getGlobalKnowledgeMatrix, saveGlobalKnowledgeMatrix };
 
 export type { UserPreferences };
 
@@ -212,14 +210,8 @@ export async function getUserPreferences(): Promise<UserPreferences> {
       ...parsed,
       toolbar_dock_side: edge === "right" ? "right" : "left",
       toolbar_dock_edge: edge,
-      tool_widths: {
-        ...defaults.tool_widths,
-        ...(parsed.tool_widths || {}),
-      },
-      theme_palettes: {
-        ...defaults.theme_palettes,
-        ...(parsed.theme_palettes || {}),
-      },
+      tool_widths: { ...defaults.tool_widths, ...(parsed.tool_widths || {}) },
+      theme_palettes: { ...defaults.theme_palettes, ...(parsed.theme_palettes || {}) },
     };
   } catch {
     return defaults;
@@ -238,43 +230,25 @@ export async function saveUserPreferences(prefs: Partial<UserPreferences>): Prom
   }
 }
 
-/**
- * Retrieves the latest AI compilation payload associated with a canvasId from local storage.
- */
 export async function getCompilationForCanvas(canvasId: string): Promise<any | null> {
   try {
     const graphPath = `${FileSystem.documentDirectory}compiled_graphs/${canvasId}_compiled_graph.json`;
     const graphInfo = await FileSystem.getInfoAsync(graphPath);
     let compiledGraph: any = null;
     if (graphInfo.exists) {
-      const raw = await FileSystem.readAsStringAsync(graphPath, {
-        encoding: FileSystem.EncodingType.UTF8,
-      });
+      const raw = await FileSystem.readAsStringAsync(graphPath, { encoding: FileSystem.EncodingType.UTF8 });
       compiledGraph = JSON.parse(raw);
     }
-
     const doc = await loadDocument(canvasId);
     const cognitiveLayer = doc?.compiled_cognitive_layer ?? null;
-
-    if (!compiledGraph && !cognitiveLayer) {
-      return null;
-    }
-
-    if (compiledGraph && cognitiveLayer) {
-      return {
-        ...compiledGraph,
-        compiled_cognitive_layer: cognitiveLayer,
-      };
-    }
-
-    return (
-      compiledGraph || {
-        canvasId,
-        canvasTitle: doc?.metadata?.title || "Canvas",
-        compiledAt: doc?.metadata?.updated_at || Date.now(),
-        compiled_cognitive_layer: cognitiveLayer,
-      }
-    );
+    if (!compiledGraph && !cognitiveLayer) return null;
+    if (compiledGraph && cognitiveLayer) return { ...compiledGraph, compiled_cognitive_layer: cognitiveLayer };
+    return compiledGraph || {
+      canvasId,
+      canvasTitle: doc?.metadata?.title || "Canvas",
+      compiledAt: doc?.metadata?.updated_at || Date.now(),
+      compiled_cognitive_layer: cognitiveLayer,
+    };
   } catch (err) {
     console.warn(`[StorageService] Failed to read compilation for ${canvasId}:`, err);
     return null;
@@ -291,3 +265,18 @@ export async function updateDocumentMetadata(
     await saveDocument(doc);
   }
 }
+
+export const StorageService = {
+  loadDocument,
+  saveDocument,
+  listDocuments,
+  deleteDocument,
+  getLastActiveMapId,
+  setLastActiveMapId,
+  getUserPreferences,
+  saveUserPreferences,
+  getCompilationForCanvas,
+  updateDocumentMetadata,
+  getGlobalKnowledgeMatrix,
+  saveGlobalKnowledgeMatrix,
+};

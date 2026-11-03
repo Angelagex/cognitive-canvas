@@ -4,6 +4,7 @@ import { CognitiveCompilerOutput, VisualAST, PacerClassification, RawInkStroke }
 import { PlacedAttribute } from "../../types/canvas";
 import { compileCanvas } from "../../services/CompilationService";
 import { saveCompiledGraph } from "../../services/CompiledGraphStorage";
+import { MatrixReconciliationService } from "../../services/MatrixReconciliationService";
 import { loadDocument, saveDocument, getCompilationForCanvas, updateDocumentMetadata } from "../../services/StorageService";
 import { getCanvasStrokes } from "../../components/JetpackInkCanvas";
 import { cognitiveLayerStore } from "../../stores/useCognitiveLayerStore";
@@ -84,6 +85,7 @@ export const useCognitiveCompilation = (props?: UseCognitiveCompilationProps) =>
 
         const { output, compiledGraphPayload } = mapVisionResponseToOutput(response, localStrokes);
         await saveCompiledGraph(compiledGraphPayload);
+        await MatrixReconciliationService.mergeCanvasIntoGlobalMatrix(canvasId, compiledGraphPayload || output);
 
         const existingDoc = await loadDocument(canvasId);
         if (existingDoc) {

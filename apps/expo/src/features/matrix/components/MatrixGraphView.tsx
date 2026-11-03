@@ -4,20 +4,19 @@ import type { WebView as WebViewType, WebViewMessageEvent } from "react-native-w
 import { KnowledgeNode, KnowledgeEdge } from "@cognitive-canvas/core";
 import { FORCE_GRAPH_HTML_TEMPLATE } from "./forceGraphHtml";
 import { inferConceptDomain } from "../../../services/CompiledGraphStorage";
+import { getDomainColor } from "../utils/domainColors";
 
-export const DOMAIN_THEMES: Record<string, { stroke: string; glow: string; text: string }> = {
-  "V8 Engine": { stroke: "#38BDF8", glow: "rgba(56, 189, 248, 0.25)", text: "#E0F2FE" },
-  "Async Runtime": { stroke: "#A855F7", glow: "rgba(168, 85, 247, 0.25)", text: "#F3E8FF" },
-  Security: { stroke: "#F59E0B", glow: "rgba(245, 158, 11, 0.25)", text: "#FEF3C7" },
-  Networking: { stroke: "#10B981", glow: "rgba(16, 185, 129, 0.25)", text: "#D1FAE5" },
-  "Runtime Core": { stroke: "#EF4444", glow: "rgba(239, 68, 68, 0.25)", text: "#FEE2E2" },
-};
+export const DOMAIN_THEMES = new Proxy({} as Record<string, { stroke: string; glow: string; text: string }>, {
+  get: (_target, prop: string) => getDomainColor(typeof prop === "string" ? prop : undefined),
+});
 
 export interface MatrixGraphViewProps {
   nodes: KnowledgeNode[];
   edges: KnowledgeEdge[];
   selectedNodeId?: string | null;
   onSelectNode: (nodeId: string | null) => void;
+  width?: number;
+  height?: number;
 }
 
 function getNativeWebView(): typeof WebViewType | null {
@@ -35,6 +34,8 @@ export const MatrixGraphView: React.FC<MatrixGraphViewProps> = ({
   edges,
   selectedNodeId,
   onSelectNode,
+  width,
+  height,
 }) => {
   const webViewRef = useRef<WebViewType>(null);
   const NativeWebView = useMemo(() => getNativeWebView(), []);
@@ -87,6 +88,15 @@ export const MatrixGraphView: React.FC<MatrixGraphViewProps> = ({
     }
   };
 
+  const containerStyle = useMemo(
+    () => [
+      styles.container,
+      width != null && width > 0 ? { width } : null,
+      height != null && height > 0 ? { height } : null,
+    ],
+    [width, height]
+  );
+
   if (!NativeWebView) {
     return (
       <View style={[styles.container, styles.fallbackBox]}>
@@ -97,7 +107,7 @@ export const MatrixGraphView: React.FC<MatrixGraphViewProps> = ({
   }
 
   return (
-    <View style={styles.container}>
+    <View style={containerStyle}>
       <NativeWebView
         ref={webViewRef}
         originWhitelist={["*"]}
@@ -118,10 +128,9 @@ export const MatrixGraphView: React.FC<MatrixGraphViewProps> = ({
 export const DagGraphRenderer = MatrixGraphView;
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#090D16" },
-  webview: { flex: 1, backgroundColor: "transparent" },
+  container: { flex: 1, width: "100%", height: "100%", backgroundColor: "#090D16" },
+  webview: { flex: 1, width: "100%", height: "100%", backgroundColor: "transparent" },
   fallbackBox: { alignItems: "center", justifyContent: "center", padding: 24 },
   fallbackTitle: { color: "#F8FAFC", fontSize: 15, fontWeight: "700", marginBottom: 6 },
   fallbackSub: { color: "#94A3B8", fontSize: 12, textAlign: "center" },
 });
-

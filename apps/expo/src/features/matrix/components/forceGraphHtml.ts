@@ -27,9 +27,18 @@ export const FORCE_GRAPH_HTML_TEMPLATE = `<!DOCTYPE html>
       { hex: '#A855F7', glow: 'rgba(168, 85, 247, 0.25)', tint: 'rgba(59, 7, 100, 0.85)' },
       { hex: '#F59E0B', glow: 'rgba(245, 158, 11, 0.25)', tint: 'rgba(69, 26, 3, 0.85)' },
       { hex: '#10B981', glow: 'rgba(16, 185, 129, 0.25)', tint: 'rgba(6, 78, 59, 0.85)' },
-      { hex: '#EF4444', glow: 'rgba(239, 68, 68, 0.25)', tint: 'rgba(76, 5, 25, 0.85)' }
+      { hex: '#EC4899', glow: 'rgba(236, 72, 153, 0.25)', tint: 'rgba(80, 7, 36, 0.85)' },
+      { hex: '#06B6D4', glow: 'rgba(6, 182, 212, 0.25)', tint: 'rgba(8, 51, 68, 0.85)' },
+      { hex: '#F97316', glow: 'rgba(249, 115, 22, 0.25)', tint: 'rgba(67, 20, 7, 0.85)' }
     ];
-    const DOMAIN_MAP = { 'V8 Engine': DOMAIN_PALETTE[0], 'Async Runtime': DOMAIN_PALETTE[1], 'Security': DOMAIN_PALETTE[2], 'Networking': DOMAIN_PALETTE[3], 'Runtime Core': DOMAIN_PALETTE[4] };
+    function hashDomain(str) {
+      if (!str || !str.trim()) return 0;
+      let hash = 0;
+      for (let i = 0; i < str.length; i++) {
+        hash = str.charCodeAt(i) + ((hash << 5) - hash);
+      }
+      return Math.abs(hash);
+    }
     function resize() { width = window.innerWidth || 900; height = window.innerHeight || 600; dpr = window.devicePixelRatio || 1; canvas.width = width * dpr; canvas.height = height * dpr; }
     window.addEventListener('resize', resize); resize();
 
@@ -52,9 +61,8 @@ export const FORCE_GRAPH_HTML_TEMPLATE = `<!DOCTYPE html>
       return (domainIndex(dom) - (total - 1) / 2) * spacing;
     }
     function domainStyle(dom) {
-      if (dom && DOMAIN_MAP[dom]) return DOMAIN_MAP[dom];
-      const match = Object.keys(DOMAIN_MAP).find(k => dom && dom.toLowerCase().includes(k.toLowerCase().split(' ')[0]));
-      return match ? DOMAIN_MAP[match] : DOMAIN_PALETTE[domainIndex(dom) % DOMAIN_PALETTE.length];
+      const idx = hashDomain(dom) % DOMAIN_PALETTE.length;
+      return DOMAIN_PALETTE[idx];
     }
 
     window.updateCognitiveGraph = function(data, nextSelectedId) {
@@ -273,9 +281,6 @@ export const FORCE_GRAPH_HTML_TEMPLATE = `<!DOCTYPE html>
         selectedId = null;
         if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'NODE_SELECTED', nodeId: null }));
       }
-      pointers.delete(e.pointerId);
-      if (pointers.size === 0) { startPan = null; startPinchDist = null; }
-    }
       pointers.delete(e.pointerId);
       if (pointers.size === 0) { startPan = null; startPinchDist = null; }
     }

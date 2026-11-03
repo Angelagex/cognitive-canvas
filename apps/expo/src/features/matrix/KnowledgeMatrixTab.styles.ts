@@ -275,6 +275,8 @@ export const styles = StyleSheet.create({
   },
   graphViewport: {
     flex: 1,
+    width: "100%",
+    height: "100%",
     position: "relative",
     backgroundColor: "#0A0F1D",
   },

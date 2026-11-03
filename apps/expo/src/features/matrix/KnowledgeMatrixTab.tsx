@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
-import { View, Text, TouchableOpacity, TextInput, ScrollView } from "react-native";
+import { View, Text, TouchableOpacity, TextInput, ScrollView, Dimensions } from "react-native";
 import { Zap, ExternalLink, GitMerge, X, Check, Download } from "@sketchyicons/react-native";
 import { CanvasCompiledPayload, KnowledgeNode, KnowledgeEdge } from "@cognitive-canvas/core";
 import {
@@ -9,20 +9,18 @@ import {
 import { DagGraphRenderer } from "./components/DagGraphRenderer";
 import { ConsolidationModal } from "./components/ConsolidationModal";
 import { exportKnowledgeMatrix } from "./utils/exportMatrix";
+import { getDomainColor } from "./utils/domainColors";
 import { FALLBACK_PAYLOADS, styles } from "./KnowledgeMatrixTab.styles";
 
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
+
 export interface KnowledgeMatrixTabProps {
-  onOpenCanvasAtBounds: (
-    canvasId: string,
-    boundingBox?: { minX: number; minY: number; maxX: number; maxY: number }
-  ) => void;
+  onOpenCanvasAtBounds: (canvasId: string, boundingBox?: { minX: number; minY: number; maxX: number; maxY: number }) => void;
 }
 
 const TIER_LABELS: Record<KnowledgeNode["tier"], string> = { primitive: "Primitive", mechanism: "Mechanism", system: "System" };
 
-export const KnowledgeMatrixTab: React.FC<KnowledgeMatrixTabProps> = ({
-  onOpenCanvasAtBounds,
-}) => {
+export const KnowledgeMatrixTab: React.FC<KnowledgeMatrixTabProps> = ({ onOpenCanvasAtBounds }) => {
   const [payloads, setPayloads] = useState<CanvasCompiledPayload[]>([]);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedDomain, setSelectedDomain] = useState<string>("All");
@@ -164,14 +162,18 @@ export const KnowledgeMatrixTab: React.FC<KnowledgeMatrixTabProps> = ({
         <ScrollView contentContainerStyle={styles.filterScrollContent} horizontal showsHorizontalScrollIndicator={false}>
           {availableDomains.map((domain) => {
             const isSelected = selectedDomain === domain;
+            const domainColor = domain === "All" ? "#38BDF8" : getDomainColor(domain).stroke;
             return (
               <TouchableOpacity
                 key={domain}
                 onPress={() => setSelectedDomain(domain)}
-                style={[styles.domainChip, isSelected && styles.domainChipActive]}
+                style={[
+                  styles.domainChip,
+                  isSelected && { backgroundColor: domainColor + "25", borderColor: domainColor },
+                ]}
                 activeOpacity={0.7}
               >
-                <Text style={[styles.domainChipText, isSelected && styles.domainChipTextActive]}>
+                <Text style={[styles.domainChipText, { color: domainColor, fontWeight: isSelected ? "700" : "500" }]}>
                   {domain}
                 </Text>
               </TouchableOpacity>
@@ -180,12 +182,14 @@ export const KnowledgeMatrixTab: React.FC<KnowledgeMatrixTabProps> = ({
         </ScrollView>
       </View>
 
-      <View style={styles.graphViewport}>
+      <View style={[styles.graphViewport, { width: SCREEN_WIDTH, height: SCREEN_HEIGHT - 160 }]}>
         <DagGraphRenderer
           nodes={filteredNodes}
           edges={filteredEdges}
           selectedNodeId={selectedNodeId}
           onSelectNode={handleSelectNode}
+          width={SCREEN_WIDTH}
+          height={SCREEN_HEIGHT - 160}
         />
       </View>
 
