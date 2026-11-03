@@ -238,4 +238,34 @@ export const styles = StyleSheet.create({
     fontWeight: "700",
   },
   feedbackText: { color: "#34D399", fontSize: 11, fontWeight: "600", marginTop: 6 },
+  domainFilterBar: {
+    backgroundColor: "#0B1120",
+    borderBottomWidth: 1,
+    borderBottomColor: "#1E293B",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    flexDirection: "row",
+  },
+  domainChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 14,
+    backgroundColor: "#1E293B",
+    marginRight: 8,
+    borderWidth: 1,
+    borderColor: "#334155",
+  },
+  domainChipActive: {
+    backgroundColor: "rgba(56, 189, 248, 0.16)",
+    borderColor: "#38BDF8",
+  },
+  domainText: {
+    color: "#94A3B8",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  domainTextActive: {
+    color: "#38BDF8",
+    fontWeight: "700",
+  },
 });

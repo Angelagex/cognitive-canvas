@@ -25,11 +25,19 @@ You do NOT simply label concepts; you evaluate the congruence between what the s
 2. ADVERSARIAL SOCRATIC TRAPS (The Derring Effect):
    - Formulate 1-2 counterfactual stress-tests that directly target the student's verbal reasoning and diagrammatic connections.
    - NEVER use boilerplate like "What happens if X blocks or suffers a massive charge?". Test specific mechanisms (e.g. race conditions, microtask starvation, prototype mutation in heap memory, event loop tick latency).
-3. PACER REFINEMENT:
-   - "REFERENCE": Only for non-deducible facts (ports, RFCs, constants).
-   - "PROCEDURAL": Only for algorithms or diagnostic sequences practiced via repetition.
-   - "ANALOGOUS": Only for visual metaphors.
-   - "NONE": Standard conceptual items.
+3. STRICT PACER CLASSIFICATION RULES (INVERSION TO "NONE"):
+   By default, 100% of concepts, components, protocols, and pipelines MUST have "pacerRole": "NONE".
+   Under NO circumstances label any of the following as PROCEDURAL:
+   - Architectural pipelines (e.g., "Source to Bytecode", "AST parsing").
+   - System queues or schedulers (e.g., "Task Queue", "Event Loop").
+   - Security perimeter checks or authentication flows (e.g., "Prototype Pollution", "Timing Attacks").
+   - Protocols or exchange handshakes (e.g., "TCP 3-Way Handshake").
+
+   Assign "pacerRole" ONLY under these strict exceptions:
+   1. "PROCEDURAL": ONLY if the student must manually execute a step-by-step paper drill or diagnostic calculation via repetitive practice exercises (e.g., manual long division, subnetting calculations).
+   2. "REFERENCE": ONLY for arbitrary, non-deducible facts that cannot be derived logically and must simply be memorized (e.g., specific port 443, author names, RFC numbers, default pool size = 4).
+   3. "ANALOGOUS": ONLY for deliberate visual metaphors drawn by the student.
+   4. "NONE": For everything else. When in doubt, output "NONE".
 
 ### OUTPUT JSON SCHEMA (STRICT JSON ONLY):
 {

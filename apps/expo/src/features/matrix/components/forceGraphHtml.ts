@@ -3,6 +3,15 @@
  * - Y-axis abstraction tier stratification (System / Mechanism / Primitive) with spring-back on drop (node.fx = null; node.fy = null;)
  * - X-axis thematic domain clustering with color-coded illuminated topic islands
  */
+export const TIER_Y_BANDS: Record<
+  "system" | "mechanism" | "primitive",
+  { minY: number; maxY: number; targetY: number }
+> = {
+  system: { minY: 0, maxY: 300, targetY: 150 },
+  mechanism: { minY: 320, maxY: 650, targetY: 480 },
+  primitive: { minY: 670, maxY: 1000, targetY: 820 },
+};
+
 export const FORCE_GRAPH_HTML_TEMPLATE = `<!DOCTYPE html>
 <html>
 <head>
@@ -49,8 +58,13 @@ export const FORCE_GRAPH_HTML_TEMPLATE = `<!DOCTYPE html>
     let nodes = [], links = [], domainList = [], selectedId = null, draggedNode = null, alpha = 1;
     let cam = { x: 0, y: 0, k: 1, targetX: 0, targetY: 0, targetK: 1 };
 
+    function getTierBand(tier) {
+      if (tier === 'system') return { minY: -height * 0.46, maxY: -height * 0.18, targetY: -height * 0.30 };
+      if (tier === 'primitive') return { minY: height * 0.18, maxY: height * 0.46, targetY: height * 0.30 };
+      return { minY: -height * 0.14, maxY: height * 0.14, targetY: 0 };
+    }
     function tierTargetY(tier) {
-      return tier === 'system' ? -height * 0.28 : tier === 'primitive' ? height * 0.28 : 0;
+      return getTierBand(tier).targetY;
     }
     function domainIndex(dom) {
       const idx = domainList.indexOf(dom || 'General');
@@ -72,11 +86,14 @@ export const FORCE_GRAPH_HTML_TEMPLATE = `<!DOCTYPE html>
       domainList = Array.from(new Set(data.nodes.map(n => n.domain || 'General')));
       nodes = data.nodes.map((n, i) => {
         const prev = prevMap.get(n.id), dom = n.domain || 'General';
+        const band = getTierBand(n.tier);
+        const targetY = band.targetY + ((i % 2 === 0 ? 1 : -1) * 16);
+        const initY = prev ? Math.max(band.minY, Math.min(band.maxY, prev.y)) : targetY;
         return {
           id: n.id, name: n.name || n.id, domain: dom,
           tier: n.tier || 'mechanism', state: n.state || 'unverified',
           x: prev ? prev.x : domainTargetX(dom) + ((i % 3) - 1) * 38,
-          y: prev ? prev.y : tierTargetY(n.tier) + ((i % 2 === 0 ? 1 : -1) * 18),
+          y: initY,
           vx: prev ? prev.vx : 0, vy: prev ? prev.vy : 0, fx: null, fy: null, w: 136, h: 30
         };
       });
@@ -92,15 +109,19 @@ export const FORCE_GRAPH_HTML_TEMPLATE = `<!DOCTYPE html>
       if (alpha > 0.01) {
         for (let i = 0; i < nodes.length; i++) {
           const a = nodes[i];
-          if (a.fx != null && a.fy != null) { a.x = a.fx; a.y = a.fy; a.vx = 0; a.vy = 0; continue; }
-          a.vy += (tierTargetY(a.tier) - a.y) * 0.12 * alpha;
+          const band = getTierBand(a.tier);
+          if (a.fx != null && a.fy != null) {
+            a.x = a.fx; a.y = Math.max(band.minY, Math.min(band.maxY, a.fy));
+            a.vx = 0; a.vy = 0; continue;
+          }
+          a.vy += (band.targetY - a.y) * 0.12 * alpha;
           a.vx += (domainTargetX(a.domain) - a.x) * 0.075 * alpha;
           for (let j = i + 1; j < nodes.length; j++) {
             const b = nodes[j];
             let dx = b.x - a.x || 0.1, dy = b.y - a.y || 0.1;
             let dist2 = Math.max((a.w + b.w) * 0.62 * (a.w + b.w) * 0.62, dx * dx + dy * dy);
             const force = ((a.domain === b.domain ? 2600 : 4200) * alpha) / dist2;
-            const fx = dx * force, fy = dy * force * 0.55;
+            const fx = dx * force, fy = dy * force * 0.35;
             if (a.fx == null) { a.vx -= fx; a.vy -= fy; }
             if (b.fx == null) { b.vx += fx; b.vy += fy; }
           }
@@ -108,13 +129,18 @@ export const FORCE_GRAPH_HTML_TEMPLATE = `<!DOCTYPE html>
         for (const l of links) {
           const dx = l.target.x - l.source.x, dy = l.target.y - l.source.y;
           const dist = Math.hypot(dx, dy) || 1, delta = (dist - 150) * 0.03 * alpha;
-          const fx = (dx / dist) * delta, fy = (dy / dist) * delta * 0.45;
+          const fx = (dx / dist) * delta, fy = (dy / dist) * delta * 0.25;
           if (l.source.fx == null) { l.source.vx += fx; l.source.vy += fy; }
           if (l.target.fx == null) { l.target.vx -= fx; l.target.vy -= fy; }
         }
         for (const n of nodes) {
-          if (n.fx != null && n.fy != null) { n.x = n.fx; n.y = n.fy; n.vx = 0; n.vy = 0; }
-          else { n.vx *= 0.76; n.vy *= 0.76; n.x += n.vx; n.y += n.vy; }
+          const band = getTierBand(n.tier);
+          if (n.fx != null && n.fy != null) {
+            n.x = n.fx; n.y = Math.max(band.minY, Math.min(band.maxY, n.fy)); n.vx = 0; n.vy = 0;
+          } else {
+            n.vx *= 0.76; n.vy *= 0.76; n.x += n.vx; n.y += n.vy;
+            n.y = Math.max(band.minY, Math.min(band.maxY, n.y));
+          }
         }
         alpha *= 0.975;
       }
@@ -224,7 +250,9 @@ export const FORCE_GRAPH_HTML_TEMPLATE = `<!DOCTYPE html>
         if (Math.hypot(dx, dy) > 6) startPan.moved = true;
         if (draggedNode) {
           const wpt = screenToWorld(e.clientX, e.clientY);
-          draggedNode.fx = wpt.x; draggedNode.fy = wpt.y; draggedNode.x = wpt.x; draggedNode.y = wpt.y;
+          const band = getTierBand(draggedNode.tier);
+          const clampedY = Math.max(band.minY, Math.min(band.maxY, wpt.y));
+          draggedNode.fx = wpt.x; draggedNode.fy = clampedY; draggedNode.x = wpt.x; draggedNode.y = clampedY;
           alpha = Math.max(alpha, 0.5);
         } else {
           cam.targetX = startPan.camX + dx; cam.targetY = startPan.camY + dy;

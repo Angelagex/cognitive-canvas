@@ -1,8 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
-import { View, Text, TouchableOpacity, TextInput, ScrollView, Alert, Platform, Share } from "react-native";
+import { View, Text, TouchableOpacity, TextInput, ScrollView } from "react-native";
 import { Zap, ExternalLink, GitMerge, X, Check, Download } from "@sketchyicons/react-native";
-import * as FileSystem from "expo-file-system";
-import { StorageAccessFramework } from "expo-file-system";
 import { CanvasCompiledPayload, KnowledgeNode, KnowledgeEdge } from "@cognitive-canvas/core";
 import {
   loadAllCompiledGraphs,
@@ -10,6 +8,7 @@ import {
 } from "../../services/CompiledGraphStorage";
 import { DagGraphRenderer } from "./components/DagGraphRenderer";
 import { ConsolidationModal } from "./components/ConsolidationModal";
+import { exportKnowledgeMatrix } from "./utils/exportMatrix";
 import { FALLBACK_PAYLOADS, styles } from "./KnowledgeMatrixTab.styles";
 
 export interface KnowledgeMatrixTabProps {
@@ -30,6 +29,7 @@ export const KnowledgeMatrixTab: React.FC<KnowledgeMatrixTabProps> = ({
 }) => {
   const [payloads, setPayloads] = useState<CanvasCompiledPayload[]>([]);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [selectedDomain, setSelectedDomain] = useState<string>("All");
   const [defenseActive, setDefenseActive] = useState(false);
   const [defenseAnswer, setDefenseAnswer] = useState("");
   const [defenseFeedback, setDefenseFeedback] = useState<string | null>(null);
@@ -70,9 +70,33 @@ export const KnowledgeMatrixTab: React.FC<KnowledgeMatrixTabProps> = ({
     return { mergedNodes: nodesArr, mergedEdges: edgeList, overlappingNode: shared };
   }, [payloads]);
 
+  const availableDomains = useMemo(() => {
+    const domains = new Set<string>();
+    mergedNodes.forEach((n) => {
+      if (n.domain && n.domain.trim().length > 0 && n.domain !== "<3") {
+        domains.add(n.domain);
+      }
+    });
+    return ["All", ...Array.from(domains)];
+  }, [mergedNodes]);
+
+  const filteredNodes = useMemo(() => {
+    if (selectedDomain === "All") {
+      return mergedNodes.filter((n) => n.domain && n.domain !== "<3");
+    }
+    return mergedNodes.filter((n) => n.domain === selectedDomain);
+  }, [mergedNodes, selectedDomain]);
+
+  const filteredEdges = useMemo(() => {
+    const visibleNodeIds = new Set(filteredNodes.map((n) => n.id));
+    return mergedEdges.filter(
+      (e) => visibleNodeIds.has(e.fromNodeId) && visibleNodeIds.has(e.toNodeId)
+    );
+  }, [mergedEdges, filteredNodes]);
+
   const selectedNode = useMemo(
-    () => mergedNodes.find((n) => n.id === selectedNodeId) || null,
-    [mergedNodes, selectedNodeId]
+    () => filteredNodes.find((n) => n.id === selectedNodeId) || null,
+    [filteredNodes, selectedNodeId]
   );
 
   const handleSelectNode = useCallback((nodeId: string) => {
@@ -95,57 +119,8 @@ export const KnowledgeMatrixTab: React.FC<KnowledgeMatrixTabProps> = ({
     refreshGraphs();
   };
 
-  const handleExportKnowledgeMatrix = async () => {
-    try {
-      if (mergedNodes.length === 0) {
-        Alert.alert("Matriz Vacía", "No hay nodos ni estructura compilada para exportar.");
-        return;
-      }
-      const matrixData = {
-        exportedAt: Date.now(),
-        totalNodes: mergedNodes.length,
-        totalEdges: mergedEdges.length,
-        canvasesCount: payloads.length,
-        nodes: mergedNodes,
-        edges: mergedEdges,
-        payloads,
-      };
-      const filename = `knowledge_matrix_${Date.now()}.json`;
-      const fileUri = `${FileSystem.cacheDirectory}${filename}`;
-      const jsonContent = JSON.stringify(matrixData, null, 2);
-      await FileSystem.writeAsStringAsync(fileUri, jsonContent, { encoding: FileSystem.EncodingType.UTF8 });
-
-      let shared = false;
-      try {
-        const dynamicRequire = typeof require !== "undefined" ? require : null;
-        const expoSharing = dynamicRequire ? dynamicRequire("expo-sharing") : null;
-        if (expoSharing && (await expoSharing.isAvailableAsync())) {
-          await expoSharing.shareAsync(fileUri, {
-            mimeType: "application/json",
-            dialogTitle: "Exportar Matriz de Conocimiento",
-            UTI: "public.json",
-          });
-          shared = true;
-        }
-      } catch {}
-
-      if (!shared && Platform.OS === "android" && StorageAccessFramework) {
-        const permissions = await StorageAccessFramework.requestDirectoryPermissionsAsync();
-        if (permissions.granted) {
-          const safUri = await StorageAccessFramework.createFileAsync(permissions.directoryUri, filename, "application/json");
-          await FileSystem.writeAsStringAsync(safUri, jsonContent, { encoding: FileSystem.EncodingType.UTF8 });
-          Alert.alert("Matriz Guardada", `Archivo guardado exitosamente:\n${filename}`);
-          shared = true;
-        }
-      }
-
-      if (!shared) {
-        await Share.share({ title: "Exportar Matriz de Conocimiento", message: jsonContent });
-      }
-    } catch (error: any) {
-      console.error("Error al exportar matriz:", error);
-      Alert.alert("Error", error?.message || "No se pudo exportar el archivo de la Matriz.");
-    }
+  const handleExportKnowledgeMatrix = () => {
+    exportKnowledgeMatrix(filteredNodes, filteredEdges, payloads);
   };
 
   return (
@@ -154,7 +129,7 @@ export const KnowledgeMatrixTab: React.FC<KnowledgeMatrixTabProps> = ({
         <View>
           <Text style={styles.title}>Knowledge Matrix · Force-Directed Causal DAG</Text>
           <Text style={styles.subtitle}>
-            {mergedNodes.length} canonical concepts across {payloads.length} compiled canvases
+            {filteredNodes.length} canonical concepts {selectedDomain !== "All" ? `in ${selectedDomain}` : `across ${payloads.length} compiled canvases`}
           </Text>
         </View>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
@@ -181,9 +156,23 @@ export const KnowledgeMatrixTab: React.FC<KnowledgeMatrixTabProps> = ({
         </View>
       </View>
 
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.domainFilterBar}>
+        {availableDomains.map((domain) => (
+          <TouchableOpacity
+            key={domain}
+            onPress={() => setSelectedDomain(domain)}
+            style={[styles.domainChip, selectedDomain === domain && styles.domainChipActive]}
+          >
+            <Text style={[styles.domainText, selectedDomain === domain && styles.domainTextActive]}>
+              {domain}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+
       <DagGraphRenderer
-        nodes={mergedNodes}
-        edges={mergedEdges}
+        nodes={filteredNodes}
+        edges={filteredEdges}
         selectedNodeId={selectedNodeId}
         onSelectNode={handleSelectNode}
       />
