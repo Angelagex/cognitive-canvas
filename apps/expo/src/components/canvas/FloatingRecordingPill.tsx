@@ -41,13 +41,14 @@ export const FloatingRecordingPill: React.FC<FloatingRecordingPillProps> = ({
         </View>
 
         <TouchableOpacity
-          style={styles.stopButton}
+          style={[styles.stopButton, Boolean(statusMessage) && styles.stopButtonDisabled]}
           onPress={onStop}
+          disabled={Boolean(statusMessage)}
           activeOpacity={0.8}
-          accessibilityLabel="Terminar y compilar explicación"
+          accessibilityLabel="Detener grabación de explicación"
         >
           <Square size={13} color="#FFFFFF" strokeWidth={2.4} fill="#FFFFFF" />
-          <Text style={styles.stopButtonText}>Terminar</Text>
+          <Text style={styles.stopButtonText}>Detener</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -119,6 +120,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     borderRadius: 20,
     gap: 6,
+  },
+  stopButtonDisabled: {
+    opacity: 0.5,
   },
   stopButtonText: {
     color: "#FFFFFF",

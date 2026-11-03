@@ -167,20 +167,24 @@ export const handler: Handler = async (event) => {
       lastCompilationId: compilationId,
     }).catch(() => null);
 
-    const responseBody = {
-      ...parsedOutput,
+    const cleanResponse = {
       canvasId: parsedOutput.canvasId || resolvedCanvasId,
       canvasTitle: parsedOutput.canvasTitle || resolvedCanvasTitle,
-      compilation_id: compilationId,
-      canvas_id: resolvedCanvasId,
-      compiled_at: Date.now(),
-      output: parsedOutput,
+      compiledAt: Date.now(),
+      nodes: parsedOutput.nodes || [],
+      edges: parsedOutput.edges || [],
+      reasoningDiagnosis: parsedOutput.reasoningDiagnosis || {
+        misconceptions: [],
+        omissions: [],
+        ghostConnections: [],
+        socraticChallenges: [],
+      },
     };
 
     return {
       statusCode: 200,
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(responseBody),
+      body: JSON.stringify(cleanResponse),
     };
   } catch (error: any) {
     console.error(`[Worker:compile] 💥 Vision-First compilation error:`, error);

@@ -4,7 +4,7 @@ import { CognitiveCompilerOutput, VisualAST, PacerClassification, RawInkStroke }
 import { PlacedAttribute } from "../../types/canvas";
 import { compileCanvas } from "../../services/CompilationService";
 import { saveCompiledGraph } from "../../services/CompiledGraphStorage";
-import { loadDocument, saveDocument, getCompilationForCanvas } from "../../services/StorageService";
+import { loadDocument, saveDocument, getCompilationForCanvas, updateDocumentMetadata } from "../../services/StorageService";
 import { getCanvasStrokes } from "../../components/JetpackInkCanvas";
 import { cognitiveLayerStore } from "../../stores/useCognitiveLayerStore";
 import { WalkthroughAudioService } from "../../services/WalkthroughAudioService";
@@ -152,23 +152,67 @@ export const useCognitiveCompilation = (props?: UseCognitiveCompilationProps) =>
     );
   }, [executeCompilation]);
 
-  const handleStartExplanation = useCallback(() => {
+  const handleStartExplanation = useCallback(async () => {
     setIsDrawerOpen(false);
+    const canvasId = props?.getCurrentMapId ? props.getCurrentMapId() : null;
+    if (canvasId) {
+      try {
+        const doc = await loadDocument(canvasId);
+        const saved = doc?.metadata?.verbalWalkthroughTranscript;
+        if (saved) setWalkthroughModalTranscript(saved);
+      } catch {}
+    }
     setShowWalkthroughModal(true);
-  }, []);
+  }, [props]);
+
+  const handleStartExplanationRecording = useCallback(
+    async (currentDraftText?: string) => {
+      try {
+        if (typeof currentDraftText === "string") {
+          setWalkthroughModalTranscript(currentDraftText);
+          const canvasId = props?.getCurrentMapId ? props.getCurrentMapId() : null;
+          if (canvasId && currentDraftText.trim()) {
+            await updateDocumentMetadata(canvasId, {
+              verbalWalkthroughTranscript: currentDraftText.trim(),
+            });
+          }
+        }
+        const started = await WalkthroughAudioService.startRecording();
+        if (!started) {
+          Alert.alert("Micrófono", "No se pudo acceder al micrófono.");
+          return;
+        }
+        setWalkthroughSeconds(0);
+        setIsRecordingWalkthrough(true);
+        setShowWalkthroughModal(false);
+      } catch (err: any) {
+        console.error("[Compilation] Failed to start walkthrough recording:", err);
+        Alert.alert("Grabación", err?.message || "Error al iniciar grabación.");
+      }
+    },
+    [props]
+  );
 
   const handleStopAndReviewExplanation = useCallback(async () => {
     if (isStoppingRef.current) return;
     isStoppingRef.current = true;
     try {
+      setCompilationStatusMessage("Transcribiendo razonamiento...");
       const audioUri = await WalkthroughAudioService.stopRecording();
-      setIsRecordingWalkthrough(false);
       if (audioUri) {
-        setCompilationStatusMessage("Transcribiendo razonamiento...");
-        const transcript = await TranscriptionService.transcribeAudio(audioUri);
-        setWalkthroughModalTranscript(transcript);
-        setWalkthroughModalPhase("review");
-        setShowWalkthroughModal(true);
+        const newSnippet = await TranscriptionService.transcribeAudio(audioUri);
+        if (newSnippet && newSnippet.trim().length > 0) {
+          const trimmed = newSnippet.trim();
+          setWalkthroughModalTranscript((prev) => {
+            const trimmedPrev = (prev || "").trim();
+            const combined = !trimmedPrev ? trimmed : `${trimmedPrev}\n\n${trimmed}`;
+            const canvasId = props?.getCurrentMapId ? props.getCurrentMapId() : null;
+            if (canvasId) {
+              updateDocumentMetadata(canvasId, { verbalWalkthroughTranscript: combined });
+            }
+            return combined;
+          });
+        }
       }
     } catch (error: any) {
       console.error("[Compilation] Transcribe error:", error);
@@ -177,8 +221,9 @@ export const useCognitiveCompilation = (props?: UseCognitiveCompilationProps) =>
       setCompilationStatusMessage(null);
       setIsRecordingWalkthrough(false);
       isStoppingRef.current = false;
+      setShowWalkthroughModal(true);
     }
-  }, []);
+  }, [props]);
 
   const handleConfirmWalkthrough = useCallback(
     async (result: WalkthroughConfirmParams | string | null) => {
@@ -221,6 +266,7 @@ export const useCognitiveCompilation = (props?: UseCognitiveCompilationProps) =>
     handleFastCompile,
     handleLongPressFastCompile,
     handleStartExplanation,
+    handleStartExplanationRecording,
     handleStopAndCompileExplanation: handleStopAndReviewExplanation,
     handleConfirmWalkthrough,
     isRecordingWalkthrough,

@@ -5,10 +5,6 @@
 import { NormalizedBoundingBox } from "./visualAst";
 export { COMPILER_JSON_SCHEMA } from "./compilerJsonSchema";
 
-// ============================================================================
-// PART III: LAYERED DAG KNOWLEDGE MATRIX & CAUSAL SYNTHESIS SCHEMAS
-// ============================================================================
-
 export type ConceptTier = "primitive" | "mechanism" | "system";
 export type PacerRole = "REFERENCE" | "PROCEDURAL" | "ANALOGOUS" | "NONE";
 export type NodeVerificationState = "verified" | "unverified" | "ghost";
@@ -31,6 +27,9 @@ export interface KnowledgeNode {
   tier: ConceptTier;
   pacerRole: PacerRole;
   summary: string;
+  invariant?: string;
+  fragility?: string;
+  tradeoff?: string;
   verificationState: NodeVerificationState;
   box_2d?: [number, number, number, number];
   provenance: {

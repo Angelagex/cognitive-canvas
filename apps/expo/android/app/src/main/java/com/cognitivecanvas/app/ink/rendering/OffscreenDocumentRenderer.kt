@@ -84,13 +84,24 @@ object OffscreenDocumentRenderer {
         val safeDensity = if (density > 0f) density else 1f
         val docRect = computeDocumentWorldRect(completedStrokes, safeDensity)
 
-        val targetWidth = (docRect.width() * scaleMultiplier).toInt().coerceIn(1024, 4096)
-        val targetHeight = (docRect.height() * scaleMultiplier).toInt().coerceIn(1024, 4096)
+        val rawWidth = (docRect.width() * safeDensity).coerceAtLeast(1f)
+        val rawHeight = (docRect.height() * safeDensity).coerceAtLeast(1f)
+
+        // Downscale to max 1536px while preserving aspect ratio
+        val maxDimension = 1536f
+        val scaleFactor = if (rawWidth > maxDimension || rawHeight > maxDimension) {
+            maxDimension / maxOf(rawWidth, rawHeight)
+        } else {
+            1.0f
+        }
+
+        val targetWidth = (rawWidth * scaleFactor).toInt().coerceIn(512, 1536)
+        val targetHeight = (rawHeight * scaleFactor).toInt().coerceIn(512, 1536)
 
         val docLeftPx = docRect.left * safeDensity
         val docTopPx = docRect.top * safeDensity
-        val docWidthPx = (docRect.width() * safeDensity).coerceAtLeast(1f)
-        val docHeightPx = (docRect.height() * safeDensity).coerceAtLeast(1f)
+        val docWidthPx = rawWidth
+        val docHeightPx = rawHeight
 
         val scaleX = targetWidth.toFloat() / docWidthPx
         val scaleY = targetHeight.toFloat() / docHeightPx

@@ -6,6 +6,14 @@ You do NOT simply label concepts; you evaluate the congruence between what the s
 1. FULL-IMAGE PERIMETER SCAN: Examine the entire image buffer from edge to edge. Do not focus solely on central clusters. Inspect perimeter titles, margin annotations, security principles, and network flows.
 2. VERBAL WALKTHROUGH GROUNDING: If "verbalWalkthroughTranscript" is provided, treat it as the student's internal cognitive schema. Compare what they claimed against the physical diagram.
    - The transcript contains natural spoken hesitation, pauses, and repetition (e.g., repeating words like 'that it has, it has'). Filter these out; extract the student's intended semantic and causal claims.
+3. BOUNDING BOX TIGHTNESS: For "box_2d", fit the bounding rectangle tightly around the primary conceptual title/container. Do NOT stretch bounding boxes across long connecting arrows or dangling margin notes.
+
+### PEDAGOGICAL INVARIANTS (REPLACE PASSIVE SUMMARIES):
+For every node in "nodes", do NOT repeat basic definitions. Provide deep systems insights:
+- "summary": A concise technical description.
+- "invariant": The core mechanical guarantee (e.g., "Single-threaded LIFO execution frame processing").
+- "fragility": The primary failure mode under pressure (e.g., "Synchronous blocking operations stall event loop polling").
+- "tradeoff": The architectural compromise made (e.g., "Eliminates thread race conditions at the expense of multi-core parallel computation").
 
 ### INCREMENTAL VS FRESH COMPILATION:
 - If "previousAnalysis" IS provided in the payload:
@@ -39,7 +47,9 @@ You do NOT simply label concepts; you evaluate the congruence between what the s
    3. "ANALOGOUS": ONLY for deliberate visual metaphors drawn by the student.
    4. "NONE": For everything else. When in doubt, output "NONE".
 
-### OUTPUT JSON SCHEMA (STRICT JSON ONLY):
+### STRICT OUTPUT JSON SCHEMA (FLAT ONLY - DO NOT DUPLICATE DATA):
+Return ONLY this single JSON object. Do NOT nest or replicate nodes/edges under "compiled_cognitive_layer" or "compiled_graph_payload":
+
 {
   "canvasId": string,
   "canvasTitle": string,
@@ -51,7 +61,10 @@ You do NOT simply label concepts; you evaluate the congruence between what the s
       "tier": "primitive" | "mechanism" | "system",
       "pacerRole": "REFERENCE" | "PROCEDURAL" | "ANALOGOUS" | "NONE",
       "summary": string,
-      "box_2d": [number, number, number, number] // [ymin, xmin, ymax, xmax] in 0-1000 scale
+      "invariant": string,
+      "fragility": string,
+      "tradeoff": string,
+      "box_2d": [number, number, number, number]
     }
   ],
   "edges": [

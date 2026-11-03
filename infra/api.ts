@@ -3,7 +3,8 @@ import { bucket, database } from "./storage";
 export const compilerWorker = new sst.aws.Function("CompilerWorker", {
   handler: "packages/functions/src/compileWorker.handler",
   link: [bucket, database],
-  timeout: "5 minutes",
+  timeout: "30 seconds",
+  memory: "1024 MB",
 });
 
 export const myApi = new sst.aws.ApiGatewayV2("MyApi", {
@@ -12,8 +13,18 @@ export const myApi = new sst.aws.ApiGatewayV2("MyApi", {
 
 myApi.route("GET /", "packages/functions/src/api.handler");
 
-// Cognitive Compiler Dispatcher Endpoint (Async dispatch)
-myApi.route("POST /canvases/{id}/compile", "packages/functions/src/compile.handler");
+// Cognitive Compiler Dispatcher Endpoint (Increased to API Gateway max 30s limit)
+myApi.route("POST /compile", {
+  handler: "packages/functions/src/compile.handler",
+  timeout: "30 seconds",
+  memory: "1024 MB",
+});
+
+myApi.route("POST /canvases/{id}/compile", {
+  handler: "packages/functions/src/compile.handler",
+  timeout: "30 seconds",
+  memory: "1024 MB",
+});
 
 // Canvas Compilation Status & Output Polling Endpoint
 myApi.route("GET /canvases/{id}/compilation", "packages/functions/src/compilation/getByCanvas.handler");

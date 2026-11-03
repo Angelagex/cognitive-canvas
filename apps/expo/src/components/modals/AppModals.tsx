@@ -77,6 +77,7 @@ export const AppModals: React.FC<AppModalsProps> = ({
         canvasId={canvas.currentMapId}
         initialTranscript={canvas.walkthroughModalTranscript}
         onConfirmCompile={canvas.handleConfirmWalkthrough}
+        onStartRecording={canvas.handleStartExplanationRecording}
       />
     </>
   );

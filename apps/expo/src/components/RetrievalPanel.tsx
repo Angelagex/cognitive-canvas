@@ -3,6 +3,7 @@ import { View, Text, ScrollView, TouchableOpacity, Alert } from "react-native";
 import { Layers, GitBranch, HelpCircle, Eye, EyeOff, Sparkles } from "@sketchyicons/react-native";
 import { CognitiveCompilerOutput, PacerClassification, KnowledgeNode, KnowledgeEdge, ConceptTier, PacerRole, ReasoningDiagnosis } from "@cognitive-canvas/core/types";
 import { useCognitiveLayerStore } from "../stores/useCognitiveLayerStore";
+import { ArchitectureTab } from "./drawer/tabs/ArchitectureTab";
 import { styles } from "./RetrievalPanel.styles";
 
 export interface RetrievalPanelProps {
@@ -156,51 +157,16 @@ export const RetrievalPanel: React.FC<RetrievalPanelProps> = ({
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        {activeTab === "STRUCTURE" &&
-          (["system", "mechanism", "primitive"] as ConceptTier[]).map((tierKey) => {
-            const tierNodes = graphNodes.filter((n) => n.tier === tierKey);
-            if (tierNodes.length === 0) return null;
-            const cfg = TIER_CONFIG[tierKey];
-            return (
-              <View key={tierKey} style={{ gap: 10 }}>
-                <View style={styles.sectionHeader}>
-                  <Text style={styles.sectionTitle}>{cfg.title} ({tierNodes.length})</Text>
-                </View>
-                {tierNodes.map((node) => {
-                  const bbox = node.provenance?.[0]?.boundingBox;
-                  const pacerRole = node.pacerRole && node.pacerRole !== "NONE" ? PACER_ROLE_BADGE[node.pacerRole] : null;
-                  return (
-                    <View key={node.id} style={styles.card}>
-                      <View style={styles.nodeHeaderRow}>
-                        <Text style={styles.nodeLabel}>{node.label}</Text>
-                        {bbox && onFocusNode && (
-                          <TouchableOpacity style={styles.focusButton} onPress={() => onFocusNode(bbox)}>
-                            <Text style={styles.focusButtonText}>[ 🎯 Enfocar ]</Text>
-                          </TouchableOpacity>
-                        )}
-                      </View>
-                      <View style={styles.badgeRow}>
-                        <View style={[styles.tierBadge, { backgroundColor: cfg.bg, borderColor: cfg.border }]}>
-                          <Text style={[styles.tierBadgeText, { color: cfg.color }]}>{cfg.badge}</Text>
-                        </View>
-                        {!!node.domain && (
-                          <View style={styles.domainBadge}>
-                            <Text style={styles.domainBadgeText}>{node.domain}</Text>
-                          </View>
-                        )}
-                        {pacerRole && (
-                          <View style={[styles.tierBadge, { backgroundColor: pacerRole.bg, borderColor: pacerRole.border }]}>
-                            <Text style={[styles.tierBadgeText, { color: pacerRole.color }]}>{pacerRole.label}</Text>
-                          </View>
-                        )}
-                      </View>
-                      {!!node.summary && <Text style={styles.summaryText}>{node.summary}</Text>}
-                    </View>
-                  );
-                })}
-              </View>
-            );
-          })}
+        {activeTab === "STRUCTURE" && (
+          <ArchitectureTab
+            nodes={graphNodes}
+            onFocus={(node) => {
+              const bbox = node.provenance?.[0]?.boundingBox;
+              if (bbox && onFocusNode) onFocusNode(bbox);
+              else if (onCloseDrawer) onCloseDrawer();
+            }}
+          />
+        )}
 
         {activeTab === "DIAGNOSIS" && (
           <View style={{ gap: 12 }}>

@@ -18,11 +18,7 @@ export interface KnowledgeMatrixTabProps {
   ) => void;
 }
 
-const TIER_LABELS: Record<KnowledgeNode["tier"], string> = {
-  primitive: "Primitive",
-  mechanism: "Mechanism",
-  system: "System",
-};
+const TIER_LABELS: Record<KnowledgeNode["tier"], string> = { primitive: "Primitive", mechanism: "Mechanism", system: "System" };
 
 export const KnowledgeMatrixTab: React.FC<KnowledgeMatrixTabProps> = ({
   onOpenCanvasAtBounds,
@@ -62,6 +58,23 @@ export const KnowledgeMatrixTab: React.FC<KnowledgeMatrixTabProps> = ({
           if (n.consolidatedRef) existing.consolidatedRef = n.consolidatedRef;
         }
       }
+      const omissions = p.reasoningDiagnosis?.omissions || p.synthesis?.blindSpots || [];
+      for (const om of omissions) {
+        if (!om.missingConcept) continue;
+        const gId = `ghost_${om.missingConcept.toLowerCase().replace(/[^a-z0-9]/g, "_")}`;
+        if (!nodeMap.has(gId)) {
+          nodeMap.set(gId, {
+            id: gId,
+            label: `? ${om.missingConcept}`,
+            domain: p.nodes[0]?.domain || "General",
+            tier: "mechanism",
+            pacerRole: "NONE",
+            verificationState: "ghost",
+            summary: `Punto ciego detectado: ${om.significance}`,
+            provenance: [{ canvasId: p.canvasId, canvasTitle: p.canvasTitle, boundingBox: { minX: 100, minY: 100, maxX: 300, maxY: 200 } }],
+          });
+        }
+      }
       edgeList.push(...p.edges);
     }
 
@@ -70,28 +83,19 @@ export const KnowledgeMatrixTab: React.FC<KnowledgeMatrixTabProps> = ({
     return { mergedNodes: nodesArr, mergedEdges: edgeList, overlappingNode: shared };
   }, [payloads]);
 
-  const availableDomains = useMemo(() => {
-    const domains = new Set<string>();
-    mergedNodes.forEach((n) => {
-      if (n.domain && n.domain.trim().length > 0 && n.domain !== "<3") {
-        domains.add(n.domain);
-      }
-    });
-    return ["All", ...Array.from(domains)];
-  }, [mergedNodes]);
+  const availableDomains = useMemo(
+    () => ["All", ...Array.from(new Set(mergedNodes.map((n) => n.domain).filter((d) => d && d.trim().length > 0 && d !== "<3")))],
+    [mergedNodes]
+  );
 
-  const filteredNodes = useMemo(() => {
-    if (selectedDomain === "All") {
-      return mergedNodes.filter((n) => n.domain && n.domain !== "<3");
-    }
-    return mergedNodes.filter((n) => n.domain === selectedDomain);
-  }, [mergedNodes, selectedDomain]);
+  const filteredNodes = useMemo(
+    () => (selectedDomain === "All" ? mergedNodes.filter((n) => n.domain && n.domain !== "<3") : mergedNodes.filter((n) => n.domain === selectedDomain)),
+    [mergedNodes, selectedDomain]
+  );
 
   const filteredEdges = useMemo(() => {
-    const visibleNodeIds = new Set(filteredNodes.map((n) => n.id));
-    return mergedEdges.filter(
-      (e) => visibleNodeIds.has(e.fromNodeId) && visibleNodeIds.has(e.toNodeId)
-    );
+    const visibleIds = new Set(filteredNodes.map((n) => n.id));
+    return mergedEdges.filter((e) => visibleIds.has(e.fromNodeId) && visibleIds.has(e.toNodeId));
   }, [mergedEdges, filteredNodes]);
 
   const selectedNode = useMemo(
@@ -99,7 +103,7 @@ export const KnowledgeMatrixTab: React.FC<KnowledgeMatrixTabProps> = ({
     [filteredNodes, selectedNodeId]
   );
 
-  const handleSelectNode = useCallback((nodeId: string) => {
+  const handleSelectNode = useCallback((nodeId: string | null) => {
     setSelectedNodeId(nodeId);
     setDefenseActive(false);
     setDefenseAnswer("");
@@ -156,26 +160,34 @@ export const KnowledgeMatrixTab: React.FC<KnowledgeMatrixTabProps> = ({
         </View>
       </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.domainFilterBar}>
-        {availableDomains.map((domain) => (
-          <TouchableOpacity
-            key={domain}
-            onPress={() => setSelectedDomain(domain)}
-            style={[styles.domainChip, selectedDomain === domain && styles.domainChipActive]}
-          >
-            <Text style={[styles.domainText, selectedDomain === domain && styles.domainTextActive]}>
-              {domain}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
+      <View style={styles.filterContainer}>
+        <ScrollView contentContainerStyle={styles.filterScrollContent} horizontal showsHorizontalScrollIndicator={false}>
+          {availableDomains.map((domain) => {
+            const isSelected = selectedDomain === domain;
+            return (
+              <TouchableOpacity
+                key={domain}
+                onPress={() => setSelectedDomain(domain)}
+                style={[styles.domainChip, isSelected && styles.domainChipActive]}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.domainChipText, isSelected && styles.domainChipTextActive]}>
+                  {domain}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      </View>
 
-      <DagGraphRenderer
-        nodes={filteredNodes}
-        edges={filteredEdges}
-        selectedNodeId={selectedNodeId}
-        onSelectNode={handleSelectNode}
-      />
+      <View style={styles.graphViewport}>
+        <DagGraphRenderer
+          nodes={filteredNodes}
+          edges={filteredEdges}
+          selectedNodeId={selectedNodeId}
+          onSelectNode={handleSelectNode}
+        />
+      </View>
 
       {selectedNode && (
         <View style={styles.bottomSheet}>

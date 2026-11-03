@@ -238,34 +238,44 @@ export const styles = StyleSheet.create({
     fontWeight: "700",
   },
   feedbackText: { color: "#34D399", fontSize: 11, fontWeight: "600", marginTop: 6 },
-  domainFilterBar: {
-    backgroundColor: "#0B1120",
+  filterContainer: {
+    height: 48,
+    backgroundColor: "#0F172A",
     borderBottomWidth: 1,
     borderBottomColor: "#1E293B",
+    justifyContent: "center",
+  },
+  filterScrollContent: {
     paddingHorizontal: 16,
-    paddingVertical: 8,
-    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
   domainChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 14,
+    height: 32,
+    paddingHorizontal: 14,
+    borderRadius: 16,
     backgroundColor: "#1E293B",
-    marginRight: 8,
     borderWidth: 1,
     borderColor: "#334155",
+    justifyContent: "center",
+    alignItems: "center",
   },
   domainChipActive: {
-    backgroundColor: "rgba(56, 189, 248, 0.16)",
+    backgroundColor: "#0284C7",
     borderColor: "#38BDF8",
   },
-  domainText: {
+  domainChipText: {
     color: "#94A3B8",
-    fontSize: 12,
+    fontSize: 13,
+    fontWeight: "500",
+  },
+  domainChipTextActive: {
+    color: "#FFFFFF",
     fontWeight: "600",
   },
-  domainTextActive: {
-    color: "#38BDF8",
-    fontWeight: "700",
+  graphViewport: {
+    flex: 1,
+    position: "relative",
+    backgroundColor: "#0A0F1D",
   },
 });

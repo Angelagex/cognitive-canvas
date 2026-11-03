@@ -55,10 +55,24 @@ export const handler: Handler = async (event, context, callback) => {
       return result;
     }
 
+    const cleanResponse = {
+      canvasId: result?.canvasId || resolvedCanvasId,
+      canvasTitle: result?.canvasTitle || body?.canvasTitle || "Untitled",
+      compiledAt: Date.now(),
+      nodes: result?.nodes || [],
+      edges: result?.edges || [],
+      reasoningDiagnosis: result?.reasoningDiagnosis || {
+        misconceptions: [],
+        omissions: [],
+        ghostConnections: [],
+        socraticChallenges: [],
+      },
+    };
+
     return {
       statusCode: 200,
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(result),
+      body: JSON.stringify(cleanResponse),
     };
   } catch (error: any) {
     console.error("[Lambda:compile] 💥 Error in multimodal compilation endpoint:", error);

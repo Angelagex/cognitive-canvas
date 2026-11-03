@@ -20,6 +20,7 @@ export interface CompilationOptions {
 export interface VisionCompiledNode {
   id: string; label: string; domain: string; tier: ConceptTier;
   pacerRole: PacerRole; summary: string; box_2d: [number, number, number, number];
+  invariant?: string; fragility?: string; tradeoff?: string;
 }
 
 export interface VisionCompiledEdge {

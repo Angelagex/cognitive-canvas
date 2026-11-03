@@ -1,15 +1,5 @@
-/**
- * Hardware-accelerated 2D Force-Directed DAG HTML5 Canvas simulation
- * - Y-axis abstraction tier stratification (System / Mechanism / Primitive) with spring-back on drop (node.fx = null; node.fy = null;)
- * - X-axis thematic domain clustering with color-coded illuminated topic islands
- */
-export const TIER_Y_BANDS: Record<
-  "system" | "mechanism" | "primitive",
-  { minY: number; maxY: number; targetY: number }
-> = {
-  system: { minY: 0, maxY: 300, targetY: 150 },
-  mechanism: { minY: 320, maxY: 650, targetY: 480 },
-  primitive: { minY: 670, maxY: 1000, targetY: 820 },
+export const TIER_Y_BANDS: Record<"system" | "mechanism" | "primitive", { minY: number; maxY: number; targetY: number }> = {
+  system: { minY: 0, maxY: 300, targetY: 150 }, mechanism: { minY: 320, maxY: 650, targetY: 480 }, primitive: { minY: 670, maxY: 1000, targetY: 820 }
 };
 
 export const FORCE_GRAPH_HTML_TEMPLATE = `<!DOCTYPE html>
@@ -18,18 +8,9 @@ export const FORCE_GRAPH_HTML_TEMPLATE = `<!DOCTYPE html>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <style>
     * { box-sizing: border-box; }
-    body, html {
-      margin: 0; padding: 0; width: 100%; height: 100%;
-      background: #090D16; overflow: hidden;
-      touch-action: none; user-select: none; -webkit-user-select: none;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    }
+    body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #090D16; overflow: hidden; touch-action: none; user-select: none; -webkit-user-select: none; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
     canvas { display: block; width: 100%; height: 100%; }
-    .tier-label {
-      position: fixed; left: 16px; pointer-events: none;
-      font-size: 10px; font-weight: 700; letter-spacing: 0.8px;
-      color: rgba(148, 163, 184, 0.42); text-transform: uppercase;
-    }
+    .tier-label { position: fixed; left: 16px; pointer-events: none; font-size: 10px; font-weight: 700; letter-spacing: 0.8px; color: rgba(148, 163, 184, 0.42); text-transform: uppercase; }
   </style>
 </head>
 <body>
@@ -42,17 +23,14 @@ export const FORCE_GRAPH_HTML_TEMPLATE = `<!DOCTYPE html>
     const ctx = canvas.getContext('2d');
     let width = window.innerWidth || 900, height = window.innerHeight || 600, dpr = window.devicePixelRatio || 1;
     const DOMAIN_PALETTE = [
-      { hex: '#38BDF8', glow: 'rgba(56, 189, 248, 0.16)', tint: 'rgba(12, 74, 110, 0.82)' },
-      { hex: '#C084FC', glow: 'rgba(192, 132, 252, 0.16)', tint: 'rgba(59, 7, 100, 0.82)' },
-      { hex: '#34D399', glow: 'rgba(52, 211, 153, 0.16)', tint: 'rgba(6, 78, 59, 0.82)' },
-      { hex: '#FB7185', glow: 'rgba(251, 113, 133, 0.16)', tint: 'rgba(76, 5, 25, 0.82)' },
-      { hex: '#FBBF24', glow: 'rgba(251, 191, 36, 0.16)', tint: 'rgba(69, 26, 3, 0.82)' },
-      { hex: '#818CF8', glow: 'rgba(129, 140, 248, 0.16)', tint: 'rgba(30, 27, 75, 0.82)' }
+      { hex: '#38BDF8', glow: 'rgba(56, 189, 248, 0.25)', tint: 'rgba(12, 74, 110, 0.85)' },
+      { hex: '#A855F7', glow: 'rgba(168, 85, 247, 0.25)', tint: 'rgba(59, 7, 100, 0.85)' },
+      { hex: '#F59E0B', glow: 'rgba(245, 158, 11, 0.25)', tint: 'rgba(69, 26, 3, 0.85)' },
+      { hex: '#10B981', glow: 'rgba(16, 185, 129, 0.25)', tint: 'rgba(6, 78, 59, 0.85)' },
+      { hex: '#EF4444', glow: 'rgba(239, 68, 68, 0.25)', tint: 'rgba(76, 5, 25, 0.85)' }
     ];
-    function resize() {
-      width = window.innerWidth || 900; height = window.innerHeight || 600; dpr = window.devicePixelRatio || 1;
-      canvas.width = width * dpr; canvas.height = height * dpr;
-    }
+    const DOMAIN_MAP = { 'V8 Engine': DOMAIN_PALETTE[0], 'Async Runtime': DOMAIN_PALETTE[1], 'Security': DOMAIN_PALETTE[2], 'Networking': DOMAIN_PALETTE[3], 'Runtime Core': DOMAIN_PALETTE[4] };
+    function resize() { width = window.innerWidth || 900; height = window.innerHeight || 600; dpr = window.devicePixelRatio || 1; canvas.width = width * dpr; canvas.height = height * dpr; }
     window.addEventListener('resize', resize); resize();
 
     let nodes = [], links = [], domainList = [], selectedId = null, draggedNode = null, alpha = 1;
@@ -63,9 +41,7 @@ export const FORCE_GRAPH_HTML_TEMPLATE = `<!DOCTYPE html>
       if (tier === 'primitive') return { minY: height * 0.18, maxY: height * 0.46, targetY: height * 0.30 };
       return { minY: -height * 0.14, maxY: height * 0.14, targetY: 0 };
     }
-    function tierTargetY(tier) {
-      return getTierBand(tier).targetY;
-    }
+    function tierTargetY(tier) { return getTierBand(tier).targetY; }
     function domainIndex(dom) {
       const idx = domainList.indexOf(dom || 'General');
       return idx >= 0 ? idx : 0;
@@ -76,7 +52,9 @@ export const FORCE_GRAPH_HTML_TEMPLATE = `<!DOCTYPE html>
       return (domainIndex(dom) - (total - 1) / 2) * spacing;
     }
     function domainStyle(dom) {
-      return DOMAIN_PALETTE[domainIndex(dom) % DOMAIN_PALETTE.length];
+      if (dom && DOMAIN_MAP[dom]) return DOMAIN_MAP[dom];
+      const match = Object.keys(DOMAIN_MAP).find(k => dom && dom.toLowerCase().includes(k.toLowerCase().split(' ')[0]));
+      return match ? DOMAIN_MAP[match] : DOMAIN_PALETTE[domainIndex(dom) % DOMAIN_PALETTE.length];
     }
 
     window.updateCognitiveGraph = function(data, nextSelectedId) {
@@ -177,45 +155,64 @@ export const FORCE_GRAPH_HTML_TEMPLATE = `<!DOCTYPE html>
       ctx.translate(width / 2 + cam.x, height / 2 + cam.y); ctx.scale(cam.k, cam.k);
       drawDomainIslands();
 
+      const connSet = selectedId ? new Set([selectedId]) : null;
+      if (selectedId) {
+        for (const l of links) {
+          if (l.target && l.target.id === selectedId) connSet.add(l.source.id);
+          if (l.source && l.source.id === selectedId) connSet.add(l.target.id);
+        }
+      }
+
       for (const l of links) {
         const s = l.source, t = l.target, dx = t.x - s.x, dy = t.y - s.y;
         const cx = (s.x + t.x) / 2 - dy * 0.14, cy = (s.y + t.y) / 2 + dx * 0.14;
+        const isConn = !selectedId || (s.id === selectedId || t.id === selectedId);
         const color = l.type === 'INHIBITS' ? '#EF4444' : l.type === 'PREREQUISITE_OF' ? '#38BDF8' : '#475569';
-        ctx.strokeStyle = color; ctx.lineWidth = 1.6 / Math.sqrt(cam.k);
+        ctx.save();
+        ctx.globalAlpha = !selectedId ? 1.0 : isConn ? 1.0 : 0.12;
+        ctx.strokeStyle = color; ctx.lineWidth = (isConn && selectedId ? 3.2 : 1.6) / Math.sqrt(cam.k);
+        if (isConn && selectedId) { ctx.shadowColor = color; ctx.shadowBlur = 10; }
         ctx.beginPath(); ctx.moveTo(s.x, s.y); ctx.quadraticCurveTo(cx, cy, t.x, t.y); ctx.stroke();
         const u = 0.82;
         const ax = (1 - u) * (1 - u) * s.x + 2 * (1 - u) * u * cx + u * u * t.x;
         const ay = (1 - u) * (1 - u) * s.y + 2 * (1 - u) * u * cy + u * u * t.y;
         const angle = Math.atan2(2 * (1 - u) * (cy - s.y) + 2 * u * (t.y - cy), 2 * (1 - u) * (cx - s.x) + 2 * u * (t.x - cx));
-        const head = 7 / Math.sqrt(cam.k);
+        const head = (isConn && selectedId ? 9 : 7) / Math.sqrt(cam.k);
         ctx.fillStyle = color; ctx.beginPath(); ctx.moveTo(ax, ay);
         ctx.lineTo(ax - head * Math.cos(angle - 0.45), ay - head * Math.sin(angle - 0.45));
         ctx.lineTo(ax - head * Math.cos(angle + 0.45), ay - head * Math.sin(angle + 0.45));
         ctx.closePath(); ctx.fill();
+        ctx.restore();
       }
 
       ctx.font = '600 12px sans-serif';
       for (const n of nodes) {
         const st = domainStyle(n.domain);
+        const isConn = !selectedId || connSet.has(n.id);
         n.w = ctx.measureText(n.name).width + 34; n.h = 30;
         const x = n.x - n.w / 2, y = n.y - n.h / 2, r = n.h / 2, isSel = n.id === selectedId;
         ctx.save();
-        ctx.fillStyle = n.state === 'ghost' ? 'rgba(15, 23, 42, 0.78)' : st.tint;
+        ctx.globalAlpha = isConn ? 1.0 : 0.2;
+        ctx.fillStyle = n.state === 'ghost' ? 'rgba(245, 158, 11, 0.12)' : st.tint;
         ctx.beginPath();
         if (ctx.roundRect) ctx.roundRect(x, y, n.w, n.h, r); else ctx.rect(x, y, n.w, n.h);
         ctx.fill();
-        ctx.lineWidth = isSel ? 2.6 : 1.7;
+        ctx.lineWidth = isSel ? 2.8 : 1.7;
         if (n.state === 'verified') {
           ctx.strokeStyle = '#10B981'; ctx.shadowColor = st.hex; ctx.shadowBlur = isSel ? 15 : 8;
         } else if (n.state === 'ghost') {
-          ctx.strokeStyle = '#64748B'; ctx.shadowBlur = 0;
+          ctx.strokeStyle = '#F59E0B'; ctx.shadowColor = '#F59E0B'; ctx.shadowBlur = isSel ? 14 : 7; ctx.setLineDash([4, 4]);
         } else {
           ctx.strokeStyle = '#F59E0B'; ctx.shadowColor = st.hex; ctx.shadowBlur = isSel ? 12 : 6; ctx.setLineDash([5, 3]);
         }
         ctx.stroke(); ctx.restore();
-        ctx.fillStyle = st.hex; ctx.beginPath(); ctx.arc(x + 12, n.y, 4, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = n.state === 'ghost' ? '#94A3B8' : '#F8FAFC';
+
+        ctx.save();
+        ctx.globalAlpha = isConn ? 1.0 : 0.2;
+        ctx.fillStyle = n.state === 'ghost' ? '#F59E0B' : st.hex; ctx.beginPath(); ctx.arc(x + 12, n.y, 4, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = n.state === 'ghost' ? '#FDE68A' : '#F8FAFC';
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(n.name, n.x + 4, n.y);
+        ctx.restore();
       }
       ctx.restore();
       requestAnimationFrame(draw);
@@ -267,18 +264,18 @@ export const FORCE_GRAPH_HTML_TEMPLATE = `<!DOCTYPE html>
     function onPointerUp(e) {
       if (draggedNode) {
         const tappedNode = draggedNode;
-        // Release pinned coordinates so node springs back to its designated vertical tier level
-        draggedNode.fx = null;
-        draggedNode.fy = null;
-        alpha = 0.9;
-        draggedNode = null;
+        draggedNode.fx = null; draggedNode.fy = null; alpha = 0.9; draggedNode = null;
         if (startPan && !startPan.moved) {
           selectedId = tappedNode.id;
-          if (window.ReactNativeWebView) {
-            window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'NODE_SELECTED', nodeId: tappedNode.id }));
-          }
+          if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'NODE_SELECTED', nodeId: tappedNode.id }));
         }
+      } else if (startPan && !startPan.moved) {
+        selectedId = null;
+        if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'NODE_SELECTED', nodeId: null }));
       }
+      pointers.delete(e.pointerId);
+      if (pointers.size === 0) { startPan = null; startPinchDist = null; }
+    }
       pointers.delete(e.pointerId);
       if (pointers.size === 0) { startPan = null; startPinchDist = null; }
     }
