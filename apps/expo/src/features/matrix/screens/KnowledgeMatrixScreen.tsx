@@ -17,6 +17,33 @@ export const KnowledgeMatrixScreen: React.FC<KnowledgeMatrixScreenProps> = ({
   onNavigateToCanvas,
 }) => {
   const [selectedField, setSelectedField] = useState<string>("Todos los Campos");
+  const [, setRenderTrigger] = useState(0);
+
+  const handleNodeDragStart = (nodeId: string) => {
+    const node = matrixData?.nodes?.find((n: any) => n.id === nodeId);
+    if (node) {
+      node.fx = node.x;
+      node.fy = node.y;
+    }
+  };
+
+  const handleNodeDragMove = (nodeId: string, currentWorldX: number, currentWorldY: number) => {
+    const node = matrixData?.nodes?.find((n: any) => n.id === nodeId);
+    if (node) {
+      node.fx = currentWorldX;
+      node.fy = currentWorldY;
+      setRenderTrigger((prev) => prev + 1);
+    }
+  };
+
+  const handleNodeDragEnd = (nodeId: string) => {
+    const node = matrixData?.nodes?.find((n: any) => n.id === nodeId);
+    if (node) {
+      node.fx = null;
+      node.fy = null;
+      setRenderTrigger((prev) => prev + 1);
+    }
+  };
 
   // Extraer Campos únicos (Level 1 de Ontología)
   const availableFields = useMemo(() => {
@@ -124,6 +151,9 @@ export const KnowledgeMatrixScreen: React.FC<KnowledgeMatrixScreenProps> = ({
             edges={filteredEdges}
             width={SCREEN_WIDTH}
             height={SCREEN_HEIGHT - 170}
+            onNodeDragStart={handleNodeDragStart}
+            onNodeDragMove={handleNodeDragMove}
+            onNodeDragEnd={handleNodeDragEnd}
             onSelectNode={(nodeOrId: any) => {
               const node =
                 typeof nodeOrId === "string"

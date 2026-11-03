@@ -11,50 +11,70 @@ export interface LayoutNode {
   macroDomain?: string;
   x?: number;
   y?: number;
+  fx?: number | null;
+  fy?: number | null;
   vx?: number;
   vy?: number;
   [key: string]: any;
 }
 
-export interface DomainClusterBounds {
-  domain: string;
-  minX: number;
-  maxX: number;
-  minY: number;
-  maxY: number;
-  centerX: number;
-  centerY: number;
+export function applyTierLayoutForces(nodes: any[], alpha = 0.1) {
+  nodes.forEach((node) => {
+    // Si el nodo está siendo arrastrado manualmente por el usuario, respetar el pin 1:1
+    if (node.fx !== undefined && node.fx !== null) {
+      node.x = node.fx;
+      node.y = node.fy;
+      return;
+    }
+
+    const tierKey = (node.tier as "system" | "mechanism" | "primitive") || "mechanism";
+    const config = TIER_CONFIG[tierKey] || TIER_CONFIG.mechanism;
+
+    // 1. Fuerza vertical suave hacia el centro del carril de su tier
+    if (node.y !== undefined) {
+      const targetY = config.centerY;
+      const dy = targetY - node.y;
+      node.vy = (node.vy || 0) + dy * 0.05 * alpha;
+
+      // Clamping elástico dentro del carril (evita que invada otros tiers)
+      node.y = Math.max(config.yMin + 35, Math.min(config.yMax - 35, node.y));
+    }
+
+    // 2. Eje X totalmente libre (sin columnas rígidas ni snap-backs violentos)
+    if (node.vx !== undefined) {
+      node.vx *= 0.88;
+    }
+    if (node.vy !== undefined) {
+      node.vy *= 0.88;
+    }
+  });
 }
 
 export function clampNodeToTier(node: any) {
   const tierKey = (node.tier as "system" | "mechanism" | "primitive") || "mechanism";
   const config = TIER_CONFIG[tierKey] || TIER_CONFIG.mechanism;
 
-  // Clamping rígido vertical dentro del carril con margen de seguridad
   if (node.y !== undefined) {
-    node.y = Math.max(config.yMin + 40, Math.min(config.yMax - 40, node.y));
+    node.y = Math.max(config.yMin + 35, Math.min(config.yMax - 35, node.y));
   }
-
-  // Fuerza de gravedad suave hacia el centro del carril
   if (node.vy !== undefined && node.y !== undefined) {
-    const delta = config.centerY - node.y;
-    node.vy += delta * 0.08;
+    node.vy += (config.centerY - node.y) * 0.08;
   }
 }
 
-export function useMatrixLayout(nodes: LayoutNode[], worldWidth = 2400) {
+export function useMatrixLayout(nodes: LayoutNode[], worldWidth = 2600) {
   return useMemo(() => {
-    // 1. Filtrar cualquier nodo dummy o centroide físico artificial
-    const cleanNodes = nodes.filter((n) => !n.isClusterCentroid && n.id !== "dummy");
+    // 1. Descartar cualquier nodo dummy o centroide físico artificial
+    const cleanNodes = nodes.filter((n) => !n.isClusterCentroid && n.id !== "dummy" && n.domain !== "<3");
 
-    // 2. Extraer campos/dominios únicos para distribuir horizontalmente
+    // 2. Extraer campos/dominios únicos para distribución inicial abierta
     const domainList = Array.from(
       new Set(cleanNodes.map((n) => n.field || n.domain || "General"))
     );
     const domainCount = Math.max(1, domainList.length);
-    const spacingX = Math.max(380, worldWidth / (domainCount + 1));
+    const spacingX = Math.max(340, worldWidth / (domainCount + 1));
 
-    // 3. Asignar posiciones canónicas dentro de los carriles
+    // 3. Asignar posiciones iniciales orgánicas sin forzar columnas rígidas
     const tierCounters: Record<string, number> = {};
 
     const positionedNodes = cleanNodes.map((node) => {
@@ -67,8 +87,9 @@ export function useMatrixLayout(nodes: LayoutNode[], worldWidth = 2400) {
       const count = tierCounters[groupKey] || 0;
       tierCounters[groupKey] = count + 1;
 
-      const baseX = 180 + domIdx * spacingX + ((count % 3) - 1) * 110;
-      const baseY = config.centerY + ((count % 2 === 0 ? 1 : -1) * Math.min(45, count * 15));
+      // Dispersión inicial suave en X y Y
+      const baseX = 220 + domIdx * spacingX + ((count % 3) - 1) * 115;
+      const baseY = config.centerY + ((count % 2 === 0 ? 1 : -1) * Math.min(40, count * 14));
 
       const nodeWithCoords = {
         ...node,
@@ -80,32 +101,7 @@ export function useMatrixLayout(nodes: LayoutNode[], worldWidth = 2400) {
       return nodeWithCoords;
     });
 
-    // 4. Calcular áreas envolventes por dominio (auras de fondo sin colisión)
-    const clusterBounds: DomainClusterBounds[] = domainList.map((dom) => {
-      const domNodes = positionedNodes.filter(
-        (n) => (n.field || n.domain || "General") === dom
-      );
-      if (domNodes.length === 0) {
-        return { domain: dom, minX: 0, maxX: 0, minY: 0, maxY: 0, centerX: 0, centerY: 0 };
-      }
-      const xs = domNodes.map((n) => n.x ?? 0);
-      const ys = domNodes.map((n) => n.y ?? 0);
-      const minX = Math.min(...xs) - 120;
-      const maxX = Math.max(...xs) + 120;
-      const minY = 20;
-      const maxY = 1140;
-      return {
-        domain: dom,
-        minX,
-        maxX,
-        minY,
-        maxY,
-        centerX: (minX + maxX) / 2,
-        centerY: 100,
-      };
-    });
-
-    return { positionedNodes, clusterBounds };
+    applyTierLayoutForces(positionedNodes, 1.0);
+    return positionedNodes;
   }, [nodes, worldWidth]);
 }
-
