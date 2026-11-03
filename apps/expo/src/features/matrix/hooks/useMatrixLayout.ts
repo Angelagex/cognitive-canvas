@@ -30,23 +30,18 @@ export function applyTierLayoutForces(nodes: any[], alpha = 0.1) {
     const tierKey = (node.tier as "system" | "mechanism" | "primitive") || "mechanism";
     const config = TIER_CONFIG[tierKey] || TIER_CONFIG.mechanism;
 
-    // 1. Fuerza vertical suave hacia el centro del carril de su tier
+    // Fuerza vertical hacia el centro del carril compacto
     if (node.y !== undefined) {
-      const targetY = config.centerY;
-      const dy = targetY - node.y;
-      node.vy = (node.vy || 0) + dy * 0.05 * alpha;
+      const deltaY = config.centerY - node.y;
+      node.vy = (node.vy || 0) + deltaY * 0.08 * alpha;
 
-      // Clamping elástico dentro del carril (evita que invada otros tiers)
-      node.y = Math.max(config.yMin + 35, Math.min(config.yMax - 35, node.y));
+      // Clamping elástico dentro de su carril
+      node.y = Math.max(config.yMin + 25, Math.min(config.yMax - 25, node.y));
     }
 
-    // 2. Eje X totalmente libre (sin columnas rígidas ni snap-backs violentos)
-    if (node.vx !== undefined) {
-      node.vx *= 0.88;
-    }
-    if (node.vy !== undefined) {
-      node.vy *= 0.88;
-    }
+    // Fricción suave en X
+    if (node.vx !== undefined) node.vx *= 0.85;
+    if (node.vy !== undefined) node.vy *= 0.85;
   });
 }
 
@@ -55,7 +50,7 @@ export function clampNodeToTier(node: any) {
   const config = TIER_CONFIG[tierKey] || TIER_CONFIG.mechanism;
 
   if (node.y !== undefined) {
-    node.y = Math.max(config.yMin + 35, Math.min(config.yMax - 35, node.y));
+    node.y = Math.max(config.yMin + 25, Math.min(config.yMax - 25, node.y));
   }
   if (node.vy !== undefined && node.y !== undefined) {
     node.vy += (config.centerY - node.y) * 0.08;
@@ -87,9 +82,9 @@ export function useMatrixLayout(nodes: LayoutNode[], worldWidth = 2600) {
       const count = tierCounters[groupKey] || 0;
       tierCounters[groupKey] = count + 1;
 
-      // Dispersión inicial suave en X y Y
+      // Dispersión inicial suave en X y Y adaptada a los carriles compactos
       const baseX = 220 + domIdx * spacingX + ((count % 3) - 1) * 115;
-      const baseY = config.centerY + ((count % 2 === 0 ? 1 : -1) * Math.min(40, count * 14));
+      const baseY = config.centerY + ((count % 2 === 0 ? 1 : -1) * Math.min(30, count * 10));
 
       const nodeWithCoords = {
         ...node,

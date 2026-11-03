@@ -1,5 +1,5 @@
 export const TIER_Y_BANDS: Record<"system" | "mechanism" | "primitive", { minY: number; maxY: number; targetY: number }> = {
-  system: { minY: 0, maxY: 300, targetY: 150 }, mechanism: { minY: 320, maxY: 650, targetY: 480 }, primitive: { minY: 670, maxY: 1000, targetY: 820 }
+  system: { minY: 0, maxY: 240, targetY: 120 }, mechanism: { minY: 270, maxY: 530, targetY: 400 }, primitive: { minY: 560, maxY: 820, targetY: 690 }
 };
 
 export const FORCE_GRAPH_HTML_TEMPLATE = `<!DOCTYPE html>
