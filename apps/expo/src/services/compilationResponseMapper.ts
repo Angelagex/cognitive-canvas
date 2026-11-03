@@ -38,7 +38,10 @@ export function formatCompilerResponse(
   const nodes: VisionCompiledNode[] = (resolved.nodes || []).map((n: any, idx: number) => ({
     id: n.id || `node-${idx + 1}`,
     label: n.label || n.detected_content || `Concept ${idx + 1}`,
-    domain: n.domain || document.title || "General",
+    domain: n.field || n.domain || document.title || "General",
+    macroDomain: n.macroDomain || "Ciencias de la Computación & Software",
+    field: n.field || n.domain || document.title || "General",
+    scheme: n.scheme || document.title || "General",
     tier: n.tier || "mechanism",
     pacerRole:
       n.pacerRole === "REFERENCE" || n.pacerRole === "PROCEDURAL" || n.pacerRole === "ANALOGOUS"

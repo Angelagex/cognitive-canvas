@@ -22,6 +22,9 @@ export interface VisionCompiledNode {
   id: string;
   label: string;
   domain: string;
+  macroDomain?: string;
+  field?: string;
+  scheme?: string;
   tier: ConceptTier;
   pacerRole: PacerRole;
   summary: string;

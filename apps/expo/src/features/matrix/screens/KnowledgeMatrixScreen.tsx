@@ -16,36 +16,51 @@ export const KnowledgeMatrixScreen: React.FC<KnowledgeMatrixScreenProps> = ({
   onExport,
   onNavigateToCanvas,
 }) => {
-  const [selectedDomain, setSelectedDomain] = useState<string>("All");
+  const [selectedField, setSelectedField] = useState<string>("Todos los Campos");
 
-  const availableDomains = useMemo(() => {
-    const domains = new Set<string>();
+  // Extraer Campos únicos (Level 1 de Ontología)
+  const availableFields = useMemo(() => {
+    const fields = new Set<string>();
     matrixData?.nodes?.forEach((n: any) => {
-      if (n.domain && n.domain.trim().length > 0 && n.domain !== "<3") {
-        domains.add(n.domain);
+      const f = n.field || n.domain;
+      if (f && f !== "<3" && f !== "node" && f.trim().length > 0) {
+        fields.add(f);
       }
     });
-    return ["All", ...Array.from(domains)];
+    return ["Todos los Campos", ...Array.from(fields)];
   }, [matrixData]);
 
+  // Filtrado de nodos por Campo
   const filteredNodes = useMemo(() => {
     if (!matrixData?.nodes) return [];
-    if (selectedDomain === "All") {
+    if (selectedField === "Todos los Campos") {
       return matrixData.nodes.filter((n: any) => n.domain !== "<3");
     }
-    return matrixData.nodes.filter((n: any) => n.domain === selectedDomain);
-  }, [matrixData, selectedDomain]);
+    return matrixData.nodes.filter((n: any) => (n.field || n.domain) === selectedField);
+  }, [matrixData, selectedField]);
 
   const filteredEdges = useMemo(() => {
     if (!matrixData?.edges) return [];
     const visibleIds = new Set(filteredNodes.map((n: any) => n.id));
     return matrixData.edges.filter(
-      (e: any) => visibleIds.has(e.fromNodeId) && visibleIds.has(e.toNodeId)
+      (e: any) => visibleIds.has(e.fromNodeId || e.source) && visibleIds.has(e.toNodeId || e.target)
     );
   }, [matrixData, filteredNodes]);
 
+  const activeMacroDomain = useMemo(() => {
+    const node = filteredNodes.find((n: any) => n.macroDomain);
+    return node?.macroDomain || "Ciencias de la Computación & Software";
+  }, [filteredNodes]);
+
+  const activeScheme = useMemo(() => {
+    if (selectedField === "Todos los Campos") return null;
+    const node = filteredNodes.find((n: any) => n.scheme);
+    return node?.scheme || null;
+  }, [filteredNodes, selectedField]);
+
   return (
     <View style={styles.container}>
+      {/* 1. Header con métricas y exportación */}
       <View style={styles.header}>
         <View>
           <Text style={styles.title}>Knowledge Matrix · Force-Directed DAG</Text>
@@ -58,23 +73,42 @@ export const KnowledgeMatrixScreen: React.FC<KnowledgeMatrixScreenProps> = ({
         </TouchableOpacity>
       </View>
 
-      <View style={styles.filterBar}>
-        <ScrollView contentContainerStyle={styles.filterScroll} horizontal showsHorizontalScrollIndicator={false}>
-          {availableDomains.map((domain) => {
-            const isSelected = selectedDomain === domain;
-            const domainColor = domain === "All" ? "#38BDF8" : getDomainColor(domain).stroke;
+      {/* 2. Barra de Ontología Jerárquica (MacroDomain > Field > Scheme) */}
+      <View style={styles.ontologyHeader}>
+        <View style={styles.breadcrumbRow}>
+          <Text style={styles.macroDomainLabel}>{activeMacroDomain}</Text>
+          {activeScheme && (
+            <Text style={styles.schemeLabel}>
+              {" › "}
+              {activeScheme}
+            </Text>
+          )}
+        </View>
+        <ScrollView
+          contentContainerStyle={styles.fieldScroll}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+        >
+          {availableFields.map((field) => {
+            const isSelected = selectedField === field;
+            const theme = field === "Todos los Campos" ? { stroke: "#38BDF8" } : getDomainColor(field);
             return (
               <TouchableOpacity
-                key={domain}
-                onPress={() => setSelectedDomain(domain)}
+                key={field}
+                onPress={() => setSelectedField(field)}
                 style={[
-                  styles.chip,
-                  isSelected && { backgroundColor: domainColor + "25", borderColor: domainColor },
+                  styles.fieldChip,
+                  isSelected && { borderColor: theme.stroke, backgroundColor: theme.stroke + "20" },
                 ]}
                 activeOpacity={0.8}
               >
-                <Text style={[styles.chipText, { color: domainColor, fontWeight: isSelected ? "700" : "500" }]}>
-                  {domain}
+                <Text
+                  style={[
+                    styles.fieldChipText,
+                    { color: isSelected ? "#FFFFFF" : theme.stroke, fontWeight: isSelected ? "700" : "500" },
+                  ]}
+                >
+                  {field}
                 </Text>
               </TouchableOpacity>
             );
@@ -82,25 +116,27 @@ export const KnowledgeMatrixScreen: React.FC<KnowledgeMatrixScreenProps> = ({
         </ScrollView>
       </View>
 
+      {/* 3. Viewport del Grafo garantizando dimensiones no nulas */}
       <View style={styles.graphContainer}>
         {filteredNodes.length > 0 ? (
           <MatrixGraphView
             nodes={filteredNodes}
             edges={filteredEdges}
             width={SCREEN_WIDTH}
-            height={SCREEN_HEIGHT - 160}
-            onSelectNode={(nodeId: string | null) => {
-              if (nodeId) {
-                const node = filteredNodes.find((n: any) => n.id === nodeId);
-                if (node?.provenance && node.provenance[0]) {
-                  onNavigateToCanvas?.(node.provenance[0].canvasId, node.provenance[0].boundingBox);
-                }
+            height={SCREEN_HEIGHT - 170}
+            onSelectNode={(nodeOrId: any) => {
+              const node =
+                typeof nodeOrId === "string"
+                  ? filteredNodes.find((n: any) => n.id === nodeOrId)
+                  : nodeOrId;
+              if (node?.provenance && node.provenance[0]) {
+                onNavigateToCanvas?.(node.provenance[0].canvasId, node.provenance[0].boundingBox);
               }
             }}
           />
         ) : (
           <View style={styles.emptyState}>
-            <Text style={styles.emptyText}>No hay conceptos para el dominio seleccionado.</Text>
+            <Text style={styles.emptyText}>No hay conceptos para el campo seleccionado.</Text>
           </View>
         )}
       </View>
@@ -114,7 +150,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#0A0F1D",
   },
   header: {
-    height: 64,
+    height: 60,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
@@ -125,12 +161,12 @@ const styles = StyleSheet.create({
   },
   title: {
     color: "#F8FAFC",
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "700",
   },
   subtitle: {
     color: "#94A3B8",
-    fontSize: 12,
+    fontSize: 11,
   },
   exportBtn: {
     backgroundColor: "rgba(56, 189, 248, 0.15)",
@@ -145,19 +181,36 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600",
   },
-  filterBar: {
-    height: 48,
+  ontologyHeader: {
     backgroundColor: "#0B132B",
     borderBottomWidth: 1,
     borderBottomColor: "#1E293B",
-    justifyContent: "center",
+    paddingVertical: 6,
   },
-  filterScroll: {
+  breadcrumbRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    marginBottom: 4,
+  },
+  macroDomainLabel: {
+    color: "#94A3B8",
+    fontSize: 11,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+  },
+  schemeLabel: {
+    color: "#38BDF8",
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  fieldScroll: {
     paddingHorizontal: 16,
     alignItems: "center",
     gap: 8,
   },
-  chip: {
+  fieldChip: {
     height: 30,
     paddingHorizontal: 12,
     borderRadius: 15,
@@ -167,10 +220,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  chipText: {
-    color: "#94A3B8",
+  fieldChipText: {
     fontSize: 12,
-    fontWeight: "500",
   },
   graphContainer: {
     flex: 1,
@@ -188,4 +239,3 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
 });
-

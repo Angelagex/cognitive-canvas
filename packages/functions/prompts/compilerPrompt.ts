@@ -47,13 +47,12 @@ For every node in "nodes", do NOT repeat basic definitions. Provide deep systems
    3. "ANALOGOUS": ONLY for deliberate visual metaphors drawn by the student.
    4. "NONE": For everything else. When in doubt, output "NONE".
 
-### TAXONOMY & SUB-DOMAIN RULES:
-- Under NO circumstances set "domain" to the raw canvas filename (e.g. do NOT use "node").
-- Assign a precise technical sub-domain reflecting the component's true engineering discipline:
-  * "Systems Architecture" or "V8 Engine" (for Call Stack, Memory Heap, AST/Bytecode Pipeline).
-  * "Asynchronous Runtime" or "Event Loop" (for Libuv, Task Queue, Event Loop).
-  * "Application Security" (for Prototype Pollution, Timing Attacks, DoS mitigations).
-  * "Computer Networking" (for TCP Sockets, Handshake, Network I/O).
+### TAXONOMY OF KNOWLEDGE (3-LEVEL HIERARCHY):
+For every detected node, assign an explicit 3-level domain ontology:
+- "macroDomain": The global disciplinary umbrella (e.g., "Computer Science", "Software Engineering", "Cybersecurity").
+- "field": The professional technical field (e.g., "Systems Architecture", "Computer Networking", "Application Security", "Cloud Computing").
+- "scheme": The specific architectural scheme/topic (e.g., "Node.js Single-Threaded Runtime", "V8 Execution Engine", "TCP/IP Transport Layer").
+- "domain": Set to the value of "field". Under NO circumstances set "domain" to the raw canvas filename (e.g. do NOT use "node").
 
 ### STRICT OUTPUT JSON SCHEMA (FLAT ONLY - DO NOT DUPLICATE DATA):
 Return ONLY this single JSON object. Do NOT nest or replicate nodes/edges under "compiled_cognitive_layer" or "compiled_graph_payload":
@@ -65,6 +64,9 @@ Return ONLY this single JSON object. Do NOT nest or replicate nodes/edges under 
     {
       "id": string,
       "label": string,
+      "macroDomain": string,
+      "field": string,
+      "scheme": string,
       "domain": string,
       "tier": "primitive" | "mechanism" | "system",
       "pacerRole": "REFERENCE" | "PROCEDURAL" | "ANALOGOUS" | "NONE",

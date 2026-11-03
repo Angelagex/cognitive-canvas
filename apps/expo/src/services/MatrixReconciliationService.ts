@@ -35,7 +35,10 @@ export class MatrixReconciliationService {
             });
           }
         }
-        // Actualizar resumen e invariantes si el nuevo es más completo
+        // Actualizar resumen, invariantes y ontología si el nuevo es más completo
+        canonical.macroDomain = localNode.macroDomain || canonical.macroDomain;
+        canonical.field = localNode.field || canonical.field;
+        canonical.scheme = localNode.scheme || canonical.scheme;
         canonical.invariant = localNode.invariant || canonical.invariant;
         canonical.fragility = localNode.fragility || canonical.fragility;
         canonical.tradeoff = localNode.tradeoff || canonical.tradeoff;
@@ -43,6 +46,9 @@ export class MatrixReconciliationService {
         // Nuevo concepto canónico
         nodeMap.set(localNode.id, {
           ...localNode,
+          macroDomain: localNode.macroDomain || "Ciencias de la Computación",
+          field: localNode.field || localNode.domain || "Sistemas & Runtimes",
+          scheme: localNode.scheme || localCompilation.canvasTitle || "Arquitectura",
           provenance: localNode.provenance || [
             {
               canvasId,

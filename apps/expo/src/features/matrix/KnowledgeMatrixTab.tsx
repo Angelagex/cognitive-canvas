@@ -82,12 +82,12 @@ export const KnowledgeMatrixTab: React.FC<KnowledgeMatrixTabProps> = ({ onOpenCa
   }, [payloads]);
 
   const availableDomains = useMemo(
-    () => ["All", ...Array.from(new Set(mergedNodes.map((n) => n.domain).filter((d) => d && d.trim().length > 0 && d !== "<3")))],
+    () => ["All", ...Array.from(new Set(mergedNodes.map((n) => n.field || n.domain).filter((d) => d && d.trim().length > 0 && d !== "<3")))],
     [mergedNodes]
   );
 
   const filteredNodes = useMemo(
-    () => (selectedDomain === "All" ? mergedNodes.filter((n) => n.domain && n.domain !== "<3") : mergedNodes.filter((n) => n.domain === selectedDomain)),
+    () => (selectedDomain === "All" ? mergedNodes.filter((n) => n.domain !== "<3") : mergedNodes.filter((n) => (n.field || n.domain) === selectedDomain)),
     [mergedNodes, selectedDomain]
   );
 
@@ -101,8 +101,9 @@ export const KnowledgeMatrixTab: React.FC<KnowledgeMatrixTabProps> = ({ onOpenCa
     [filteredNodes, selectedNodeId]
   );
 
-  const handleSelectNode = useCallback((nodeId: string | null) => {
-    setSelectedNodeId(nodeId);
+  const handleSelectNode = useCallback((nodeOrId: any) => {
+    const id = typeof nodeOrId === "object" && nodeOrId ? nodeOrId.id : nodeOrId;
+    setSelectedNodeId(id || null);
     setDefenseActive(false);
     setDefenseAnswer("");
     setDefenseFeedback(null);
