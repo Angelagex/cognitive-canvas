@@ -153,10 +153,22 @@ export const KnowledgeMatrixTab: React.FC<KnowledgeMatrixTabProps> = ({ onOpenCa
           />
           <View style={{ width: 1, height: 22, backgroundColor: theme.colors.borderSubtle }} />
           <View>
-            <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
+            <Text
+              style={[
+                styles.title,
+                theme.typography.display,
+                { color: theme.colors.textPrimary },
+              ]}
+            >
               Knowledge Matrix · Force-Directed Causal DAG
             </Text>
-            <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
+            <Text
+              style={[
+                styles.subtitle,
+                theme.typography.body,
+                { color: theme.colors.textSecondary },
+              ]}
+            >
               {filteredNodes.length} canonical concepts {selectedDomain !== "All" ? `in ${selectedDomain}` : `across ${payloads.length} compiled canvases`}
             </Text>
           </View>
@@ -174,7 +186,13 @@ export const KnowledgeMatrixTab: React.FC<KnowledgeMatrixTabProps> = ({ onOpenCa
             activeOpacity={0.85}
           >
             <Download size={14} color={theme.colors.accentPrimary} strokeWidth={2.0} />
-            <Text style={[styles.exportMatrixText, { color: theme.colors.accentPrimary }]}>
+            <Text
+              style={[
+                styles.exportMatrixText,
+                theme.typography.bodyBold,
+                { color: theme.colors.accentPrimary },
+              ]}
+            >
               Exportar Matriz (JSON)
             </Text>
           </TouchableOpacity>
@@ -188,7 +206,7 @@ export const KnowledgeMatrixTab: React.FC<KnowledgeMatrixTabProps> = ({ onOpenCa
               activeOpacity={0.85}
             >
               <GitMerge size={14} color="#FBBF24" strokeWidth={2.0} />
-              <Text style={styles.consolidateBannerText}>
+              <Text style={[styles.consolidateBannerText, theme.typography.bodyBold]}>
                 Overlap: "{overlappingNode.label}" · Consolidate
               </Text>
             </TouchableOpacity>
@@ -196,11 +214,19 @@ export const KnowledgeMatrixTab: React.FC<KnowledgeMatrixTabProps> = ({ onOpenCa
         </View>
       </View>
 
-      <View style={styles.filterContainer}>
+      <View
+        style={[
+          styles.filterContainer,
+          {
+            backgroundColor: theme.colors.bgHeader,
+            borderBottomColor: theme.colors.borderSubtle,
+          },
+        ]}
+      >
         <ScrollView contentContainerStyle={styles.filterScrollContent} horizontal showsHorizontalScrollIndicator={false}>
           {availableDomains.map((domain) => {
             const isSelected = selectedDomain === domain;
-            const domainColor = domain === "All" ? "#38BDF8" : getDomainColor(domain).stroke;
+            const domainColor = domain === "All" ? theme.colors.accentPrimary : getDomainColor(domain).stroke;
             return (
               <TouchableOpacity
                 key={domain}
@@ -210,11 +236,20 @@ export const KnowledgeMatrixTab: React.FC<KnowledgeMatrixTabProps> = ({ onOpenCa
                 }}
                 style={[
                   styles.domainChip,
-                  isSelected && { backgroundColor: domainColor + "25", borderColor: domainColor },
+                  {
+                    backgroundColor: isSelected ? domainColor + "25" : theme.colors.pillInactiveBg,
+                    borderColor: isSelected ? domainColor : theme.colors.borderSubtle,
+                  },
                 ]}
                 activeOpacity={0.7}
               >
-                <Text style={[styles.domainChipText, { color: domainColor, fontWeight: isSelected ? "700" : "500" }]}>
+                <Text
+                  style={[
+                    styles.domainChipText,
+                    isSelected ? theme.typography.bodyBold : theme.typography.body,
+                    { color: domainColor },
+                  ]}
+                >
                   {domain}
                 </Text>
               </TouchableOpacity>
@@ -223,7 +258,7 @@ export const KnowledgeMatrixTab: React.FC<KnowledgeMatrixTabProps> = ({ onOpenCa
         </ScrollView>
       </View>
 
-      <View style={[styles.graphViewport, { width: SCREEN_WIDTH, height: SCREEN_HEIGHT - 160 }]}>
+      <View style={[styles.graphViewport, { width: SCREEN_WIDTH, height: SCREEN_HEIGHT - 160, backgroundColor: theme.colors.bgApp }]}>
         <DagGraphRenderer
           nodes={filteredNodes}
           edges={filteredEdges}
@@ -235,12 +270,36 @@ export const KnowledgeMatrixTab: React.FC<KnowledgeMatrixTabProps> = ({ onOpenCa
       </View>
 
       {selectedNode && (
-        <View style={styles.bottomSheet}>
+        <View
+          style={[
+            styles.bottomSheet,
+            {
+              backgroundColor: theme.colors.bgCard,
+              borderColor: theme.colors.borderSubtle,
+            },
+          ]}
+        >
           <View style={styles.sheetHeader}>
             <View style={styles.titleWrap}>
               <View style={styles.badgesRow}>
-                <View style={styles.tierBadge}>
-                  <Text style={styles.tierBadgeText}>{TIER_LABELS[selectedNode.tier]}</Text>
+                <View
+                  style={[
+                    styles.tierBadge,
+                    {
+                      backgroundColor: theme.colors.badgeBg,
+                      borderColor: theme.colors.badgeBorder,
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.tierBadgeText,
+                      theme.typography.monoBold,
+                      { color: theme.colors.accentPrimary },
+                    ]}
+                  >
+                    {TIER_LABELS[selectedNode.tier]}
+                  </Text>
                 </View>
                 <View
                   style={[
@@ -253,25 +312,42 @@ export const KnowledgeMatrixTab: React.FC<KnowledgeMatrixTabProps> = ({ onOpenCa
                   <Text
                     style={[
                       styles.stateBadgeText,
+                      theme.typography.monoBold,
                       selectedNode.verificationState === "verified"
                         ? styles.stateTextVerified
                         : styles.stateTextNeedsDefense,
                     ]}
                   >
                     {selectedNode.verificationState === "verified"
-                      ? "✓ Verified"
-                      : "⚡ Needs Defense"}
+                      ? "Verificado"
+                      : "Requiere defensa"}
                   </Text>
                 </View>
               </View>
-              <Text style={styles.sheetTitle}>{selectedNode.label}</Text>
+              <Text
+                style={[
+                  styles.sheetTitle,
+                  theme.typography.display,
+                  { color: theme.colors.textPrimary },
+                ]}
+              >
+                {selectedNode.label}
+              </Text>
             </View>
             <TouchableOpacity onPress={() => setSelectedNodeId(null)} style={styles.closeBtn}>
-              <X size={16} color="#94A3B8" strokeWidth={2.0} />
+              <X size={16} color={theme.colors.textMuted} strokeWidth={2.0} />
             </TouchableOpacity>
           </View>
 
-          <Text style={styles.sheetSummary}>{selectedNode.summary}</Text>
+          <Text
+            style={[
+              styles.sheetSummary,
+              theme.typography.body,
+              { color: theme.colors.textSecondary },
+            ]}
+          >
+            {selectedNode.summary}
+          </Text>
 
           {!defenseActive ? (
             <View style={styles.actionsRow}>
@@ -284,21 +360,33 @@ export const KnowledgeMatrixTab: React.FC<KnowledgeMatrixTabProps> = ({ onOpenCa
                 activeOpacity={0.85}
               >
                 <Zap size={14} color="#FBBF24" strokeWidth={2.0} />
-                <Text style={styles.socraticBtnText}>[ ⚡ Socratic Defense ]</Text>
+                <Text style={[styles.socraticBtnText, theme.typography.bodyBold]}>[ Defensa socrática ]</Text>
               </TouchableOpacity>
 
               <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                 {selectedNode.provenance.map((prov, idx) => (
                   <TouchableOpacity
                     key={`${prov.canvasId}_${idx}`}
-                    style={styles.originBtn}
+                    style={[
+                      styles.originBtn,
+                      {
+                        backgroundColor: theme.colors.pillInactiveBg,
+                        borderColor: theme.colors.borderSubtle,
+                      },
+                    ]}
                     onPress={() => {
                       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
                       onOpenCanvasAtBounds(prov.canvasId, prov.boundingBox);
                     }}
                   >
-                    <ExternalLink size={13} color="#38BDF8" strokeWidth={2.0} />
-                    <Text style={styles.originBtnText}>
+                    <ExternalLink size={13} color={theme.colors.accentPrimary} strokeWidth={2.0} />
+                    <Text
+                      style={[
+                        styles.originBtnText,
+                        theme.typography.bodyBold,
+                        { color: theme.colors.textPrimary },
+                      ]}
+                    >
                       [ ✍️ View in Canvas: {prov.canvasTitle} ]
                     </Text>
                   </TouchableOpacity>
@@ -307,25 +395,46 @@ export const KnowledgeMatrixTab: React.FC<KnowledgeMatrixTabProps> = ({ onOpenCa
             </View>
           ) : (
             <View style={styles.defenseBox}>
-              <Text style={styles.defenseQuestion}>
+              <Text
+                style={[
+                  styles.defenseQuestion,
+                  theme.typography.bodyBold,
+                  { color: theme.colors.accentSecondary },
+                ]}
+              >
                 Socratic Audit: Under partition or high load, how does "{selectedNode.label}" prevent cascading failure or state corruption?
               </Text>
               <View style={styles.defenseInputRow}>
                 <TextInput
-                  style={styles.defenseInput}
+                  style={[
+                    styles.defenseInput,
+                    theme.typography.body,
+                    {
+                      backgroundColor: theme.colors.bgInput,
+                      borderColor: theme.colors.borderSubtle,
+                      color: theme.colors.textPrimary,
+                    },
+                  ]}
                   value={defenseAnswer}
                   onChangeText={setDefenseAnswer}
                   placeholder="Defend the causal mechanism without circular definitions..."
-                  placeholderTextColor="#64748B"
+                  placeholderTextColor={theme.colors.textMuted}
                 />
                 <TouchableOpacity
-                  style={styles.submitDefenseBtn}
+                  style={[
+                    styles.submitDefenseBtn,
+                    { backgroundColor: theme.colors.accentPrimary },
+                  ]}
                   onPress={handleSubmitSocraticDefense}
                 >
                   <Check size={15} color="#FFFFFF" strokeWidth={2.2} />
                 </TouchableOpacity>
               </View>
-              {defenseFeedback && <Text style={styles.feedbackText}>{defenseFeedback}</Text>}
+              {defenseFeedback && (
+                <Text style={[styles.feedbackText, theme.typography.body]}>
+                  {defenseFeedback}
+                </Text>
+              )}
             </View>
           )}
         </View>

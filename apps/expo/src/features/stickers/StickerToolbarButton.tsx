@@ -8,6 +8,7 @@ import {
 } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { Sparkles } from "@sketchyicons/react-native";
+import { useAppTheme } from "../../theme";
 
 export interface StickerToolbarButtonProps {
   canvasScale: number;
@@ -31,6 +32,7 @@ export const StickerToolbarButton: React.FC<StickerToolbarButtonProps> = ({
   onOpenPicker,
   onDragChange,
 }) => {
+  const { theme } = useAppTheme();
   const [isDragging, setIsDragging] = useState(false);
   const dragAnim = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
 
@@ -108,7 +110,15 @@ export const StickerToolbarButton: React.FC<StickerToolbarButtonProps> = ({
           accessibilityLabel="Stickers cognitivos (Tap para centrar, arrastra para soltar)"
         >
           <Sparkles size={20} color={isDragging ? "#38BDF8" : "#94A3B8"} strokeWidth={2.0} />
-          <Text style={styles.badgeLabel}>Sticker</Text>
+          <Text
+            style={[
+              styles.badgeLabel,
+              theme.typography.monoBold,
+              { color: isDragging ? theme.colors.accentPrimary : theme.colors.textMuted },
+            ]}
+          >
+            Sticker
+          </Text>
         </View>
       </GestureDetector>
 

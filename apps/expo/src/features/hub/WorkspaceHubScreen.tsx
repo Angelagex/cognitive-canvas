@@ -79,8 +79,14 @@ export const WorkspaceHubScreen: React.FC<WorkspaceHubScreenProps> = ({
           />
           <View style={[styles.brandDivider, { backgroundColor: theme.colors.borderSubtle }]} />
           <View>
-            <Text style={[styles.brandSubtitle, { color: theme.colors.textSecondary }]}>
-              Non-Linear Synthesis & Socratic Knowledge Matrix
+            <Text
+              style={[
+                styles.brandSubtitle,
+                theme.typography.body,
+                { color: theme.colors.textSecondary },
+              ]}
+            >
+              Síntesis causal & matriz socrática
             </Text>
           </View>
         </View>
@@ -112,16 +118,16 @@ export const WorkspaceHubScreen: React.FC<WorkspaceHubScreenProps> = ({
             <Text
               style={[
                 styles.tabBtnText,
+                activeTab === "library" ? theme.typography.bodyBold : theme.typography.body,
                 {
                   color:
                     activeTab === "library"
                       ? theme.colors.pillActiveText
                       : theme.colors.textMuted,
-                  fontWeight: activeTab === "library" ? "700" : "500",
                 },
               ]}
             >
-              Canvases Library
+              Biblioteca
             </Text>
           </TouchableOpacity>
 
@@ -141,16 +147,16 @@ export const WorkspaceHubScreen: React.FC<WorkspaceHubScreenProps> = ({
             <Text
               style={[
                 styles.tabBtnText,
+                activeTab === "matrix" ? theme.typography.bodyBold : theme.typography.body,
                 {
                   color:
                     activeTab === "matrix"
                       ? theme.colors.pillActiveText
                       : theme.colors.textMuted,
-                  fontWeight: activeTab === "matrix" ? "700" : "500",
                 },
               ]}
             >
-              Knowledge Matrix
+              Matriz de conocimiento
             </Text>
           </TouchableOpacity>
 
@@ -170,16 +176,16 @@ export const WorkspaceHubScreen: React.FC<WorkspaceHubScreenProps> = ({
             <Text
               style={[
                 styles.tabBtnText,
+                activeTab === "settings" ? theme.typography.bodyBold : theme.typography.body,
                 {
                   color:
                     activeTab === "settings"
                       ? theme.colors.pillActiveText
                       : theme.colors.textMuted,
-                  fontWeight: activeTab === "settings" ? "700" : "500",
                 },
               ]}
             >
-              Settings
+              Configuración
             </Text>
           </TouchableOpacity>
         </View>

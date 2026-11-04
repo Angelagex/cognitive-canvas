@@ -2,6 +2,7 @@ import React from "react";
 import { StyleSheet, View, Text, TouchableOpacity } from "react-native";
 import { Pen, Hand, Eye, EyeOff, ZoomIn, ZoomOut, RotateCcw } from "@sketchyicons/react-native";
 import { useCognitiveLayerStore } from "../../stores/useCognitiveLayerStore";
+import { useAppTheme } from "../../theme";
 
 interface FloatingFooterProps {
   stylusOnly: boolean;
@@ -20,6 +21,7 @@ export const FloatingFooter: React.FC<FloatingFooterProps> = ({
   onZoomOut,
   onResetZoom,
 }) => {
+  const { theme } = useAppTheme();
   const { hasCompiledData, isOverlayVisible, toggleOverlay, isDirty, compiledData } =
     useCognitiveLayerStore();
 
@@ -38,7 +40,13 @@ export const FloatingFooter: React.FC<FloatingFooterProps> = ({
             <Hand size={14} color="#94A3B8" strokeWidth={1.8} />
           )}
         </View>
-        <Text style={[styles.pillText, stylusOnly ? styles.textActive : styles.textInactive]}>
+        <Text
+          style={[
+            styles.pillText,
+            theme.typography.bodyBold,
+            stylusOnly ? styles.textActive : styles.textInactive,
+          ]}
+        >
           {stylusOnly ? "Solo S-Pen (Rechazo Palma)" : "Stylus + Dedo"}
         </Text>
       </TouchableOpacity>
@@ -64,6 +72,7 @@ export const FloatingFooter: React.FC<FloatingFooterProps> = ({
           <Text
             style={[
               styles.pillText,
+              theme.typography.bodyBold,
               isOverlayVisible ? styles.textOverlayActive : styles.textInactive,
             ]}
           >
@@ -71,7 +80,7 @@ export const FloatingFooter: React.FC<FloatingFooterProps> = ({
           </Text>
           {compiledData?.map_overview?.maturity_level && (
             <View style={styles.maturityBadge}>
-              <Text style={styles.maturityText}>
+              <Text style={[styles.maturityText, theme.typography.monoBold]}>
                 N{compiledData.map_overview.maturity_level}
               </Text>
             </View>
@@ -87,7 +96,9 @@ export const FloatingFooter: React.FC<FloatingFooterProps> = ({
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.zoomBadge} onPress={onResetZoom}>
-          <Text style={styles.zoomBadgeText}>{displayZoom}%</Text>
+          <Text style={[styles.zoomBadgeText, theme.typography.monoBold]}>
+            {displayZoom}%
+          </Text>
           <RotateCcw size={11} color="#94A3B8" strokeWidth={2.0} />
         </TouchableOpacity>
 

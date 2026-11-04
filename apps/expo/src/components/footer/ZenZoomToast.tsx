@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Animated, Text, StyleSheet } from "react-native";
+import { useAppTheme } from "../../theme";
 
 export interface ZenZoomToastProps {
   displayZoom: number;
@@ -7,6 +8,7 @@ export interface ZenZoomToastProps {
 }
 
 export const ZenZoomToast: React.FC<ZenZoomToastProps> = ({ displayZoom, visible }) => {
+  const { theme } = useAppTheme();
   const opacityAnim = useRef(new Animated.Value(0)).current;
   const [shouldRender, setShouldRender] = useState(visible);
 
@@ -36,9 +38,18 @@ export const ZenZoomToast: React.FC<ZenZoomToastProps> = ({ displayZoom, visible
   return (
     <Animated.View
       pointerEvents="none"
-      style={[styles.container, { opacity: opacityAnim }]}
+      style={[
+        styles.container,
+        {
+          opacity: opacityAnim,
+          backgroundColor: theme.colors.bgCard,
+          borderColor: theme.colors.borderSubtle,
+        },
+      ]}
     >
-      <Text style={styles.text}>{Math.round(displayZoom)}%</Text>
+      <Text style={[styles.text, theme.typography.monoBold, { color: theme.colors.textPrimary }]}>
+        {Math.round(displayZoom)}%
+      </Text>
     </Animated.View>
   );
 };

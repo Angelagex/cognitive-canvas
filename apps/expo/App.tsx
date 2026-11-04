@@ -1,6 +1,17 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { View, StatusBar, Animated, TouchableOpacity, StyleSheet, Dimensions } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { useFonts } from "expo-font";
+import { Syne_700Bold, Syne_800ExtraBold } from "@expo-google-fonts/syne";
+import { BarlowCondensed_700Bold, BarlowCondensed_800ExtraBold } from "@expo-google-fonts/barlow-condensed";
+import { InstrumentSerif_400Regular, InstrumentSerif_400Regular_Italic } from "@expo-google-fonts/instrument-serif";
+import {
+  PlusJakartaSans_400Regular,
+  PlusJakartaSans_500Medium,
+  PlusJakartaSans_600SemiBold,
+  PlusJakartaSans_700Bold,
+} from "@expo-google-fonts/plus-jakarta-sans";
+import { SpaceMono_400Regular, SpaceMono_700Bold } from "@expo-google-fonts/space-mono";
 import { Sparkles, Minimize2 } from "@sketchyicons/react-native";
 import { useCanvasState } from "./src/hooks/useCanvasState";
 import { TopHeader } from "./src/components/header/TopHeader";
@@ -14,7 +25,7 @@ import { FloatingRecordingPill } from "./src/components/canvas/FloatingRecording
 import { AppModals } from "./src/components/modals/AppModals";
 import { WorkspaceHubScreen } from "./src/features/hub/WorkspaceHubScreen";
 import { cognitiveLayerStore } from "./src/stores/useCognitiveLayerStore";
-import { AppThemeProvider, useAppTheme } from "./src/theme";
+import { AppThemeProvider, useAppTheme, SkinProvider } from "./src/theme";
 import { styles } from "./src/styles/App.styles";
 
 export type RootScreen = "hub" | "canvas";
@@ -215,10 +226,14 @@ function MainAppContent() {
                     isDrawerOpen={canvas.isDrawerOpen}
                     onToggleDrawer={() => canvas.setIsDrawerOpen(!canvas.isDrawerOpen)}
                     onFastCompile={canvas.handleFastCompile}
-                    onLongPressFastCompile={canvas.handleLongPressFastCompile}
+                    onCompileFromScratch={canvas.handleCompileFromScratch}
                     onStartExplanation={canvas.handleStartExplanation}
+                    explanationTranscript={canvas.walkthroughModalTranscript}
+                    onClearExplanation={canvas.handleClearExplanation}
+                    isIncremental={canvas.isIncremental}
+                    onToggleIncremental={() => canvas.setIsIncremental(!canvas.isIncremental)}
                     isCompiling={canvas.isCompiling}
-                    isRecordingWalkthrough={canvas.isRecordingWalkthrough}
+                    blindSpotsCount={canvas.blindSpotsCount}
                     onOpenDocumentMenu={() => setShowDocumentMenu(true)}
                     onReturnToHub={handleReturnToHub}
                     isSaving={canvas.isSaving}
@@ -269,6 +284,7 @@ function MainAppContent() {
               onCompile={canvas.handleFastCompile}
               isCompiling={canvas.isCompiling}
               strokeCount={canvas.strokeCount}
+              lastCompiledStrokeCount={canvas.lastCompiledStrokeCount}
               pacerFilter={canvas.pacerFilter}
               onPacerFilterChange={canvas.setPacerFilter}
               showPacerOverlay={canvas.showPacerOverlay}
@@ -293,9 +309,30 @@ function MainAppContent() {
 }
 
 export default function App() {
+  const [fontsLoaded] = useFonts({
+    Syne_700Bold,
+    Syne_800ExtraBold,
+    BarlowCondensed_700Bold,
+    BarlowCondensed_800ExtraBold,
+    InstrumentSerif_400Regular,
+    InstrumentSerif_400Regular_Italic,
+    PlusJakartaSans_400Regular,
+    PlusJakartaSans_500Medium,
+    PlusJakartaSans_600SemiBold,
+    PlusJakartaSans_700Bold,
+    SpaceMono_400Regular,
+    SpaceMono_700Bold,
+  });
+
+  if (!fontsLoaded) {
+    return <View style={{ flex: 1, backgroundColor: "#0C0E14" }} />;
+  }
+
   return (
-    <AppThemeProvider>
-      <MainAppContent />
-    </AppThemeProvider>
+    <SkinProvider>
+      <AppThemeProvider>
+        <MainAppContent />
+      </AppThemeProvider>
+    </SkinProvider>
   );
 }

@@ -50,10 +50,74 @@ export function clampNodeToTier(node: any) {
   const config = TIER_CONFIG[tierKey] || TIER_CONFIG.mechanism;
 
   if (node.y !== undefined) {
-    node.y = Math.max(config.yMin + 25, Math.min(config.yMax - 25, node.y));
+    node.y = Math.max(config.yMin + 28, Math.min(config.yMax - 28, node.y));
   }
   if (node.vy !== undefined && node.y !== undefined) {
     node.vy += (config.centerY - node.y) * 0.08;
+  }
+}
+
+/**
+ * Resolución iterativa de colisiones entre nodos (Fase 6)
+ * Evita la superposición de tarjetas contiguas en la matriz.
+ */
+export function resolveNodeCollisions(nodes: LayoutNode[], iterations = 10) {
+  const MIN_WIDTH = 196;
+  const MIN_HEIGHT = 46;
+
+  for (let iter = 0; iter < iterations; iter++) {
+    for (let i = 0; i < nodes.length; i++) {
+      for (let j = i + 1; j < nodes.length; j++) {
+        const a = nodes[i];
+        const b = nodes[j];
+
+        const ax = a.x ?? 0;
+        const ay = a.y ?? 0;
+        const bx = b.x ?? 0;
+        const by = b.y ?? 0;
+
+        const dx = bx - ax;
+        const dy = by - ay;
+
+        const overlapX = MIN_WIDTH - Math.abs(dx);
+        const overlapY = MIN_HEIGHT - Math.abs(dy);
+
+        if (overlapX > 0 && overlapY > 0) {
+          // Si el nodo está fijado por arrastre (fx), no moverlo
+          const isAFixed = a.fx !== undefined && a.fx !== null;
+          const isBFixed = b.fx !== undefined && b.fx !== null;
+
+          if (overlapX / MIN_WIDTH <= overlapY / MIN_HEIGHT) {
+            const shift = (overlapX / 2) + 2;
+            const sign = dx >= 0 ? 1 : -1;
+
+            if (!isAFixed && !isBFixed) {
+              a.x = ax - shift * sign;
+              b.x = bx + shift * sign;
+            } else if (!isAFixed) {
+              a.x = ax - shift * 2 * sign;
+            } else if (!isBFixed) {
+              b.x = bx + shift * 2 * sign;
+            }
+          } else {
+            const shift = (overlapY / 2) + 2;
+            const sign = dy >= 0 ? 1 : -1;
+
+            if (!isAFixed && !isBFixed) {
+              a.y = ay - shift * sign;
+              b.y = by + shift * sign;
+            } else if (!isAFixed) {
+              a.y = ay - shift * 2 * sign;
+            } else if (!isBFixed) {
+              b.y = by + shift * 2 * sign;
+            }
+
+            clampNodeToTier(a);
+            clampNodeToTier(b);
+          }
+        }
+      }
+    }
   }
 }
 
@@ -97,6 +161,9 @@ export function useMatrixLayout(nodes: LayoutNode[], worldWidth = 2600) {
     });
 
     applyTierLayoutForces(positionedNodes, 1.0);
+    // Resolución de colisiones para evitar superposiciones (§6)
+    resolveNodeCollisions(positionedNodes, 12);
+
     return positionedNodes;
   }, [nodes, worldWidth]);
 }

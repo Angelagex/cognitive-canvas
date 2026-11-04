@@ -23,6 +23,30 @@ export interface AppThemeColors {
   swatches: string[];
 }
 
+export interface AppThemeFonts {
+  display: string;
+  displayItalic?: string;
+  displayWeight?: "normal" | "bold" | "700" | "800";
+  body: string;
+  bodyBold: string;
+  mono: string;
+  monoBold: string;
+}
+
+export interface TextStyleObject {
+  fontFamily: string;
+  fontWeight: "normal";
+}
+
+export interface AppThemeTypography {
+  display: TextStyleObject;
+  displayItalic: TextStyleObject;
+  body: TextStyleObject;
+  bodyBold: TextStyleObject;
+  mono: TextStyleObject;
+  monoBold: TextStyleObject;
+}
+
 export interface AppThemeConfig {
   id: AppThemeId;
   name: string;
@@ -30,6 +54,8 @@ export interface AppThemeConfig {
   direction: "A" | "B";
   concept: string;
   colors: AppThemeColors;
+  fonts: AppThemeFonts;
+  typography: AppThemeTypography;
 }
 
 export const APP_THEMES: Record<AppThemeId, AppThemeConfig> = {
@@ -62,6 +88,22 @@ export const APP_THEMES: Record<AppThemeId, AppThemeConfig> = {
       badgeBorder: "#2F3DFF",
       swatches: ["#0C0E14", "#1C1F2B", "#2F3DFF", "#FFB320", "#FF6B4A", "#B9BDD0", "#F3EDE0"],
     },
+    fonts: {
+      display: "BarlowCondensed_800ExtraBold",
+      displayWeight: "800",
+      body: "PlusJakartaSans_500Medium",
+      bodyBold: "PlusJakartaSans_700Bold",
+      mono: "SpaceMono_400Regular",
+      monoBold: "SpaceMono_700Bold",
+    },
+    typography: {
+      display: { fontFamily: "BarlowCondensed_800ExtraBold", fontWeight: "normal" },
+      displayItalic: { fontFamily: "BarlowCondensed_700Bold", fontWeight: "normal" },
+      body: { fontFamily: "PlusJakartaSans_500Medium", fontWeight: "normal" },
+      bodyBold: { fontFamily: "PlusJakartaSans_700Bold", fontWeight: "normal" },
+      mono: { fontFamily: "SpaceMono_400Regular", fontWeight: "normal" },
+      monoBold: { fontFamily: "SpaceMono_700Bold", fontWeight: "normal" },
+    },
   },
   tinta_papel: {
     id: "tinta_papel",
@@ -91,6 +133,23 @@ export const APP_THEMES: Record<AppThemeId, AppThemeConfig> = {
       badgeBg: "rgba(76, 111, 255, 0.16)",
       badgeBorder: "#4C6FFF",
       swatches: ["#10142A", "#1A2040", "#2B3363", "#F3EEE3", "#FF5A3C", "#FFD23F", "#4C6FFF"],
+    },
+    fonts: {
+      display: "InstrumentSerif_400Regular",
+      displayItalic: "InstrumentSerif_400Regular_Italic",
+      displayWeight: "normal",
+      body: "PlusJakartaSans_400Regular",
+      bodyBold: "PlusJakartaSans_600SemiBold",
+      mono: "SpaceMono_400Regular",
+      monoBold: "SpaceMono_700Bold",
+    },
+    typography: {
+      display: { fontFamily: "InstrumentSerif_400Regular", fontWeight: "normal" },
+      displayItalic: { fontFamily: "InstrumentSerif_400Regular_Italic", fontWeight: "normal" },
+      body: { fontFamily: "PlusJakartaSans_400Regular", fontWeight: "normal" },
+      bodyBold: { fontFamily: "PlusJakartaSans_600SemiBold", fontWeight: "normal" },
+      mono: { fontFamily: "SpaceMono_400Regular", fontWeight: "normal" },
+      monoBold: { fontFamily: "SpaceMono_700Bold", fontWeight: "normal" },
     },
   },
 };

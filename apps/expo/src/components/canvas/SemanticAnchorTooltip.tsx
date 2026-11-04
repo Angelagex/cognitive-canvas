@@ -120,7 +120,7 @@ export const SemanticAnchorTooltip: React.FC<SemanticAnchorTooltipProps> = ({
 
   const handleSave = () => {
     const finalTitle = activeConfig.defaultTitle;
-    const finalNote = note.trim() || (hasAudioRecorded ? "🎙️ [Nota de voz grabada para auditoría GRINDE]" : "Anotación conceptual");
+    const finalNote = note.trim() || (hasAudioRecorded ? "[Nota de voz grabada para auditoría GRINDE]" : "Anotación conceptual");
     onSave(selectedType, finalTitle, finalNote, worldX, worldY, strokeIds);
     onClose();
   };

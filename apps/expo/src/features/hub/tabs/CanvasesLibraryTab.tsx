@@ -1,9 +1,11 @@
-import React from "react";
+import React, { useState } from "react";
 import { StyleSheet, View, Text, TouchableOpacity, ScrollView } from "react-native";
 import * as Haptics from "expo-haptics";
-import { Plus, Sparkles, Check, Clock, FileText, Trash2 } from "@sketchyicons/react-native";
+import { Plus, BookOpen, Clock, Layers, Trash2, ArrowRight } from "@sketchyicons/react-native";
 import { MapDocumentSummary } from "../../../services/StorageService";
-import { useAppTheme } from "../../../theme";
+import { useSkin, fonts, radius, border } from "../../../theme";
+import { Button, Badge, HardShadow } from "../../../components/ui";
+import { OnboardingGuideModal } from "../../../components/modals/OnboardingGuideModal";
 
 export interface CanvasesLibraryTabProps {
   canvases: MapDocumentSummary[];
@@ -13,6 +15,7 @@ export interface CanvasesLibraryTabProps {
   onOpenCanvas: (mapId: string) => void;
   onCreateNewCanvas: () => void;
   onDeleteCanvas?: (mapId: string) => void;
+  onOpenGuide?: () => void;
 }
 
 const formatDate = (ts: number) => {
@@ -36,8 +39,11 @@ export const CanvasesLibraryTab: React.FC<CanvasesLibraryTabProps> = ({
   onOpenCanvas,
   onCreateNewCanvas,
   onDeleteCanvas,
+  onOpenGuide,
 }) => {
-  const { theme } = useAppTheme();
+  const { skin } = useSkin();
+  const [guideVisible, setGuideVisible] = useState(false);
+
   const displayList: MapDocumentSummary[] =
     canvases.length > 0
       ? canvases
@@ -52,233 +58,406 @@ export const CanvasesLibraryTab: React.FC<CanvasesLibraryTabProps> = ({
             is_compiled: false,
           },
         ];
+
   const hero = displayList[0];
+
+  const handleOpenGuide = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    if (onOpenGuide) onOpenGuide();
+    else setGuideVisible(true);
+  };
 
   return (
     <ScrollView
-      style={[styles.container, { backgroundColor: theme.colors.bgApp }]}
+      style={[styles.container, { backgroundColor: skin.bg }]}
       contentContainerStyle={styles.content}
     >
+      {/* ──────────────── Encabezado de Biblioteca (§7) ──────────────── */}
       <View style={styles.headerRow}>
-        <View>
-          <Text style={[styles.sectionHeading, { color: theme.colors.textPrimary }]}>
-            Workspace Library
+        <View style={styles.headerTextCol}>
+          <Text
+            style={[
+              styles.sectionHeading,
+              { color: skin.text, fontFamily: fonts.display },
+            ]}
+          >
+            BIBLIOTECA
           </Text>
-          <Text style={[styles.sectionSub, { color: theme.colors.textSecondary }]}>
-            Immutable .cmn canvases & causal mental models
+          <Text
+            style={[
+              styles.sectionSub,
+              { color: skin.textMuted, fontFamily: fonts.ui },
+            ]}
+          >
+            Modelos mentales causales y lienzos .cmn
           </Text>
         </View>
-        <TouchableOpacity
-          style={[styles.newCanvasBtn, { backgroundColor: theme.colors.accentPrimary }]}
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-            onCreateNewCanvas();
-          }}
-          activeOpacity={0.85}
-        >
-          <Plus size={18} color="#F8FAFC" strokeWidth={2.2} />
-          <Text style={styles.newCanvasBtnText}>New Canvas</Text>
-        </TouchableOpacity>
+
+        <View style={styles.headerButtonsRow}>
+          {/* Botón Guía en la barra (§7 & §8) */}
+          <Button
+            label="Guía"
+            variant="outline"
+            size="md"
+            icon={<BookOpen size={14} color={skin.text} strokeWidth={2.0} />}
+            onPress={handleOpenGuide}
+          />
+
+          {/* Botón Nuevo Lienzo (primary con HardShadow) */}
+          <Button
+            label="Nuevo lienzo"
+            variant="primary"
+            size="md"
+            icon={<Plus size={16} color={skin.onPrimary} strokeWidth={2.2} />}
+            onPress={onCreateNewCanvas}
+          />
+        </View>
       </View>
 
+      {/* ──────────────── Tarjeta "Continuar estudiando" (§7) ──────────────── */}
       {hero && (
         <TouchableOpacity
-          style={[
-            styles.heroCard,
-            {
-              backgroundColor: theme.colors.bgCard,
-              borderColor: theme.colors.borderSubtle,
-            },
-          ]}
           onPress={() => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
             onOpenCanvas(hero.map_id);
           }}
           activeOpacity={0.88}
+          style={styles.heroWrapper}
         >
-          <View style={styles.heroTopRow}>
+          <HardShadow offset="md" radius={radius.card} shadowColor={skin.shadow}>
             <View
               style={[
-                styles.heroTag,
-                { backgroundColor: theme.colors.badgeBg, borderColor: theme.colors.badgeBorder },
+                styles.heroCard,
+                {
+                  backgroundColor: skin.surface,
+                  borderColor: skin.borderSoft,
+                  borderWidth: border.strong,
+                  borderRadius: radius.card,
+                },
               ]}
             >
-              <Sparkles size={13} color={theme.colors.accentPrimary} strokeWidth={2.0} />
-              <Text style={[styles.heroTagText, { color: theme.colors.accentPrimary }]}>
-                CONTINUE STUDYING
+              <View style={styles.heroTopRow}>
+                <View
+                  style={[
+                    styles.heroTag,
+                    {
+                      backgroundColor: `${skin.primary}16`,
+                      borderColor: skin.primary,
+                      borderWidth: border.soft,
+                      borderRadius: radius.pill,
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.heroTagText,
+                      { color: skin.primary, fontFamily: fonts.monoBold },
+                    ]}
+                  >
+                    CONTINUAR ESTUDIANDO
+                  </Text>
+                </View>
+
+                {/* Insignia Verificado / Sin verificar */}
+                <Badge
+                  variant={hero.is_compiled ? "verified" : "unverified"}
+                />
+              </View>
+
+              <Text
+                style={[
+                  styles.heroTitle,
+                  { color: skin.text, fontFamily: fonts.display },
+                ]}
+                numberOfLines={2}
+              >
+                {hero.title.toUpperCase()}
               </Text>
+
+              <View style={styles.heroMetaRow}>
+                <View style={styles.metaCol}>
+                  <Text
+                    style={[
+                      styles.heroMetaValue,
+                      { color: skin.primary, fontFamily: fonts.monoBold },
+                    ]}
+                  >
+                    {Math.max(hero.entity_count, 1)} NODOS
+                  </Text>
+                </View>
+                <Text style={[styles.heroMetaDot, { color: skin.textMuted }]}>·</Text>
+                <View style={styles.metaCol}>
+                  <Text
+                    style={[
+                      styles.heroMetaValue,
+                      { color: skin.textMuted, fontFamily: fonts.mono },
+                    ]}
+                  >
+                    {hero.stroke_count} TRAZOS
+                  </Text>
+                </View>
+                <Text style={[styles.heroMetaDot, { color: skin.textMuted }]}>·</Text>
+                <View style={styles.metaCol}>
+                  <Text
+                    style={[
+                      styles.heroMetaValue,
+                      { color: skin.textMuted, fontFamily: fonts.mono },
+                    ]}
+                  >
+                    Actualizado {formatDate(hero.updated_at)}
+                  </Text>
+                </View>
+                <View style={{ flex: 1 }} />
+                <ArrowRight size={16} color={skin.primary} strokeWidth={2.0} />
+              </View>
             </View>
-            <View style={[styles.statusBadge, hero.is_compiled ? styles.statusVerified : styles.statusUnverified]}>
-              <Text style={[styles.statusText, hero.is_compiled ? styles.statusTextVerified : styles.statusTextUnverified]}>
-                {hero.is_compiled ? "✓ Verified" : "⚡ Unverified"}
-              </Text>
-            </View>
-          </View>
-          <Text style={[styles.heroTitle, { color: theme.colors.textPrimary }]}>{hero.title}</Text>
-          <View style={styles.heroMetaRow}>
-            <Text style={[styles.heroMetaItem, { color: theme.colors.textSecondary }]}>
-              {Math.max(hero.entity_count, 1)} Knowledge Nodes
-            </Text>
-            <Text style={[styles.heroMetaDot, { color: theme.colors.textMuted }]}>•</Text>
-            <Text style={[styles.heroMetaItem, { color: theme.colors.textSecondary }]}>
-              {hero.stroke_count} Ink Strokes
-            </Text>
-            <Text style={[styles.heroMetaDot, { color: theme.colors.textMuted }]}>•</Text>
-            <Text style={[styles.heroMetaItem, { color: theme.colors.textSecondary }]}>
-              Updated {formatDate(hero.updated_at)}
-            </Text>
-          </View>
+          </HardShadow>
         </TouchableOpacity>
       )}
 
-      <Text style={[styles.gridHeader, { color: theme.colors.textPrimary }]}>
-        All Vink Canvases ({displayList.length})
+      {/* ──────────────── Cuadrícula de Lienzos (§7) ──────────────── */}
+      <Text
+        style={[
+          styles.gridHeader,
+          { color: skin.textMuted, fontFamily: fonts.monoBold },
+        ]}
+      >
+        TODOS LOS LIENZOS ({displayList.length})
       </Text>
+
       <View style={styles.grid}>
         {displayList.map((item) => {
           const nodeCount = Math.max(item.entity_count, item.stroke_count > 0 ? 1 : 0);
           return (
             <TouchableOpacity
               key={item.map_id}
-              style={[
-                styles.canvasCard,
-                {
-                  backgroundColor: theme.colors.bgCard,
-                  borderColor: theme.colors.borderSubtle,
-                },
-              ]}
+              style={styles.cardTouchWrapper}
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
                 onOpenCanvas(item.map_id);
               }}
               activeOpacity={0.85}
             >
-              <View style={styles.cardTopRow}>
+              <HardShadow offset="sm" radius={radius.card} shadowColor={skin.shadow}>
                 <View
                   style={[
-                    styles.iconCircle,
-                    { backgroundColor: theme.colors.badgeBg, borderColor: theme.colors.badgeBorder },
+                    styles.canvasCard,
+                    {
+                      backgroundColor: skin.surface,
+                      borderColor: skin.borderSoft,
+                      borderWidth: border.soft,
+                      borderRadius: radius.card,
+                    },
                   ]}
                 >
-                  <FileText size={15} color={theme.colors.accentPrimary} strokeWidth={1.9} />
-                </View>
-                <View style={[styles.statusBadge, item.is_compiled ? styles.statusVerified : styles.statusUnverified]}>
-                  {item.is_compiled ? (
-                    <Check size={11} color="#10B981" strokeWidth={2.2} />
-                  ) : (
-                    <Clock size={11} color="#F59E0B" strokeWidth={2.0} />
-                  )}
-                  <Text style={[styles.statusText, item.is_compiled ? styles.statusTextVerified : styles.statusTextUnverified]}>
-                    {item.is_compiled ? "Verified" : "Unverified"}
+                  <View style={styles.cardTopRow}>
+                    <View
+                      style={[
+                        styles.iconCircle,
+                        {
+                          backgroundColor: skin.surfaceAlt,
+                          borderColor: skin.borderSoft,
+                          borderWidth: border.soft,
+                        },
+                      ]}
+                    >
+                      <Layers size={14} color={skin.primary} strokeWidth={2.0} />
+                    </View>
+
+                    <Badge
+                      variant={item.is_compiled ? "verified" : "unverified"}
+                    />
+                  </View>
+
+                  <Text
+                    style={[
+                      styles.cardTitle,
+                      { color: skin.text, fontFamily: fonts.display },
+                    ]}
+                    numberOfLines={2}
+                  >
+                    {item.title.toUpperCase()}
                   </Text>
+
+                  <View style={styles.cardFooter}>
+                    <View>
+                      <Text
+                        style={[
+                          styles.cardNodeCount,
+                          { color: skin.primary, fontFamily: fonts.monoBold },
+                        ]}
+                      >
+                        {nodeCount} NODOS · {item.stroke_count} TRAZOS
+                      </Text>
+                      <Text
+                        style={[
+                          styles.cardDate,
+                          { color: skin.textMuted, fontFamily: fonts.mono },
+                        ]}
+                      >
+                        {formatDate(item.updated_at)}
+                      </Text>
+                    </View>
+
+                    {onDeleteCanvas && displayList.length > 1 && (
+                      <TouchableOpacity
+                        style={[
+                          styles.deleteBtn,
+                          { backgroundColor: skin.surfaceAlt },
+                        ]}
+                        onPress={(e) => {
+                          e.stopPropagation();
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+                          onDeleteCanvas(item.map_id);
+                        }}
+                        accessibilityLabel="Eliminar lienzo"
+                      >
+                        <Trash2 size={13} color={skin.alert} strokeWidth={1.8} />
+                      </TouchableOpacity>
+                    )}
+                  </View>
                 </View>
-              </View>
-              <Text
-                style={[styles.cardTitle, { color: theme.colors.textPrimary }]}
-                numberOfLines={2}
-              >
-                {item.title}
-              </Text>
-              <View style={styles.cardFooter}>
-                <View>
-                  <Text style={[styles.cardNodeCount, { color: theme.colors.textSecondary }]}>
-                    {nodeCount} nodes
-                  </Text>
-                  <Text style={[styles.cardDate, { color: theme.colors.textMuted }]}>
-                    {formatDate(item.updated_at)}
-                  </Text>
-                </View>
-                {onDeleteCanvas && displayList.length > 1 && (
-                  <TouchableOpacity style={styles.deleteBtn} onPress={() => onDeleteCanvas(item.map_id)}>
-                    <Trash2 size={13} color="#EF4444" strokeWidth={1.8} />
-                  </TouchableOpacity>
-                )}
-              </View>
+              </HardShadow>
             </TouchableOpacity>
           );
         })}
       </View>
+
+      {/* Modal de Guía de uso (§8) */}
+      <OnboardingGuideModal
+        visible={guideVisible}
+        onClose={() => setGuideVisible(false)}
+      />
     </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#0B1120" },
-  content: { padding: 24, paddingBottom: 48 },
-  headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 20 },
-  sectionHeading: { color: "#F8FAFC", fontSize: 20, fontWeight: "700" },
-  sectionSub: { color: "#94A3B8", fontSize: 12, marginTop: 2 },
-  newCanvasBtn: {
+  container: {
+    flex: 1,
+  },
+  content: {
+    padding: 24,
+    paddingBottom: 48,
+  },
+  headerRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 20,
+    gap: 12,
+  },
+  headerTextCol: {
+    flex: 1,
+  },
+  sectionHeading: {
+    fontSize: 26,
+    letterSpacing: 0.8,
+  },
+  sectionSub: {
+    fontSize: 13,
+    marginTop: 2,
+  },
+  headerButtonsRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    backgroundColor: "#0284C7",
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 10,
+    gap: 8,
   },
-  newCanvasBtnText: { color: "#FFFFFF", fontSize: 13, fontWeight: "700" },
-  heroCard: {
-    backgroundColor: "#0F172A",
-    borderRadius: 16,
-    borderWidth: 1.5,
-    borderColor: "#38BDF8",
-    padding: 20,
+  heroWrapper: {
     marginBottom: 24,
   },
-  heroTopRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
-  heroTag: { flexDirection: "row", alignItems: "center", gap: 6 },
-  heroTagText: { color: "#38BDF8", fontSize: 11, fontWeight: "700", letterSpacing: 0.7 },
-  heroTitle: { color: "#F8FAFC", fontSize: 22, fontWeight: "700", marginBottom: 10 },
-  heroMetaRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  heroMetaItem: { color: "#CBD5E1", fontSize: 12, fontWeight: "600" },
-  heroMetaDot: { color: "#475569", fontSize: 12 },
-  gridHeader: {
-    color: "#94A3B8",
+  heroCard: {
+    padding: 20,
+    gap: 12,
+  },
+  heroTopRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  heroTag: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  heroTagText: {
+    fontSize: 10,
+    letterSpacing: 0.8,
+  },
+  heroTitle: {
+    fontSize: 22,
+    letterSpacing: 0.5,
+    lineHeight: 26,
+  },
+  heroMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingTop: 4,
+  },
+  metaCol: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  heroMetaValue: {
+    fontSize: 11,
+    letterSpacing: 0.5,
+  },
+  heroMetaDot: {
     fontSize: 12,
-    fontWeight: "700",
-    textTransform: "uppercase",
-    letterSpacing: 0.6,
+  },
+  gridHeader: {
+    fontSize: 11,
+    letterSpacing: 1.0,
     marginBottom: 12,
   },
-  grid: { flexDirection: "row", flexWrap: "wrap", gap: 14 },
-  canvasCard: {
-    width: "31%",
+  grid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 14,
+  },
+  cardTouchWrapper: {
+    width: "31.5%",
     minWidth: 230,
-    backgroundColor: "#0F172A",
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "#1E293B",
+  },
+  canvasCard: {
     padding: 16,
     justifyContent: "space-between",
-    minHeight: 140,
+    minHeight: 145,
+    gap: 10,
   },
-  cardTopRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
+  cardTopRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
   iconCircle: {
-    width: 30,
-    height: 30,
+    width: 28,
+    height: 28,
     borderRadius: 8,
-    backgroundColor: "#1E293B",
     alignItems: "center",
     justifyContent: "center",
   },
-  statusBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
-    borderWidth: 1,
+  cardTitle: {
+    fontSize: 15,
+    letterSpacing: 0.5,
+    lineHeight: 19,
   },
-  statusVerified: { backgroundColor: "rgba(16, 185, 129, 0.12)", borderColor: "#10B981" },
-  statusUnverified: { backgroundColor: "rgba(245, 158, 11, 0.12)", borderColor: "#F59E0B" },
-  statusText: { fontSize: 10, fontWeight: "700" },
-  statusTextVerified: { color: "#10B981" },
-  statusTextUnverified: { color: "#F59E0B" },
-  cardTitle: { color: "#F8FAFC", fontSize: 15, fontWeight: "700", marginBottom: 12 },
-  cardFooter: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end" },
-  cardNodeCount: { color: "#38BDF8", fontSize: 12, fontWeight: "700" },
-  cardDate: { color: "#64748B", fontSize: 11, marginTop: 2 },
-  deleteBtn: { padding: 6, backgroundColor: "#1E293B", borderRadius: 8 },
+  cardFooter: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-end",
+    paddingTop: 4,
+  },
+  cardNodeCount: {
+    fontSize: 10,
+    letterSpacing: 0.5,
+  },
+  cardDate: {
+    fontSize: 10,
+    marginTop: 2,
+  },
+  deleteBtn: {
+    padding: 6,
+    borderRadius: 6,
+  },
 });

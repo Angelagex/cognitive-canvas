@@ -1,16 +1,19 @@
 import React from "react";
 import { StyleSheet, View, Text, TouchableOpacity, Modal } from "react-native";
-import { BrainCircuit, X, Zap, Map } from "@sketchyicons/react-native";
+import { BrainCircuit, X, RefreshCw, Layers } from "@sketchyicons/react-native";
 import { CognitiveCompilerOutput, PacerClassification } from "@cognitive-canvas/core/types";
 import { RetrievalPanel } from "../RetrievalPanel";
+import { useSkin, fonts } from "../../theme";
+import { Button } from "../ui";
 
-interface CompilerDrawerProps {
+export interface CompilerDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   compilation: CognitiveCompilerOutput | null;
   onCompile: () => void;
   isCompiling: boolean;
   strokeCount: number;
+  lastCompiledStrokeCount?: number;
   pacerFilter?: PacerClassification | "ALL";
   onPacerFilterChange?: (filter: PacerClassification | "ALL") => void;
   showPacerOverlay?: boolean;
@@ -26,6 +29,7 @@ export const CompilerDrawer: React.FC<CompilerDrawerProps> = ({
   onCompile,
   isCompiling,
   strokeCount,
+  lastCompiledStrokeCount = 0,
   pacerFilter,
   onPacerFilterChange,
   showPacerOverlay,
@@ -33,10 +37,14 @@ export const CompilerDrawer: React.FC<CompilerDrawerProps> = ({
   onFocusNode,
   activeTab,
 }) => {
+  const { skin } = useSkin();
+
   const handleFocusNode = (box: { minX: number; minY: number; maxX: number; maxY: number }) => {
     onFocusNode?.(box);
     onClose();
   };
+
+  const hasNewStrokes = Boolean(compilation && strokeCount > lastCompiledStrokeCount);
 
   return (
     <Modal
@@ -50,43 +58,56 @@ export const CompilerDrawer: React.FC<CompilerDrawerProps> = ({
       <View style={styles.modalOverlay}>
         <TouchableOpacity style={styles.backdropTouch} onPress={onClose} activeOpacity={1} />
 
-        <View style={styles.drawerCard}>
-          {/* Header */}
-          <View style={styles.drawerHeader}>
+        <View style={[styles.drawerCard, { backgroundColor: skin.surface, borderColor: skin.borderSoft }]}>
+          {/* Header Compacto (solo de resultados) */}
+          <View style={[styles.drawerHeader, { borderBottomColor: skin.borderSoft }]}>
             <View style={styles.headerTitleRow}>
-              <BrainCircuit size={20} color="#38BDF8" strokeWidth={1.8} />
-              <Text style={styles.drawerTitle}>Compilador Cognitivo</Text>
+              <BrainCircuit size={18} color={skin.primary} strokeWidth={2.0} />
+              <View>
+                <Text style={[styles.drawerTitle, { color: skin.text, fontFamily: fonts.display, fontWeight: "normal" }]}>
+                  ANÁLISIS COGNITIVO
+                </Text>
+                <Text style={[styles.drawerSubtitle, { color: skin.textMuted, fontFamily: fonts.mono, fontWeight: "normal" }]}>
+                  {compilation ? "RESULTADOS & AUDITORÍA SOCRÁTICA" : "ESPERANDO COMPILACIÓN"}
+                </Text>
+              </View>
             </View>
-            <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-              <X size={16} color="#94A3B8" strokeWidth={2.0} />
+            <TouchableOpacity
+              style={[styles.closeButton, { backgroundColor: skin.surfaceAlt, borderColor: skin.borderSoft }]}
+              onPress={onClose}
+            >
+              <X size={16} color={skin.textMuted} strokeWidth={2.0} />
             </TouchableOpacity>
           </View>
 
-          {/* Action Trigger Banner */}
-          <View style={styles.actionBanner}>
-            <View style={styles.bannerInfo}>
-              <Text style={styles.bannerTitle}>Vink — Grafo de Conocimiento</Text>
-              <Text style={styles.bannerSubtitle}>
-                {strokeCount > 0 ? `${strokeCount} trazos listos en lienzo` : "Dibuja tu mapa para compilar"}
-              </Text>
+          {/* Aviso contextual si hay trazos nuevos desde la última compilación (§4 regla 2) */}
+          {hasNewStrokes && (
+            <View style={[styles.newStrokesNotice, { backgroundColor: `${skin.warm}1A`, borderColor: skin.warm }]}>
+              <View style={styles.newStrokesTextCol}>
+                <Text style={[styles.newStrokesTitle, { color: skin.warm, fontFamily: fonts.monoBold, fontWeight: "normal" }]}>
+                  HAY TRAZOS NUEVOS
+                </Text>
+                <Text style={[styles.newStrokesDesc, { color: skin.text, fontFamily: fonts.ui, fontWeight: "normal" }]}>
+                  +{strokeCount - lastCompiledStrokeCount} trazos añadidos desde la última compilación.
+                </Text>
+              </View>
+              <Button
+                label={isCompiling ? "Compilando..." : "Recompilar"}
+                variant="primary"
+                size="sm"
+                icon={<RefreshCw size={12} color={skin.onPrimary} strokeWidth={2.2} />}
+                onPress={onCompile}
+                loading={isCompiling}
+              />
             </View>
-            <TouchableOpacity
-              style={[styles.runCompileButton, isCompiling && styles.buttonDisabled]}
-              onPress={onCompile}
-              disabled={isCompiling}
-            >
-              <Zap size={14} color="#FFFFFF" strokeWidth={2.0} />
-              <Text style={styles.runCompileText}>
-                {isCompiling ? "Compilando..." : "Ejecutar IA"}
-              </Text>
-            </TouchableOpacity>
-          </View>
+          )}
 
           {/* Scrollable Retrieval Panel with Real Extracted Graph */}
           <View style={styles.panelContent}>
             {compilation ? (
               <RetrievalPanel
                 compilation={compilation}
+                strokeCount={strokeCount}
                 pacerFilter={pacerFilter}
                 onPacerFilterChange={onPacerFilterChange}
                 showPacerOverlay={showPacerOverlay}
@@ -97,14 +118,23 @@ export const CompilerDrawer: React.FC<CompilerDrawerProps> = ({
               />
             ) : (
               <View style={styles.emptyStateContainer}>
-                <View style={styles.emptyStateIconWrapper}>
-                  <Map size={48} color="#475569" strokeWidth={1.5} />
+                <View style={[styles.emptyStateIconWrapper, { backgroundColor: skin.surfaceAlt, borderColor: skin.borderSoft }]}>
+                  <Layers size={36} color={skin.primary} strokeWidth={1.8} />
                 </View>
-                <Text style={styles.emptyStateTitle}>Lienzo listo para evaluar</Text>
-                <Text style={styles.emptyStateDescription}>
-                  Dibuja tus conceptos y relaciones causales con el S-Pen.
-                  Presiona "Ejecutar IA" para extraer tus nodos jerárquicos, dinámicas causales y desafíos socráticos sobre tu mapa real.
+                <Text style={[styles.emptyStateTitle, { color: skin.text, fontFamily: fonts.display, fontWeight: "normal" }]}>
+                  LIENZO LISTO PARA COMPILAR
                 </Text>
+                <Text style={[styles.emptyStateDescription, { color: skin.textMuted, fontFamily: fonts.ui, fontWeight: "normal" }]}>
+                  Dibuja tus conceptos y relaciones causales con el S-Pen. Al compilar se extraerá tu grafo jerárquico, dinámicas causales y desafíos socráticos.
+                </Text>
+                <Button
+                  label={isCompiling ? "Compilando..." : "Compilar Lienzo"}
+                  variant="primary"
+                  size="md"
+                  onPress={onCompile}
+                  loading={isCompiling}
+                  style={{ marginTop: 16 }}
+                />
               </View>
             )}
           </View>
@@ -150,59 +180,41 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   drawerTitle: {
-    color: "#F8FAFC",
     fontSize: 16,
-    fontWeight: "700",
+    letterSpacing: -0.2,
+  },
+  drawerSubtitle: {
+    fontSize: 9,
+    letterSpacing: 0.8,
+    marginTop: 1,
   },
   closeButton: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: "#1E293B",
     alignItems: "center",
     justifyContent: "center",
+    borderWidth: 1,
   },
-  actionBanner: {
+  newStrokesNotice: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: "#1E293B",
+    paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: "#334155",
+    gap: 12,
   },
-  bannerInfo: {
+  newStrokesTextCol: {
     flex: 1,
   },
-  bannerTitle: {
-    color: "#F8FAFC",
-    fontSize: 13,
-    fontWeight: "700",
+  newStrokesTitle: {
+    fontSize: 10,
+    letterSpacing: 0.6,
   },
-  bannerSubtitle: {
-    color: "#94A3B8",
+  newStrokesDesc: {
     fontSize: 11,
-    marginTop: 2,
-  },
-  runCompileButton: {
-    backgroundColor: "#D97706",
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#F59E0B",
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  runCompileText: {
-    color: "#FFFFFF",
-    fontSize: 12,
-    fontWeight: "800",
-  },
-  buttonDisabled: {
-    opacity: 0.5,
+    marginTop: 1,
   },
   panelContent: {
     flex: 1,
@@ -214,18 +226,23 @@ const styles = StyleSheet.create({
     padding: 32,
   },
   emptyStateIconWrapper: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
     marginBottom: 16,
   },
   emptyStateTitle: {
-    color: "#F8FAFC",
     fontSize: 18,
-    fontWeight: "700",
+    letterSpacing: -0.3,
     marginBottom: 8,
   },
   emptyStateDescription: {
-    color: "#94A3B8",
     fontSize: 13,
     textAlign: "center",
     lineHeight: 20,
+    maxWidth: 320,
   },
 });

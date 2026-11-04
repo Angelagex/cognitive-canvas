@@ -5,7 +5,7 @@ import { Check, Settings, Mic, Sparkles, BrainCircuit, Trash2, Palette } from "@
 import { getUserPreferences, saveUserPreferences } from "../../../services/StorageService";
 import { KeyStorageService } from "../../../services/KeyStorageService";
 import { ToolbarDockEdge, CanvasThemePreset, CANVAS_THEMES } from "../../../types/canvas";
-import { useAppTheme, APP_THEMES, AppThemeId } from "../../../theme";
+import { useAppTheme, APP_THEMES, AppThemeId, useSkin, SkinId, skins } from "../../../theme";
 import { styles } from "./SettingsTab.styles";
 
 export interface SettingsTabProps {
@@ -37,6 +37,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   );
   const [savedNotice, setSavedNotice] = useState(false);
   const { themeId: currentAppThemeId, theme: appTheme, setAppTheme } = useAppTheme();
+  const { skinActivo, setSkinActivo } = useSkin();
 
   useEffect(() => {
     KeyStorageService.getApiKey().then((stored) => {
@@ -96,12 +97,10 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
 
   const dockEdges: ToolbarDockEdge[] = ["left", "right", "top", "bottom"];
   const themes: CanvasThemePreset[] = [
-    "dark_slate",
-    "charcoal_dark",
-    "warm_ivory",
-    "pure_white",
-    "cobalto_crema",
-    "tinta_papel",
+    "crema",
+    "noche",
+    "tinta",
+    "folio",
   ];
   const appThemeKeys: AppThemeId[] = ["cobalto_crema", "tinta_papel"];
 
@@ -113,7 +112,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
       <View style={styles.headerRow}>
         <View style={styles.titleRow}>
           <Settings size={18} color={appTheme.colors.accentPrimary} strokeWidth={2.0} />
-          <Text style={[styles.heading, { color: appTheme.colors.textPrimary }]}>
+          <Text style={[styles.heading, appTheme.typography.display, { color: appTheme.colors.textPrimary }]}>
             Engine & Pipeline Configuration
           </Text>
         </View>
@@ -122,7 +121,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
           onPress={handleSaveSettings}
         >
           <Check size={15} color="#FFFFFF" strokeWidth={2.2} />
-          <Text style={styles.saveBtnText}>{savedNotice ? "Saved!" : "Save Preferences"}</Text>
+          <Text style={[styles.saveBtnText, appTheme.typography.bodyBold]}>{savedNotice ? "Saved!" : "Save Preferences"}</Text>
         </TouchableOpacity>
       </View>
 
@@ -138,12 +137,70 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
       >
         <View style={styles.cardHeader}>
           <Palette size={16} color={appTheme.colors.accentSecondary} strokeWidth={2.0} />
-          <Text style={[styles.cardTitle, { color: appTheme.colors.textPrimary }]}>
+          <Text style={[styles.cardTitle, appTheme.typography.bodyBold, { color: appTheme.colors.textPrimary }]}>
             Vink Visual Identity & App Theme
           </Text>
         </View>
-        <Text style={[styles.cardDesc, { color: appTheme.colors.textSecondary }]}>
-          Alterna entre las dos paletas oficiales para evaluar la estética, legibilidad y contraste en vivo.
+        <Text style={[styles.cardDesc, appTheme.typography.body, { color: appTheme.colors.textSecondary }]}>
+          Alterna entre las tres skins oficiales y paletas de la aplicación para evaluar la estética, legibilidad y contraste en vivo.
+        </Text>
+
+        <Text style={[styles.label, appTheme.typography.bodyBold, { color: appTheme.colors.textSecondary, marginTop: 4, marginBottom: 8 }]}>
+          Skin de la Interfaz (Tokens del Sistema)
+        </Text>
+        <View style={[styles.pillRow, { marginBottom: 16 }]}>
+          {(["crema", "noche", "tinta"] as SkinId[]).map((skId) => {
+            const sk = skins[skId];
+            const isSelected = skinActivo === skId;
+            const labels: Record<SkinId, string> = {
+              crema: "Crema (Claro)",
+              noche: "Noche (Oscuro)",
+              tinta: "Tinta (Editorial)",
+            };
+            return (
+              <TouchableOpacity
+                key={skId}
+                style={[
+                  styles.choicePill,
+                  {
+                    backgroundColor: isSelected ? sk.primary : appTheme.colors.pillInactiveBg,
+                    borderColor: isSelected ? sk.primary : appTheme.colors.borderSubtle,
+                  },
+                ]}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+                  setSkinActivo(skId);
+                }}
+                activeOpacity={0.8}
+              >
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                  <View
+                    style={{
+                      width: 10,
+                      height: 10,
+                      borderRadius: 5,
+                      backgroundColor: sk.bg,
+                      borderWidth: 1,
+                      borderColor: sk.border,
+                    }}
+                  />
+                  <Text
+                    style={[
+                      styles.choicePillText,
+                      isSelected ? appTheme.typography.bodyBold : appTheme.typography.body,
+                      { color: isSelected ? sk.onPrimary : appTheme.colors.textSecondary },
+                    ]}
+                  >
+                    {labels[skId]}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        <Text style={[styles.label, appTheme.typography.bodyBold, { color: appTheme.colors.textSecondary, marginBottom: 8 }]}>
+          Dirección de Identidad Visual
         </Text>
 
         <View style={styles.themeCardsContainer}>
@@ -168,11 +225,22 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
               >
                 <View style={styles.themeCardTop}>
                   <View style={styles.themeTitleRow}>
-                    <Text style={[styles.themeName, { color: config.colors.textPrimary }]}>
+                    <Text
+                      style={[
+                        styles.themeName,
+                        config.typography.display,
+                        { color: config.colors.textPrimary },
+                      ]}
+                    >
                       {config.name}
                     </Text>
                     <View style={styles.themeDirectionBadge}>
-                      <Text style={styles.themeDirectionBadgeText}>
+                      <Text
+                        style={[
+                          styles.themeDirectionBadgeText,
+                          config.typography.monoBold,
+                        ]}
+                      >
                         DIRECCIÓN {config.direction}
                       </Text>
                     </View>
@@ -188,6 +256,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                       <Text
                         style={[
                           styles.activeIndicatorText,
+                          config.typography.monoBold,
                           { color: config.colors.accentPrimary },
                         ]}
                       >
@@ -197,8 +266,17 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                   )}
                 </View>
 
-                <Text style={styles.themeTagline}>{config.tagline}</Text>
-                <Text style={styles.themeConcept}>{config.concept}</Text>
+                <Text
+                  style={[
+                    styles.themeTagline,
+                    config.typography.displayItalic,
+                  ]}
+                >
+                  {config.tagline}
+                </Text>
+                <Text style={[styles.themeConcept, config.typography.body]}>
+                  {config.concept}
+                </Text>
 
                 <View style={styles.swatchesRow}>
                   {config.colors.swatches.map((swatch, idx) => (
@@ -220,18 +298,37 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
         </View>
       </View>
 
-      <View style={styles.sectionCard}>
+      <View
+        style={[
+          styles.sectionCard,
+          {
+            backgroundColor: appTheme.colors.bgCard,
+            borderColor: appTheme.colors.borderSubtle,
+          },
+        ]}
+      >
         <View style={styles.cardHeader}>
           <BrainCircuit size={15} color="#10B981" strokeWidth={2.0} />
-          <Text style={styles.cardTitle}>Gemini API Configuration (BYOK)</Text>
+          <Text style={[styles.cardTitle, appTheme.typography.bodyBold, { color: appTheme.colors.textPrimary }]}>
+            Gemini API Configuration (BYOK)
+          </Text>
         </View>
-        <Text style={styles.cardDesc}>
+        <Text style={[styles.cardDesc, appTheme.typography.body, { color: appTheme.colors.textSecondary }]}>
           Stored locally in Android hardware Keystore (`expo-secure-store`) and sent via `x-gemini-api-key` during compilation.
         </Text>
 
         <View style={styles.keyInputRow}>
           <TextInput
-            style={[styles.input, { flex: 1 }]}
+            style={[
+              styles.input,
+              appTheme.typography.body,
+              {
+                flex: 1,
+                backgroundColor: appTheme.colors.bgInput,
+                borderColor: appTheme.colors.borderSubtle,
+                color: appTheme.colors.textPrimary,
+              },
+            ]}
             value={apiKey}
             onChangeText={setApiKey}
             placeholder="AIzaSy..."
@@ -241,17 +338,25 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
             autoCorrect={false}
           />
           <TouchableOpacity
-            style={styles.maskToggleBtn}
+            style={[
+              styles.maskToggleBtn,
+              {
+                backgroundColor: appTheme.colors.pillInactiveBg,
+                borderColor: appTheme.colors.borderSubtle,
+              },
+            ]}
             onPress={() => setIsMasked((prev) => !prev)}
           >
-            <Text style={styles.maskToggleText}>{isMasked ? "Show" : "Hide"}</Text>
+            <Text style={[styles.maskToggleText, appTheme.typography.bodyBold, { color: appTheme.colors.textSecondary }]}>
+              {isMasked ? "Show" : "Hide"}
+            </Text>
           </TouchableOpacity>
         </View>
 
         <View style={styles.keyActionsRow}>
           <TouchableOpacity style={styles.keyPrimaryBtn} onPress={handleSaveGeminiKey}>
             <Check size={14} color="#FFFFFF" strokeWidth={2.2} />
-            <Text style={styles.keyBtnText}>Save Key</Text>
+            <Text style={[styles.keyBtnText, appTheme.typography.bodyBold]}>Save Key</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -260,14 +365,14 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
             disabled={isTestingKey}
           >
             <Sparkles size={14} color="#38BDF8" strokeWidth={2.0} />
-            <Text style={[styles.keyBtnText, { color: "#38BDF8" }]}>
+            <Text style={[styles.keyBtnText, appTheme.typography.bodyBold, { color: "#38BDF8" }]}>
               {isTestingKey ? "Testing..." : "Test Key"}
             </Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.keyClearBtn} onPress={handleClearGeminiKey}>
             <Trash2 size={14} color="#EF4444" strokeWidth={2.0} />
-            <Text style={[styles.keyBtnText, { color: "#EF4444" }]}>Clear Key</Text>
+            <Text style={[styles.keyBtnText, appTheme.typography.bodyBold, { color: "#EF4444" }]}>Clear Key</Text>
           </TouchableOpacity>
         </View>
 
@@ -281,6 +386,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
             <Text
               style={[
                 styles.statusText,
+                appTheme.typography.mono,
                 isStatusError ? { color: "#FCA5A5" } : { color: "#6EE7B7" },
               ]}
             >
@@ -290,16 +396,34 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
         )}
       </View>
 
-      <View style={styles.sectionCard}>
+      <View
+        style={[
+          styles.sectionCard,
+          {
+            backgroundColor: appTheme.colors.bgCard,
+            borderColor: appTheme.colors.borderSubtle,
+          },
+        ]}
+      >
         <View style={styles.cardHeader}>
           <Mic size={15} color="#38BDF8" strokeWidth={2.0} />
-          <Text style={styles.cardTitle}>Deepgram Nova-2 Audio Thinking Stream</Text>
+          <Text style={[styles.cardTitle, appTheme.typography.bodyBold, { color: appTheme.colors.textPrimary }]}>
+            Deepgram Nova-3 Audio Thinking Stream
+          </Text>
         </View>
-        <Text style={styles.cardDesc}>
-          Used by the Lasso contextual pill (🎙️) to transcribe up to 45s of verbal causal reasoning.
+        <Text style={[styles.cardDesc, appTheme.typography.body, { color: appTheme.colors.textSecondary }]}>
+          Utilizada por la píldora contextual del lazo (Mic) para transcribir hasta 45s de razonamiento causal verbal.
         </Text>
         <TextInput
-          style={styles.input}
+          style={[
+            styles.input,
+            appTheme.typography.body,
+            {
+              backgroundColor: appTheme.colors.bgInput,
+              borderColor: appTheme.colors.borderSubtle,
+              color: appTheme.colors.textPrimary,
+            },
+          ]}
           value={deepgramKey}
           onChangeText={setDeepgramKey}
           placeholder="dg_api_key_... (or EXPO_PUBLIC_DEEPGRAM_API_KEY)"
@@ -308,16 +432,34 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
         />
       </View>
 
-      <View style={styles.sectionCard}>
+      <View
+        style={[
+          styles.sectionCard,
+          {
+            backgroundColor: appTheme.colors.bgCard,
+            borderColor: appTheme.colors.borderSubtle,
+          },
+        ]}
+      >
         <View style={styles.cardHeader}>
           <Sparkles size={15} color="#F59E0B" strokeWidth={2.0} />
-          <Text style={styles.cardTitle}>Prerequisite Dependency Planner Goal</Text>
+          <Text style={[styles.cardTitle, appTheme.typography.bodyBold, { color: appTheme.colors.textPrimary }]}>
+            Prerequisite Dependency Planner Goal
+          </Text>
         </View>
-        <Text style={styles.cardDesc}>
+        <Text style={[styles.cardDesc, appTheme.typography.body, { color: appTheme.colors.textSecondary }]}>
           Target competency evaluated against your verified Knowledge Matrix nodes.
         </Text>
         <TextInput
-          style={styles.input}
+          style={[
+            styles.input,
+            appTheme.typography.body,
+            {
+              backgroundColor: appTheme.colors.bgInput,
+              borderColor: appTheme.colors.borderSubtle,
+              color: appTheme.colors.textPrimary,
+            },
+          ]}
           value={learningGoal}
           onChangeText={setLearningGoal}
           placeholder="Define your target technical competency..."
@@ -325,41 +467,72 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
         />
       </View>
 
-      <View style={styles.sectionCard}>
-        <Text style={styles.cardTitle}>S-Pen Hardware & Magnetic Dock</Text>
+      <View
+        style={[
+          styles.sectionCard,
+          {
+            backgroundColor: appTheme.colors.bgCard,
+            borderColor: appTheme.colors.borderSubtle,
+          },
+        ]}
+      >
+        <Text style={[styles.cardTitle, appTheme.typography.bodyBold, { color: appTheme.colors.textPrimary }]}>
+          S-Pen Hardware & Magnetic Dock
+        </Text>
         <View style={styles.rowBetween}>
-          <Text style={styles.label}>Strict S-Pen Palm Rejection (Stylus Only)</Text>
+          <Text style={[styles.label, appTheme.typography.bodyBold, { color: appTheme.colors.textSecondary }]}>
+            Strict S-Pen Palm Rejection (Stylus Only)
+          </Text>
           <TouchableOpacity
-            style={[styles.toggleBtn, stylusOnly && styles.toggleBtnActive]}
+            style={[
+              styles.toggleBtn,
+              {
+                backgroundColor: appTheme.colors.pillInactiveBg,
+                borderColor: appTheme.colors.borderSubtle,
+              },
+              stylusOnly && styles.toggleBtnActive,
+            ]}
             onPress={onToggleStylusOnly}
           >
-            <Text style={styles.toggleText}>{stylusOnly ? "ENABLED" : "DISABLED"}</Text>
+            <Text style={[styles.toggleText, appTheme.typography.monoBold]}>
+              {stylusOnly ? "ENABLED" : "DISABLED"}
+            </Text>
           </TouchableOpacity>
         </View>
 
-        <Text style={[styles.label, { marginTop: 12, marginBottom: 6 }]}>
+        <Text style={[styles.label, appTheme.typography.bodyBold, { color: appTheme.colors.textSecondary, marginTop: 12, marginBottom: 6 }]}>
           Magnetic Toolbar Dock Edge
         </Text>
         <View style={styles.pillRow}>
-          {dockEdges.map((edge) => (
-            <TouchableOpacity
-              key={edge}
-              style={[styles.choicePill, toolbarDockEdge === edge && styles.choicePillActive]}
-              onPress={() => onChangeDockEdge(edge)}
-            >
-              <Text
+          {dockEdges.map((edge) => {
+            const isSelected = toolbarDockEdge === edge;
+            return (
+              <TouchableOpacity
+                key={edge}
                 style={[
-                  styles.choicePillText,
-                  toolbarDockEdge === edge && styles.choicePillTextActive,
+                  styles.choicePill,
+                  {
+                    backgroundColor: isSelected ? appTheme.colors.accentPrimary : appTheme.colors.pillInactiveBg,
+                    borderColor: isSelected ? appTheme.colors.accentPrimary : appTheme.colors.borderSubtle,
+                  },
                 ]}
+                onPress={() => onChangeDockEdge(edge)}
               >
-                {edge.toUpperCase()}
-              </Text>
-            </TouchableOpacity>
-          ))}
+                <Text
+                  style={[
+                    styles.choicePillText,
+                    isSelected ? appTheme.typography.bodyBold : appTheme.typography.body,
+                    { color: isSelected ? "#FFFFFF" : appTheme.colors.textSecondary },
+                  ]}
+                >
+                  {edge.toUpperCase()}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
         </View>
 
-        <Text style={[styles.label, { marginTop: 14, marginBottom: 6 }]}>
+        <Text style={[styles.label, appTheme.typography.bodyBold, { color: appTheme.colors.textSecondary, marginTop: 14, marginBottom: 6 }]}>
           Canvas Paper Theme Preset ({themes.length} Presets)
         </Text>
         <View style={styles.pillRow}>
@@ -371,9 +544,9 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                 key={t}
                 style={[
                   styles.choicePill,
-                  isSelected && {
-                    backgroundColor: appTheme.colors.accentPrimary,
-                    borderColor: appTheme.colors.accentPrimary,
+                  {
+                    backgroundColor: isSelected ? appTheme.colors.accentPrimary : appTheme.colors.pillInactiveBg,
+                    borderColor: isSelected ? appTheme.colors.accentPrimary : appTheme.colors.borderSubtle,
                   },
                 ]}
                 onPress={() => {
@@ -395,7 +568,8 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                   <Text
                     style={[
                       styles.choicePillText,
-                      isSelected && styles.choicePillTextActive,
+                      isSelected ? appTheme.typography.bodyBold : appTheme.typography.body,
+                      { color: isSelected ? "#FFFFFF" : appTheme.colors.textSecondary },
                     ]}
                   >
                     {config.label}

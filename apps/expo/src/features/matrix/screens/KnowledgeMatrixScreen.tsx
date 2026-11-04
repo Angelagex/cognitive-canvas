@@ -4,6 +4,7 @@ import * as Haptics from "expo-haptics";
 import { MatrixGraphView } from "../components/MatrixGraphView";
 import { getDomainColor } from "../utils/domainColors";
 import { VinkLogo } from "../../../components/brand";
+import { useAppTheme } from "../../../theme";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -18,6 +19,7 @@ export const KnowledgeMatrixScreen: React.FC<KnowledgeMatrixScreenProps> = ({
   onExport,
   onNavigateToCanvas,
 }) => {
+  const { theme } = useAppTheme();
   const [selectedField, setSelectedField] = useState<string>("Todos los Campos");
   const [, setRenderTrigger] = useState(0);
 
@@ -89,15 +91,41 @@ export const KnowledgeMatrixScreen: React.FC<KnowledgeMatrixScreenProps> = ({
   }, [filteredNodes, selectedField]);
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.colors.bgApp }]}>
       {/* 1. Header con métricas y exportación */}
-      <View style={styles.header}>
+      <View
+        style={[
+          styles.header,
+          {
+            backgroundColor: theme.colors.bgHeader,
+            borderBottomColor: theme.colors.borderSubtle,
+          },
+        ]}
+      >
         <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-          <VinkLogo showIcon={false} wordmarkHeight={18} />
-          <View style={{ width: 1, height: 22, backgroundColor: "#334155" }} />
+          <VinkLogo
+            showIcon={false}
+            wordmarkHeight={18}
+            wordmarkColor={theme.colors.textPrimary}
+          />
+          <View style={{ width: 1, height: 22, backgroundColor: theme.colors.borderSubtle }} />
           <View>
-            <Text style={styles.title}>Knowledge Matrix · Force-Directed DAG</Text>
-            <Text style={styles.subtitle}>
+            <Text
+              style={[
+                styles.title,
+                theme.typography.display,
+                { color: theme.colors.textPrimary },
+              ]}
+            >
+              Knowledge Matrix · Force-Directed DAG
+            </Text>
+            <Text
+              style={[
+                styles.subtitle,
+                theme.typography.body,
+                { color: theme.colors.textSecondary },
+              ]}
+            >
               {filteredNodes.length} conceptos canónicos activos
             </Text>
           </View>
@@ -108,19 +136,55 @@ export const KnowledgeMatrixScreen: React.FC<KnowledgeMatrixScreenProps> = ({
             onExport?.();
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
           }}
-          style={styles.exportBtn}
+          style={[
+            styles.exportBtn,
+            {
+              backgroundColor: theme.colors.badgeBg,
+              borderColor: theme.colors.badgeBorder,
+            },
+          ]}
           activeOpacity={0.8}
         >
-          <Text style={styles.exportBtnText}>Exportar Matriz (JSON)</Text>
+          <Text
+            style={[
+              styles.exportBtnText,
+              theme.typography.bodyBold,
+              { color: theme.colors.accentPrimary },
+            ]}
+          >
+            Exportar Matriz (JSON)
+          </Text>
         </TouchableOpacity>
       </View>
 
       {/* 2. Barra de Ontología Jerárquica (MacroDomain > Field > Scheme) */}
-      <View style={styles.ontologyHeader}>
+      <View
+        style={[
+          styles.ontologyHeader,
+          {
+            backgroundColor: theme.colors.bgHeader,
+            borderBottomColor: theme.colors.borderSubtle,
+          },
+        ]}
+      >
         <View style={styles.breadcrumbRow}>
-          <Text style={styles.macroDomainLabel}>{activeMacroDomain}</Text>
+          <Text
+            style={[
+              styles.macroDomainLabel,
+              theme.typography.monoBold,
+              { color: theme.colors.textMuted },
+            ]}
+          >
+            {activeMacroDomain}
+          </Text>
           {activeScheme && (
-            <Text style={styles.schemeLabel}>
+            <Text
+              style={[
+                styles.schemeLabel,
+                theme.typography.mono,
+                { color: theme.colors.accentPrimary },
+              ]}
+            >
               {" › "}
               {activeScheme}
             </Text>
@@ -133,7 +197,7 @@ export const KnowledgeMatrixScreen: React.FC<KnowledgeMatrixScreenProps> = ({
         >
           {availableFields.map((field) => {
             const isSelected = selectedField === field;
-            const theme = field === "Todos los Campos" ? { stroke: "#38BDF8" } : getDomainColor(field);
+            const fieldColor = field === "Todos los Campos" ? theme.colors.accentPrimary : getDomainColor(field).stroke;
             return (
               <TouchableOpacity
                 key={field}
@@ -143,14 +207,18 @@ export const KnowledgeMatrixScreen: React.FC<KnowledgeMatrixScreenProps> = ({
                 }}
                 style={[
                   styles.fieldChip,
-                  isSelected && { borderColor: theme.stroke, backgroundColor: theme.stroke + "20" },
+                  {
+                    backgroundColor: isSelected ? fieldColor + "20" : theme.colors.pillInactiveBg,
+                    borderColor: isSelected ? fieldColor : theme.colors.borderSubtle,
+                  },
                 ]}
                 activeOpacity={0.8}
               >
                 <Text
                   style={[
                     styles.fieldChipText,
-                    { color: isSelected ? "#FFFFFF" : theme.stroke, fontWeight: isSelected ? "700" : "500" },
+                    isSelected ? theme.typography.bodyBold : theme.typography.body,
+                    { color: isSelected ? "#FFFFFF" : fieldColor },
                   ]}
                 >
                   {field}
@@ -184,7 +252,9 @@ export const KnowledgeMatrixScreen: React.FC<KnowledgeMatrixScreenProps> = ({
           />
         ) : (
           <View style={styles.emptyState}>
-            <Text style={styles.emptyText}>No hay conceptos para el campo seleccionado.</Text>
+            <Text style={[styles.emptyText, theme.typography.body, { color: theme.colors.textMuted }]}>
+              No hay conceptos para el campo seleccionado.
+            </Text>
           </View>
         )}
       </View>

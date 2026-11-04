@@ -129,7 +129,7 @@ export const ContextualSelectionPill: React.FC<ContextualSelectionPillProps> = (
     <View style={[styles.floatingWrapper, { left, top }]} pointerEvents="box-none">
       {(recordedAt !== null || isTranscribing) && (
         <View style={styles.memoPill}>
-          <Text style={styles.memoLabel}>🎙️ Thinking Memo (Deepgram Nova-2)</Text>
+          <Text style={styles.memoLabel}>Thinking Memo (Deepgram Nova-3)</Text>
           {isTranscribing ? (
             <View style={styles.transcribingRow}>
               <ActivityIndicator size="small" color="#38BDF8" />
@@ -182,9 +182,11 @@ export const ContextualSelectionPill: React.FC<ContextualSelectionPillProps> = (
           accessibilityLabel="Grabar Thinking Memo de voz (máx 45s)"
         >
           <Mic size={13} color={isRecording ? "#FECACA" : "#38BDF8"} strokeWidth={1.9} />
-          <Text style={[styles.micBtnText, isRecording && styles.micBtnTextActive]}>
-            {isRecording ? `${elapsedSec}s/45s` : "🎙️"}
-          </Text>
+          {isRecording && (
+            <Text style={[styles.micBtnText, styles.micBtnTextActive]}>
+              {`${elapsedSec}s/45s`}
+            </Text>
+          )}
         </TouchableOpacity>
 
         <View style={styles.divider} />

@@ -13,6 +13,7 @@ import { computePopoverPosition, POPOVER_SIZES, PopoverSize, STANDARD_GAP } from
 import { saveUserPreferences } from "../../services/StorageService";
 import { GoodnotesToolbarProps, TOOLBAR_TOOLS } from "./GoodnotesToolbar.types";
 import { styles } from "./GoodnotesToolbar.styles";
+import { useAppTheme } from "../../theme";
 
 export { GoodnotesToolbarProps };
 
@@ -42,6 +43,7 @@ export const GoodnotesToolbar: React.FC<GoodnotesToolbarProps> = ({
   onStickerDragChange,
   isZenMode = false,
 }) => {
+  const { theme } = useAppTheme();
   const [internalDockEdge, setInternalDockEdge] = useState<ToolbarDockEdge>(
     dockEdgeProp || (dockSide as ToolbarDockEdge) || initialDockEdge
   );
@@ -237,7 +239,9 @@ export const GoodnotesToolbar: React.FC<GoodnotesToolbarProps> = ({
                 { width: Math.min(Math.max(activeWidth / 2, 4), 14), height: Math.min(Math.max(activeWidth / 2, 4), 14), borderRadius: 7, backgroundColor: activeColor },
               ]}
             />
-            <Text style={styles.sizeLabel}>{activeWidth}</Text>
+            <Text style={[styles.sizeLabel, theme.typography.monoBold]}>
+              {activeWidth}
+            </Text>
           </TouchableOpacity>
         </View>
       </Animated.View>

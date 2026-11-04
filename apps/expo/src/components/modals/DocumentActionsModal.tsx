@@ -1,10 +1,11 @@
 import React, { useState } from "react";
 import { View, Text, TouchableOpacity, Pressable, Alert, Platform } from "react-native";
 import * as FileSystem from "expo-file-system";
-import { X, Image, Download, BrainCircuit, Trash2, ChevronRight, Check } from "@sketchyicons/react-native";
+import { X, Image, Download, BrainCircuit, Trash2, ChevronRight, Check, BookOpen } from "@sketchyicons/react-native";
 import { exportHighResPng, getCanvasStrokes } from "../JetpackInkCanvas";
 import { MapDocumentSummary, loadDocument, getCompilationForCanvas } from "../../services/StorageService";
 import { styles } from "./DocumentActionsModal.styles";
+import { useAppTheme } from "../../theme";
 
 export interface DocumentActionsModalProps {
   visible: boolean;
@@ -22,6 +23,7 @@ export interface DocumentActionsModalProps {
   onRequestClear: () => void;
   onOpenCompiler?: () => void;
   onDuplicateMap?: () => void;
+  onOpenGuide?: () => void;
 }
 
 const EXPORTS_DIR = `${FileSystem.documentDirectory}exports/`;
@@ -84,7 +86,9 @@ export const DocumentActionsModal: React.FC<DocumentActionsModalProps> = ({
   currentMapId,
   compilation,
   onRequestClear,
+  onOpenGuide,
 }) => {
+  const { theme } = useAppTheme();
   const [busyAction, setBusyAction] = useState<"PNG" | "JSON" | "AI_JSON" | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -180,28 +184,66 @@ export const DocumentActionsModal: React.FC<DocumentActionsModalProps> = ({
 
   return (
     <Pressable style={styles.backdrop} onPress={onClose}>
-      <Pressable style={styles.card} onPress={() => {}}>
-        <View style={styles.header}>
+      <Pressable
+        style={[
+          styles.card,
+          {
+            backgroundColor: theme.colors.bgCard,
+            borderColor: theme.colors.borderSubtle,
+          },
+        ]}
+        onPress={() => {}}
+      >
+        <View style={[styles.header, { borderBottomColor: theme.colors.borderSubtle }]}>
           <View style={styles.headerTextCol}>
-            <Text style={styles.title} numberOfLines={1}>{mapTitle}</Text>
-            <Text style={styles.subtitle}>
+            <Text
+              style={[
+                styles.title,
+                theme.typography.display,
+                { color: theme.colors.textPrimary },
+              ]}
+              numberOfLines={1}
+            >
+              {mapTitle}
+            </Text>
+            <Text
+              style={[
+                styles.subtitle,
+                theme.typography.body,
+                { color: theme.colors.textSecondary },
+              ]}
+            >
               {strokeCount} trazos • {entityCount} entidades • Guardado {formatDate(lastSavedAt)}
             </Text>
           </View>
-          <TouchableOpacity style={styles.closeBtn} onPress={onClose} activeOpacity={0.7}>
-            <X size={16} color="#94A3B8" strokeWidth={2.0} />
+          <TouchableOpacity
+            style={[styles.closeBtn, { backgroundColor: theme.colors.pillInactiveBg }]}
+            onPress={onClose}
+            activeOpacity={0.7}
+          >
+            <X size={16} color={theme.colors.textMuted} strokeWidth={2.0} />
           </TouchableOpacity>
         </View>
 
         {toastMessage && (
           <View style={styles.toastBanner}>
             <Check size={14} color="#10B981" strokeWidth={2.2} />
-            <Text style={styles.toastText} numberOfLines={2}>{toastMessage}</Text>
+            <Text style={[styles.toastText, theme.typography.mono]} numberOfLines={2}>
+              {toastMessage}
+            </Text>
           </View>
         )}
 
         <View style={styles.body}>
-          <Text style={styles.sectionHeader}>EXPORTAR & COMPARTIR</Text>
+          <Text
+            style={[
+              styles.sectionHeader,
+              theme.typography.monoBold,
+              { color: theme.colors.textMuted },
+            ]}
+          >
+            EXPORTAR & COMPARTIR
+          </Text>
 
           <TouchableOpacity
             style={styles.actionItem}
@@ -213,14 +255,26 @@ export const DocumentActionsModal: React.FC<DocumentActionsModalProps> = ({
               <Image size={18} color="#FFFFFF" strokeWidth={1.8} />
             </View>
             <View style={styles.actionTextCol}>
-              <Text style={styles.actionTitle}>
+              <Text
+                style={[
+                  styles.actionTitle,
+                  theme.typography.bodyBold,
+                  { color: theme.colors.textPrimary },
+                ]}
+              >
                 {busyAction === "PNG" ? "Capturando Snapshot..." : "Export as PNG"}
               </Text>
-              <Text style={styles.actionDesc}>
+              <Text
+                style={[
+                  styles.actionDesc,
+                  theme.typography.body,
+                  { color: theme.colors.textSecondary },
+                ]}
+              >
                 Captura offscreen idéntica al pipeline de compilación IA (fullDocument, 1.0x)
               </Text>
             </View>
-            <ChevronRight size={18} color="#64748B" strokeWidth={2.0} />
+            <ChevronRight size={18} color={theme.colors.textMuted} strokeWidth={2.0} />
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -233,14 +287,26 @@ export const DocumentActionsModal: React.FC<DocumentActionsModalProps> = ({
               <Download size={18} color="#FFFFFF" strokeWidth={1.8} />
             </View>
             <View style={styles.actionTextCol}>
-              <Text style={styles.actionTitle}>
+              <Text
+                style={[
+                  styles.actionTitle,
+                  theme.typography.bodyBold,
+                  { color: theme.colors.textPrimary },
+                ]}
+              >
                 {busyAction === "JSON" ? "Exportando JSON..." : "Export Canvas Data (.cmn JSON)"}
               </Text>
-              <Text style={styles.actionDesc}>
+              <Text
+                style={[
+                  styles.actionDesc,
+                  theme.typography.body,
+                  { color: theme.colors.textSecondary },
+                ]}
+              >
                 Exporta el payload crudo de trazos vectoriales, stickers y árbol AST
               </Text>
             </View>
-            <ChevronRight size={18} color="#64748B" strokeWidth={2.0} />
+            <ChevronRight size={18} color={theme.colors.textMuted} strokeWidth={2.0} />
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -253,17 +319,81 @@ export const DocumentActionsModal: React.FC<DocumentActionsModalProps> = ({
               <BrainCircuit size={18} color="#FFFFFF" strokeWidth={1.8} />
             </View>
             <View style={styles.actionTextCol}>
-              <Text style={styles.actionTitle}>
+              <Text
+                style={[
+                  styles.actionTitle,
+                  theme.typography.bodyBold,
+                  { color: theme.colors.textPrimary },
+                ]}
+              >
                 {busyAction === "AI_JSON" ? "Exportando Análisis IA..." : "Export AI Analysis (JSON)"}
               </Text>
-              <Text style={styles.actionDesc}>
+              <Text
+                style={[
+                  styles.actionDesc,
+                  theme.typography.body,
+                  { color: theme.colors.textSecondary },
+                ]}
+              >
                 Exporta el grafo cognitivo compilado, flashcards SRS, niveles y dominios
               </Text>
             </View>
-            <ChevronRight size={18} color="#64748B" strokeWidth={2.0} />
+            <ChevronRight size={18} color={theme.colors.textMuted} strokeWidth={2.0} />
           </TouchableOpacity>
 
-          <Text style={styles.sectionHeader}>ZONA DE PELIGRO</Text>
+          <Text
+            style={[
+              styles.sectionHeader,
+              theme.typography.monoBold,
+              { color: theme.colors.textMuted },
+            ]}
+          >
+            AYUDA & GUÍA
+          </Text>
+
+          <TouchableOpacity
+            style={styles.actionItem}
+            onPress={() => {
+              onClose();
+              onOpenGuide?.();
+            }}
+            activeOpacity={0.75}
+          >
+            <View style={[styles.actionIconContainer, { backgroundColor: "#F59E0B" }]}>
+              <BookOpen size={18} color="#FFFFFF" strokeWidth={1.8} />
+            </View>
+            <View style={styles.actionTextCol}>
+              <Text
+                style={[
+                  styles.actionTitle,
+                  theme.typography.bodyBold,
+                  { color: theme.colors.textPrimary },
+                ]}
+              >
+                Guía de uso
+              </Text>
+              <Text
+                style={[
+                  styles.actionDesc,
+                  theme.typography.body,
+                  { color: theme.colors.textSecondary },
+                ]}
+              >
+                Tres pasos clave: dibuja en red, explica tu razonamiento y compila
+              </Text>
+            </View>
+            <ChevronRight size={18} color={theme.colors.textMuted} strokeWidth={2.0} />
+          </TouchableOpacity>
+
+          <Text
+            style={[
+              styles.sectionHeader,
+              theme.typography.monoBold,
+              { color: theme.colors.textMuted },
+            ]}
+          >
+            ZONA DE PELIGRO
+          </Text>
 
           <TouchableOpacity
             style={[styles.actionItem, styles.dangerItem]}
@@ -277,8 +407,18 @@ export const DocumentActionsModal: React.FC<DocumentActionsModalProps> = ({
               <Trash2 size={18} color="#EF4444" strokeWidth={1.8} />
             </View>
             <View style={styles.actionTextCol}>
-              <Text style={[styles.actionTitle, styles.dangerText]}>Clear All Strokes</Text>
-              <Text style={styles.actionDesc}>Borrar todos los trazos manuscritos del lienzo actual</Text>
+              <Text style={[styles.actionTitle, theme.typography.bodyBold, styles.dangerText]}>
+                Clear All Strokes
+              </Text>
+              <Text
+                style={[
+                  styles.actionDesc,
+                  theme.typography.body,
+                  { color: theme.colors.textSecondary },
+                ]}
+              >
+                Borrar todos los trazos manuscritos del lienzo actual
+              </Text>
             </View>
             <ChevronRight size={18} color="#EF4444" strokeWidth={2.0} />
           </TouchableOpacity>

@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from "react";
-import { StyleSheet, Modal, View, Text, TouchableOpacity, TextInput, Alert } from "react-native";
+import { StyleSheet, Modal, View, Text, TouchableOpacity, TextInput, Alert, Pressable } from "react-native";
 import * as Haptics from "expo-haptics";
-import { Mic, X, Sparkles, Check, Trash2, Zap } from "@sketchyicons/react-native";
+import { Mic, X, Check, Trash2, ArrowRight } from "@sketchyicons/react-native";
 import { loadDocument, updateDocumentMetadata } from "../../services/StorageService";
+import { useSkin, fonts, radius, border } from "../../theme";
+import { Button } from "../ui";
 
 export interface WalkthroughConfirmParams {
   transcript: string;
@@ -12,7 +14,8 @@ export interface WalkthroughConfirmParams {
 export interface VerbalWalkthroughModalProps {
   visible: boolean;
   onClose: () => void;
-  onConfirmCompile: (params: WalkthroughConfirmParams) => void;
+  onSaveExplanation?: (transcript: string) => void;
+  onConfirmCompile?: (params: WalkthroughConfirmParams) => void;
   onStartRecording?: (currentDraft: string) => void;
   canvasId?: string;
   initialTranscript?: string;
@@ -21,13 +24,14 @@ export interface VerbalWalkthroughModalProps {
 export const VerbalWalkthroughModal: React.FC<VerbalWalkthroughModalProps> = ({
   visible,
   onClose,
+  onSaveExplanation,
   onConfirmCompile,
   onStartRecording,
   canvasId,
   initialTranscript = "",
 }) => {
+  const { skin } = useSkin();
   const [transcript, setTranscript] = useState<string>(initialTranscript);
-  const [isIncremental, setIsIncremental] = useState<boolean>(true);
 
   useEffect(() => {
     if (visible) {
@@ -49,7 +53,7 @@ export const VerbalWalkthroughModal: React.FC<VerbalWalkthroughModalProps> = ({
   };
 
   const handleClearText = () => {
-    Alert.alert("Limpiar Texto", "¿Deseas borrar toda la explicación de este mapa?", [
+    Alert.alert("Limpiar explicación", "¿Deseas borrar la explicación adjunta a este mapa?", [
       { text: "Cancelar", style: "cancel" },
       {
         text: "Borrar",
@@ -59,129 +63,319 @@ export const VerbalWalkthroughModal: React.FC<VerbalWalkthroughModalProps> = ({
           if (canvasId) {
             await updateDocumentMetadata(canvasId, { verbalWalkthroughTranscript: "" });
           }
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
         },
       },
     ]);
   };
 
-  const handleCancelAndSaveDraft = async () => {
-    if (canvasId && transcript.trim()) {
-      await updateDocumentMetadata(canvasId, { verbalWalkthroughTranscript: transcript.trim() });
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-    }
-    onClose();
-  };
-
-  const handleConfirmAndCompile = async () => {
+  const handleSaveOnly = async () => {
     const cleanText = transcript.trim();
     if (canvasId) {
       await updateDocumentMetadata(canvasId, { verbalWalkthroughTranscript: cleanText });
     }
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-    onConfirmCompile({ transcript: cleanText, isIncremental });
+    if (onSaveExplanation) {
+      onSaveExplanation(cleanText);
+    }
+    onClose();
+  };
+
+  const handleSaveAndCompile = async () => {
+    const cleanText = transcript.trim();
+    if (canvasId) {
+      await updateDocumentMetadata(canvasId, { verbalWalkthroughTranscript: cleanText });
+    }
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    if (onSaveExplanation) {
+      onSaveExplanation(cleanText);
+    }
+    if (onConfirmCompile) {
+      onConfirmCompile({ transcript: cleanText, isIncremental: true });
+    }
     onClose();
   };
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={handleCancelAndSaveDraft}>
-      <View style={styles.backdrop}>
-        <View style={styles.card}>
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable style={styles.backdrop} onPress={onClose}>
+        <Pressable
+          style={[
+            styles.card,
+            {
+              backgroundColor: skin.surface,
+              borderColor: skin.border,
+              borderWidth: border.strong,
+              borderRadius: radius.card,
+            },
+          ]}
+          onPress={(e) => e.stopPropagation()}
+        >
+          {/* Header */}
           <View style={styles.headerRow}>
             <View style={styles.headerTitleGroup}>
-              <Sparkles size={18} color="#38BDF8" strokeWidth={2.0} />
-              <Text style={styles.headerTitle}>Explicación Razonada del Mapa</Text>
+              <Mic size={18} color={skin.primary} strokeWidth={2.0} />
+              <Text
+                style={[
+                  styles.headerTitle,
+                  {
+                    color: skin.text,
+                    fontFamily: fonts.display,
+                    fontWeight: "normal",
+                  },
+                ]}
+              >
+                EXPLICA TU MAPA
+              </Text>
             </View>
-            <TouchableOpacity style={styles.closeBtn} onPress={handleCancelAndSaveDraft}>
-              <X size={16} color="#94A3B8" strokeWidth={2.0} />
+            <TouchableOpacity
+              style={[
+                styles.closeBtn,
+                {
+                  backgroundColor: skin.surfaceAlt,
+                  borderColor: skin.borderSoft,
+                  borderWidth: border.soft,
+                },
+              ]}
+              onPress={onClose}
+              activeOpacity={0.7}
+            >
+              <X size={16} color={skin.textMuted} strokeWidth={2.0} />
             </TouchableOpacity>
           </View>
 
-          <Text style={styles.promptSubtitle}>
-            Edita tu explicación o pulsa grabar para recorrer e interactuar libremente con tu mapa mientras hablas.
+          {/* Texto de ayuda (§4 regla 5) */}
+          <Text
+            style={[
+              styles.promptSubtitle,
+              {
+                color: skin.textMuted,
+                fontFamily: fonts.ui,
+                fontWeight: "normal",
+              },
+            ]}
+          >
+            Describe el recorrido causal de tu mapa en voz alta o por escrito para que el compilador detecte omisiones y modelos mentales inválidos.
           </Text>
 
+          {/* Textarea */}
           <TextInput
-            style={styles.transcriptInput}
+            style={[
+              styles.transcriptInput,
+              {
+                backgroundColor: skin.bg,
+                borderColor: skin.borderSoft,
+                borderWidth: border.soft,
+                borderRadius: radius.tool,
+                color: skin.text,
+                fontFamily: fonts.ui,
+                fontWeight: "normal",
+              },
+            ]}
             value={transcript}
             onChangeText={setTranscript}
-            placeholder="Escribe o graba aquí el recorrido causal de tu mapa (ej. cómo interactúa V8 con Libuv)..."
-            placeholderTextColor="#64748B"
+            placeholder="Escribe o graba aquí el recorrido causal (ej. cómo interactúa V8 con Libuv, backpressure, modos de fallo)..."
+            placeholderTextColor={skin.textMuted}
             multiline
           />
 
+          {/* Controles de grabación y limpieza */}
           <View style={styles.controlsRow}>
             <TouchableOpacity
-              style={styles.recordBtn}
+              style={[
+                styles.recordBtn,
+                {
+                  backgroundColor: `${skin.primary}18`,
+                  borderColor: skin.primary,
+                  borderWidth: border.soft,
+                  borderRadius: radius.pill,
+                },
+              ]}
               onPress={handleRecordOrAppend}
               activeOpacity={0.8}
             >
-              <Mic size={15} color="#38BDF8" strokeWidth={2.0} />
-              <Text style={styles.recordBtnText}>
-                {transcript.trim() ? "[ 🎙️ Grabar / Anexar ]" : "[ 🎙️ Grabar Explicación ]"}
+              <Mic size={14} color={skin.primary} strokeWidth={2.0} />
+              <Text
+                style={[
+                  styles.recordBtnText,
+                  {
+                    color: skin.primary,
+                    fontFamily: fonts.uiBold,
+                    fontWeight: "normal",
+                  },
+                ]}
+              >
+                {transcript.trim() ? "Grabar / Anexar · hasta 45 s" : "Grabar · hasta 45 s"}
               </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={styles.clearBtn}
+              style={[
+                styles.clearBtn,
+                {
+                  backgroundColor: skin.surfaceAlt,
+                  borderColor: skin.borderSoft,
+                  borderWidth: border.soft,
+                  borderRadius: radius.pill,
+                  opacity: transcript.trim() ? 1 : 0.45,
+                },
+              ]}
               onPress={handleClearText}
               disabled={!transcript.trim()}
+              activeOpacity={0.75}
             >
-              <Trash2 size={14} color={transcript.trim() ? "#EF4444" : "#64748B"} strokeWidth={2.0} />
-              <Text style={[styles.clearBtnText, !transcript.trim() && { color: "#64748B" }]}>Limpiar</Text>
+              <Trash2 size={13} color={transcript.trim() ? skin.alert : skin.textMuted} strokeWidth={2.0} />
+              <Text
+                style={[
+                  styles.clearBtnText,
+                  {
+                    color: transcript.trim() ? skin.alert : skin.textMuted,
+                    fontFamily: fonts.uiSemi,
+                    fontWeight: "normal",
+                  },
+                ]}
+              >
+                Limpiar
+              </Text>
             </TouchableOpacity>
           </View>
 
-          <TouchableOpacity
-            style={styles.toggleRow}
-            onPress={() => setIsIncremental(!isIncremental)}
-            activeOpacity={0.8}
-          >
-            <View style={[styles.checkbox, isIncremental && styles.checkboxActive]}>
-              {isIncremental && <Check size={12} color="#FFFFFF" strokeWidth={2.5} />}
-            </View>
-            <Text style={styles.toggleText}>Actualización incremental (preservar nodos previos)</Text>
-          </TouchableOpacity>
-
+          {/* Footer de Acciones: Cancelar + Guardar explicación + Enlace secundario */}
           <View style={styles.actionsFooter}>
-            <TouchableOpacity style={styles.cancelBtn} onPress={handleCancelAndSaveDraft}>
-              <Text style={styles.cancelBtnText}>Cancelar</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.compileBtn}
-              onPress={handleConfirmAndCompile}
-              activeOpacity={0.85}
-            >
-              <Zap size={15} color="#FFFFFF" strokeWidth={2.0} />
-              <Text style={styles.compileBtnText}>🚀 Compilar con esta Explicación</Text>
-            </TouchableOpacity>
+            <Button
+              label="Cancelar"
+              variant="outline"
+              size="md"
+              onPress={onClose}
+              style={{ flex: 1 }}
+            />
+            <Button
+              label="Guardar explicación"
+              variant="primary"
+              size="md"
+              icon={<Check size={14} color={skin.onPrimary} strokeWidth={2.4} />}
+              onPress={handleSaveOnly}
+              style={{ flex: 2 }}
+            />
           </View>
-        </View>
-      </View>
+
+          {/* Enlace secundario opcional: Guardar y compilar */}
+          {Boolean(transcript.trim()) && (
+            <TouchableOpacity
+              style={styles.saveAndCompileLink}
+              onPress={handleSaveAndCompile}
+              activeOpacity={0.75}
+            >
+              <Text
+                style={[
+                  styles.saveAndCompileText,
+                  {
+                    color: skin.primary,
+                    fontFamily: fonts.monoBold,
+                    fontWeight: "normal",
+                  },
+                ]}
+              >
+                Guardar y compilar ahora
+              </Text>
+              <ArrowRight size={12} color={skin.primary} strokeWidth={2.2} />
+            </TouchableOpacity>
+          )}
+        </Pressable>
+      </Pressable>
     </Modal>
   );
 };
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: "rgba(9, 13, 22, 0.78)", justifyContent: "center", alignItems: "center", padding: 20 },
-  card: { width: 540, maxWidth: "96%", backgroundColor: "#0F172A", borderRadius: 16, borderWidth: 1, borderColor: "#1E293B", padding: 20, gap: 12 },
-  headerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  headerTitleGroup: { flexDirection: "row", alignItems: "center", gap: 8 },
-  headerTitle: { color: "#38BDF8", fontSize: 14, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.5 },
-  closeBtn: { width: 30, height: 30, borderRadius: 15, backgroundColor: "#1E293B", alignItems: "center", justifyContent: "center" },
-  promptSubtitle: { color: "#94A3B8", fontSize: 13, lineHeight: 19 },
-  transcriptInput: { backgroundColor: "#0B1120", borderColor: "#334155", borderWidth: 1, borderRadius: 10, color: "#F8FAFC", fontSize: 13, padding: 12, minHeight: 140, textAlignVertical: "top" },
-  controlsRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
-  recordBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "rgba(56, 189, 248, 0.12)", borderColor: "#38BDF8", borderWidth: 1, paddingVertical: 10, borderRadius: 8 },
-  recordBtnText: { color: "#38BDF8", fontSize: 13, fontWeight: "800" },
-  clearBtn: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#1E293B", borderWidth: 1, borderColor: "#334155", paddingHorizontal: 14, paddingVertical: 10, borderRadius: 8 },
-  clearBtnText: { color: "#EF4444", fontSize: 12, fontWeight: "700" },
-  toggleRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 2 },
-  checkbox: { width: 18, height: 18, borderRadius: 4, borderWidth: 1.5, borderColor: "#64748B", alignItems: "center", justifyContent: "center" },
-  checkboxActive: { backgroundColor: "#0284C7", borderColor: "#38BDF8" },
-  toggleText: { color: "#E2E8F0", fontSize: 12, fontWeight: "600" },
-  actionsFooter: { flexDirection: "row", justifyContent: "space-between", gap: 12, marginTop: 4 },
-  cancelBtn: { flex: 1, backgroundColor: "#1E293B", borderColor: "#334155", borderWidth: 1, paddingVertical: 12, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  cancelBtnText: { color: "#CBD5E1", fontSize: 12, fontWeight: "700" },
-  compileBtn: { flex: 2, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "#0284C7", paddingVertical: 12, borderRadius: 10 },
-  compileBtnText: { color: "#FFFFFF", fontSize: 12, fontWeight: "800" },
+  backdrop: {
+    flex: 1,
+    backgroundColor: "rgba(12, 14, 20, 0.65)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  card: {
+    width: 520,
+    maxWidth: "96%",
+    padding: 20,
+    gap: 12,
+  },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  headerTitleGroup: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  headerTitle: {
+    fontSize: 16,
+    letterSpacing: -0.2,
+  },
+  closeBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  promptSubtitle: {
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  transcriptInput: {
+    fontSize: 13,
+    padding: 12,
+    minHeight: 130,
+    textAlignVertical: "top",
+  },
+  controlsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  recordBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 9,
+    paddingHorizontal: 14,
+  },
+  recordBtnText: {
+    fontSize: 12,
+  },
+  clearBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+  },
+  clearBtnText: {
+    fontSize: 12,
+  },
+  actionsFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginTop: 4,
+  },
+  saveAndCompileLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 6,
+  },
+  saveAndCompileText: {
+    fontSize: 11,
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
+  },
 });

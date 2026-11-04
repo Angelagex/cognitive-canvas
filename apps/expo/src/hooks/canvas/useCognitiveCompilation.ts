@@ -44,6 +44,8 @@ export const useCognitiveCompilation = (props?: UseCognitiveCompilationProps) =>
   const [walkthroughSeconds, setWalkthroughSeconds] = useState(0);
   const [compilationStatusMessage, setCompilationStatusMessage] = useState<string | null>(null);
   const [activeDrawerTab, setActiveDrawerTab] = useState<"STRUCTURE" | "DIAGNOSIS" | "SOCRATIC">("STRUCTURE");
+  const [isIncremental, setIsIncremental] = useState<boolean>(true);
+  const [lastCompiledStrokeCount, setLastCompiledStrokeCount] = useState<number>(0);
 
   const handleTogglePacerOverlay = useCallback(() => setShowPacerOverlay((prev) => !prev), []);
   const handleRequestCompile = useCallback(() => {
@@ -104,6 +106,7 @@ export const useCognitiveCompilation = (props?: UseCognitiveCompilationProps) =>
         }
 
         setCompilation(output);
+        setLastCompiledStrokeCount(localStrokes.length);
         setShowPacerOverlay(true);
         cognitiveLayerStore.setCompiledData(output as any);
         props?.onCompilationComplete?.(output);
@@ -123,11 +126,43 @@ export const useCognitiveCompilation = (props?: UseCognitiveCompilationProps) =>
 
   const handleFastCompile = useCallback(async () => {
     try {
-      await executeCompilation({ verbalWalkthroughTranscript: null, isIncremental: false });
+      await executeCompilation({
+        verbalWalkthroughTranscript: walkthroughModalTranscript.trim() || null,
+        isIncremental,
+      });
       setActiveDrawerTab("STRUCTURE");
       setIsDrawerOpen(true);
     } catch {}
-  }, [executeCompilation]);
+  }, [executeCompilation, walkthroughModalTranscript, isIncremental]);
+
+  const handleCompileFromScratch = useCallback(async () => {
+    try {
+      await executeCompilation({
+        verbalWalkthroughTranscript: walkthroughModalTranscript.trim() || null,
+        isIncremental: false,
+      });
+      setActiveDrawerTab("STRUCTURE");
+      setIsDrawerOpen(true);
+    } catch {}
+  }, [executeCompilation, walkthroughModalTranscript]);
+
+  const handleSaveExplanation = useCallback(async (text: string) => {
+    const clean = text.trim();
+    setWalkthroughModalTranscript(clean);
+    const canvasId = props?.getCurrentMapId ? props.getCurrentMapId() : null;
+    if (canvasId) {
+      await updateDocumentMetadata(canvasId, { verbalWalkthroughTranscript: clean });
+    }
+    setShowWalkthroughModal(false);
+  }, [props]);
+
+  const handleClearExplanation = useCallback(async () => {
+    setWalkthroughModalTranscript("");
+    const canvasId = props?.getCurrentMapId ? props.getCurrentMapId() : null;
+    if (canvasId) {
+      await updateDocumentMetadata(canvasId, { verbalWalkthroughTranscript: "" });
+    }
+  }, [props]);
 
   const handleLongPressFastCompile = useCallback(() => {
     Alert.alert(
@@ -137,7 +172,7 @@ export const useCognitiveCompilation = (props?: UseCognitiveCompilationProps) =>
         {
           text: "Actualización Incremental (Preservar nodos)",
           onPress: async () => {
-            await executeCompilation({ verbalWalkthroughTranscript: null, isIncremental: true });
+            await executeCompilation({ verbalWalkthroughTranscript: walkthroughModalTranscript.trim() || null, isIncremental: true });
             setActiveDrawerTab("STRUCTURE");
             setIsDrawerOpen(true);
           },
@@ -145,7 +180,7 @@ export const useCognitiveCompilation = (props?: UseCognitiveCompilationProps) =>
         {
           text: "Evaluación Completa (Desde cero)",
           onPress: async () => {
-            await executeCompilation({ verbalWalkthroughTranscript: null, isIncremental: false });
+            await executeCompilation({ verbalWalkthroughTranscript: walkthroughModalTranscript.trim() || null, isIncremental: false });
             setActiveDrawerTab("STRUCTURE");
             setIsDrawerOpen(true);
           },
@@ -153,7 +188,7 @@ export const useCognitiveCompilation = (props?: UseCognitiveCompilationProps) =>
         { text: "Cancelar", style: "cancel" },
       ]
     );
-  }, [executeCompilation]);
+  }, [executeCompilation, walkthroughModalTranscript]);
 
   const handleStartExplanation = useCallback(async () => {
     setIsDrawerOpen(false);
@@ -269,6 +304,13 @@ export const useCognitiveCompilation = (props?: UseCognitiveCompilationProps) =>
     handleCompile: handleConfirmWalkthrough,
     handleFastCompile,
     handleLongPressFastCompile,
+    handleCompileFromScratch,
+    handleSaveExplanation,
+    handleClearExplanation,
+    isIncremental,
+    setIsIncremental,
+    lastCompiledStrokeCount,
+    blindSpotsCount: (compilation?.reasoningDiagnosis?.omissions?.length || 0) + (compilation?.synthesis?.blindSpots?.length || 0),
     handleStartExplanation,
     handleStartExplanationRecording,
     handleStopAndCompileExplanation: handleStopAndReviewExplanation,

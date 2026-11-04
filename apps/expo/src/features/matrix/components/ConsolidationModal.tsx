@@ -4,6 +4,7 @@ import { X, Sparkles, GitMerge } from "@sketchyicons/react-native";
 import { KnowledgeNode, CanvasCompiledPayload } from "@cognitive-canvas/core";
 import { createNonDestructiveSynthesisCanvas } from "../../../services/CompiledGraphStorage";
 import { SynthesisReferenceCard } from "../../../types/canvas";
+import { useAppTheme } from "../../../theme";
 
 export interface ConsolidationModalProps {
   visible: boolean;
@@ -20,6 +21,7 @@ export const ConsolidationModal: React.FC<ConsolidationModalProps> = ({
   onClose,
   onSynthesisCreated,
 }) => {
+  const { theme } = useAppTheme();
   const [hypothesisNote, setHypothesisNote] = useState("");
   const [isCreating, setIsCreating] = useState(false);
 
@@ -87,49 +89,106 @@ export const ConsolidationModal: React.FC<ConsolidationModalProps> = ({
 
   return (
     <Pressable style={styles.backdrop} onPress={onClose}>
-      <Pressable style={styles.modalCard} onPress={() => {}}>
+      <Pressable
+        style={[
+          styles.modalCard,
+          {
+            backgroundColor: theme.colors.bgCard,
+            borderColor: theme.colors.borderSubtle,
+          },
+        ]}
+        onPress={() => {}}
+      >
         <View style={styles.headerRow}>
           <View style={styles.titleBadge}>
-            <GitMerge size={16} color="#38BDF8" strokeWidth={2.0} />
-            <Text style={styles.headerTitle}>Non-Destructive Consolidation Protocol</Text>
+            <GitMerge size={16} color={theme.colors.accentPrimary} strokeWidth={2.0} />
+            <Text
+              style={[
+                styles.headerTitle,
+                theme.typography.monoBold,
+                { color: theme.colors.accentPrimary },
+              ]}
+            >
+              Non-Destructive Consolidation Protocol
+            </Text>
           </View>
-          <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-            <X size={16} color="#94A3B8" strokeWidth={2.0} />
+          <TouchableOpacity
+            onPress={onClose}
+            style={[styles.closeBtn, { backgroundColor: theme.colors.pillInactiveBg }]}
+          >
+            <X size={16} color={theme.colors.textMuted} strokeWidth={2.0} />
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.ConceptHeader}>Shared Concept: {overlappingNode.label}</Text>
+        <Text
+          style={[
+            styles.ConceptHeader,
+            theme.typography.display,
+            { color: theme.colors.textPrimary },
+          ]}
+        >
+          Shared Concept: {overlappingNode.label}
+        </Text>
 
         <View style={styles.challengeBox}>
-          <Text style={styles.challengeLabel}>⚡ DESIRABLE DIFFICULTY SYNTHESIS CHALLENGE</Text>
-          <Text style={styles.challengeText}>{challengePrompt}</Text>
+          <Text style={[styles.challengeLabel, theme.typography.monoBold]}>
+            DESAFÍO DE SÍNTESIS · DIFICULTAD DESEABLE
+          </Text>
+          <Text style={[styles.challengeText, theme.typography.bodyBold]}>
+            {challengePrompt}
+          </Text>
         </View>
 
-        <Text style={styles.subHint}>
+        <Text
+          style={[
+            styles.subHint,
+            theme.typography.body,
+            { color: theme.colors.textSecondary },
+          ]}
+        >
           Source .cmn maps remain immutable. Creating a synthesis canvas pins terminal nodes to the
           left and right margins and tags source clusters with [↗ Consolidated in Master].
         </Text>
 
         <TextInput
-          style={styles.hypothesisInput}
+          style={[
+            styles.hypothesisInput,
+            theme.typography.body,
+            {
+              backgroundColor: theme.colors.bgInput,
+              borderColor: theme.colors.borderSubtle,
+              color: theme.colors.textPrimary,
+            },
+          ]}
           value={hypothesisNote}
           onChangeText={setHypothesisNote}
           placeholder="Formulate your initial causal prediction before sketching..."
-          placeholderTextColor="#64748B"
+          placeholderTextColor={theme.colors.textMuted}
           multiline
         />
 
         <View style={styles.footerRow}>
-          <TouchableOpacity style={styles.cancelBtn} onPress={onClose}>
-            <Text style={styles.cancelBtnText}>Postpone</Text>
+          <TouchableOpacity
+            style={[styles.cancelBtn, { backgroundColor: theme.colors.pillInactiveBg }]}
+            onPress={onClose}
+          >
+            <Text
+              style={[
+                styles.cancelBtnText,
+                theme.typography.bodyBold,
+                { color: theme.colors.textSecondary },
+              ]}
+            >
+              Postpone
+            </Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={styles.createBtn}
+            style={[styles.createBtn, { backgroundColor: theme.colors.accentPrimary }]}
             onPress={handleCreateSynthesis}
             activeOpacity={0.85}
           >
             <Sparkles size={15} color="#FFFFFF" strokeWidth={2.0} />
-            <Text style={styles.createBtnText}>
+            <Text style={[styles.createBtnText, theme.typography.bodyBold]}>
               {isCreating ? "Spawning..." : "[ Create Synthesis Canvas ]"}
             </Text>
           </TouchableOpacity>
