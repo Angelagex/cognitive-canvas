@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { View, Text, TouchableOpacity, TextInput, ScrollView, Dimensions } from "react-native";
+import * as Haptics from "expo-haptics";
 import { Zap, ExternalLink, GitMerge, X, Check, Download } from "@sketchyicons/react-native";
 import { CanvasCompiledPayload, KnowledgeNode, KnowledgeEdge } from "@cognitive-canvas/core";
+import { VinkLogo } from "../../components/brand";
 import {
   loadAllCompiledGraphs,
   updateKnowledgeNodeVerification,
@@ -102,6 +104,7 @@ export const KnowledgeMatrixTab: React.FC<KnowledgeMatrixTabProps> = ({ onOpenCa
   );
 
   const handleSelectNode = useCallback((nodeOrId: any) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     const id = typeof nodeOrId === "object" && nodeOrId ? nodeOrId.id : nodeOrId;
     setSelectedNodeId(id || null);
     setDefenseActive(false);
@@ -118,22 +121,29 @@ export const KnowledgeMatrixTab: React.FC<KnowledgeMatrixTabProps> = ({ onOpenCa
       return;
     }
     await updateKnowledgeNodeVerification(selectedNode.id, "verified");
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     setDefenseFeedback("Passed: Sound causal defense of edge cases and backpressure propagation.");
     refreshGraphs();
   };
 
-  const handleExportKnowledgeMatrix = () => {
-    exportKnowledgeMatrix(filteredNodes, filteredEdges, payloads);
+  const handleExportKnowledgeMatrix = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    await exportKnowledgeMatrix(filteredNodes, filteredEdges, payloads);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
   };
 
   return (
     <View style={styles.container}>
       <View style={styles.topBar}>
-        <View>
-          <Text style={styles.title}>Knowledge Matrix · Force-Directed Causal DAG</Text>
-          <Text style={styles.subtitle}>
-            {filteredNodes.length} canonical concepts {selectedDomain !== "All" ? `in ${selectedDomain}` : `across ${payloads.length} compiled canvases`}
-          </Text>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+          <VinkLogo showIcon={false} wordmarkHeight={18} />
+          <View style={{ width: 1, height: 22, backgroundColor: "#334155" }} />
+          <View>
+            <Text style={styles.title}>Knowledge Matrix · Force-Directed Causal DAG</Text>
+            <Text style={styles.subtitle}>
+              {filteredNodes.length} canonical concepts {selectedDomain !== "All" ? `in ${selectedDomain}` : `across ${payloads.length} compiled canvases`}
+            </Text>
+          </View>
         </View>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
           <TouchableOpacity
@@ -147,7 +157,10 @@ export const KnowledgeMatrixTab: React.FC<KnowledgeMatrixTabProps> = ({ onOpenCa
           {overlappingNode && (
             <TouchableOpacity
               style={styles.consolidateBannerBtn}
-              onPress={() => setConsolidationModalOpen(true)}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+                setConsolidationModalOpen(true);
+              }}
               activeOpacity={0.85}
             >
               <GitMerge size={14} color="#FBBF24" strokeWidth={2.0} />
@@ -167,7 +180,10 @@ export const KnowledgeMatrixTab: React.FC<KnowledgeMatrixTabProps> = ({ onOpenCa
             return (
               <TouchableOpacity
                 key={domain}
-                onPress={() => setSelectedDomain(domain)}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+                  setSelectedDomain(domain);
+                }}
                 style={[
                   styles.domainChip,
                   isSelected && { backgroundColor: domainColor + "25", borderColor: domainColor },
@@ -237,7 +253,10 @@ export const KnowledgeMatrixTab: React.FC<KnowledgeMatrixTabProps> = ({ onOpenCa
             <View style={styles.actionsRow}>
               <TouchableOpacity
                 style={styles.socraticBtn}
-                onPress={() => setDefenseActive(true)}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+                  setDefenseActive(true);
+                }}
                 activeOpacity={0.85}
               >
                 <Zap size={14} color="#FBBF24" strokeWidth={2.0} />
@@ -249,7 +268,10 @@ export const KnowledgeMatrixTab: React.FC<KnowledgeMatrixTabProps> = ({ onOpenCa
                   <TouchableOpacity
                     key={`${prov.canvasId}_${idx}`}
                     style={styles.originBtn}
-                    onPress={() => onOpenCanvasAtBounds(prov.canvasId, prov.boundingBox)}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+                      onOpenCanvasAtBounds(prov.canvasId, prov.boundingBox);
+                    }}
                   >
                     <ExternalLink size={13} color="#38BDF8" strokeWidth={2.0} />
                     <Text style={styles.originBtnText}>

@@ -1,7 +1,9 @@
 import React, { useMemo, useState } from "react";
 import { View, Text, StyleSheet, Dimensions, ScrollView, TouchableOpacity } from "react-native";
+import * as Haptics from "expo-haptics";
 import { MatrixGraphView } from "../components/MatrixGraphView";
 import { getDomainColor } from "../utils/domainColors";
+import { VinkLogo } from "../../../components/brand";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -20,6 +22,7 @@ export const KnowledgeMatrixScreen: React.FC<KnowledgeMatrixScreenProps> = ({
   const [, setRenderTrigger] = useState(0);
 
   const handleNodeDragStart = (nodeId: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     const node = matrixData?.nodes?.find((n: any) => n.id === nodeId);
     if (node) {
       node.fx = node.x;
@@ -89,13 +92,25 @@ export const KnowledgeMatrixScreen: React.FC<KnowledgeMatrixScreenProps> = ({
     <View style={styles.container}>
       {/* 1. Header con métricas y exportación */}
       <View style={styles.header}>
-        <View>
-          <Text style={styles.title}>Knowledge Matrix · Force-Directed DAG</Text>
-          <Text style={styles.subtitle}>
-            {filteredNodes.length} conceptos canónicos activos
-          </Text>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+          <VinkLogo showIcon={false} wordmarkHeight={18} />
+          <View style={{ width: 1, height: 22, backgroundColor: "#334155" }} />
+          <View>
+            <Text style={styles.title}>Knowledge Matrix · Force-Directed DAG</Text>
+            <Text style={styles.subtitle}>
+              {filteredNodes.length} conceptos canónicos activos
+            </Text>
+          </View>
         </View>
-        <TouchableOpacity onPress={onExport} style={styles.exportBtn} activeOpacity={0.8}>
+        <TouchableOpacity
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+            onExport?.();
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+          }}
+          style={styles.exportBtn}
+          activeOpacity={0.8}
+        >
           <Text style={styles.exportBtnText}>Exportar Matriz (JSON)</Text>
         </TouchableOpacity>
       </View>
@@ -122,7 +137,10 @@ export const KnowledgeMatrixScreen: React.FC<KnowledgeMatrixScreenProps> = ({
             return (
               <TouchableOpacity
                 key={field}
-                onPress={() => setSelectedField(field)}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+                  setSelectedField(field);
+                }}
                 style={[
                   styles.fieldChip,
                   isSelected && { borderColor: theme.stroke, backgroundColor: theme.stroke + "20" },

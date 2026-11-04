@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { StyleSheet, Modal, View, Text, TouchableOpacity, TextInput, Alert } from "react-native";
+import * as Haptics from "expo-haptics";
 import { Mic, X, Sparkles, Check, Trash2, Zap } from "@sketchyicons/react-native";
 import { loadDocument, updateDocumentMetadata } from "../../services/StorageService";
 
@@ -66,6 +67,7 @@ export const VerbalWalkthroughModal: React.FC<VerbalWalkthroughModalProps> = ({
   const handleCancelAndSaveDraft = async () => {
     if (canvasId && transcript.trim()) {
       await updateDocumentMetadata(canvasId, { verbalWalkthroughTranscript: transcript.trim() });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     }
     onClose();
   };
@@ -75,6 +77,7 @@ export const VerbalWalkthroughModal: React.FC<VerbalWalkthroughModalProps> = ({
     if (canvasId) {
       await updateDocumentMetadata(canvasId, { verbalWalkthroughTranscript: cleanText });
     }
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     onConfirmCompile({ transcript: cleanText, isIncremental });
     onClose();
   };

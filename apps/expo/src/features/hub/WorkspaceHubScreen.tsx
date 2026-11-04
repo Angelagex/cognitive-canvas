@@ -1,11 +1,12 @@
 import React, { useState } from "react";
 import { StyleSheet, View, Text, TouchableOpacity } from "react-native";
+import * as Haptics from "expo-haptics";
 import {
-  BrainCircuit,
   FolderOpen,
   Settings,
   Network,
 } from "@sketchyicons/react-native";
+import { VinkLogo } from "../../components/brand";
 import { CanvasesLibraryTab } from "./tabs/CanvasesLibraryTab";
 import { SettingsTab } from "./tabs/SettingsTab";
 import { KnowledgeMatrixTab } from "../matrix/KnowledgeMatrixTab";
@@ -51,16 +52,19 @@ export const WorkspaceHubScreen: React.FC<WorkspaceHubScreenProps> = ({
   // Boots into CanvasesLibraryTab by default
   const [activeTab, setActiveTab] = useState<HubTabId>("library");
 
+  const handleSelectTab = (tab: HubTabId) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    setActiveTab(tab);
+  };
+
   return (
     <View style={styles.container}>
       {/* Top Navigation Chrome */}
       <View style={styles.hubHeader}>
         <View style={styles.brandRow}>
-          <View style={styles.brandBadge}>
-            <BrainCircuit size={20} color="#38BDF8" strokeWidth={2.0} />
-          </View>
+          <VinkLogo showIcon={false} wordmarkHeight={22} />
+          <View style={styles.brandDivider} />
           <View>
-            <Text style={styles.brandTitle}>Cognitive Canvas Hub</Text>
             <Text style={styles.brandSubtitle}>
               Non-Linear Synthesis & Socratic Knowledge Matrix
             </Text>
@@ -71,7 +75,7 @@ export const WorkspaceHubScreen: React.FC<WorkspaceHubScreenProps> = ({
         <View style={styles.tabBar}>
           <TouchableOpacity
             style={[styles.tabBtn, activeTab === "library" && styles.tabBtnActive]}
-            onPress={() => setActiveTab("library")}
+            onPress={() => handleSelectTab("library")}
             activeOpacity={0.85}
           >
             <FolderOpen
@@ -91,7 +95,7 @@ export const WorkspaceHubScreen: React.FC<WorkspaceHubScreenProps> = ({
 
           <TouchableOpacity
             style={[styles.tabBtn, activeTab === "matrix" && styles.tabBtnActive]}
-            onPress={() => setActiveTab("matrix")}
+            onPress={() => handleSelectTab("matrix")}
             activeOpacity={0.85}
           >
             <Network
@@ -111,7 +115,7 @@ export const WorkspaceHubScreen: React.FC<WorkspaceHubScreenProps> = ({
 
           <TouchableOpacity
             style={[styles.tabBtn, activeTab === "settings" && styles.tabBtnActive]}
-            onPress={() => setActiveTab("settings")}
+            onPress={() => handleSelectTab("settings")}
             activeOpacity={0.85}
           >
             <Settings
@@ -185,6 +189,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
+  },
+  brandDivider: {
+    width: 1,
+    height: 18,
+    backgroundColor: "#334155",
   },
   brandBadge: {
     width: 38,

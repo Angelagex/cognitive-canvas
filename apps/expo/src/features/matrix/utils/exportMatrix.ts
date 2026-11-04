@@ -1,6 +1,7 @@
 import { Alert, Platform, Share } from "react-native";
 import * as FileSystem from "expo-file-system";
 import { StorageAccessFramework } from "expo-file-system";
+import * as Haptics from "expo-haptics";
 import { CanvasCompiledPayload, KnowledgeNode, KnowledgeEdge } from "@cognitive-canvas/core";
 
 export async function exportKnowledgeMatrix(
@@ -62,6 +63,7 @@ export async function exportKnowledgeMatrix(
     if (!shared) {
       await Share.share({ title: "Exportar Matriz de Conocimiento", message: jsonContent });
     }
+    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
   } catch (error: any) {
     console.error("Error al exportar matriz:", error);
     Alert.alert("Error", error?.message || "No se pudo exportar el archivo de la Matriz.");

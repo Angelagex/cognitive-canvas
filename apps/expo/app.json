@@ -1,7 +1,8 @@
 {
   "expo": {
-    "name": "Cognitive Canvas",
-    "slug": "cognitive-canvas",
+    "name": "Vink",
+    "slug": "vink",
+    "scheme": "vink",
     "version": "1.0.0",
     "orientation": "default",
     "icon": "./assets/icon.png",

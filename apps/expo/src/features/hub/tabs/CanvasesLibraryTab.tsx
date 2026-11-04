@@ -1,5 +1,6 @@
 import React from "react";
 import { StyleSheet, View, Text, TouchableOpacity, ScrollView } from "react-native";
+import * as Haptics from "expo-haptics";
 import { Plus, Sparkles, Check, Clock, FileText, Trash2 } from "@sketchyicons/react-native";
 import { MapDocumentSummary } from "../../../services/StorageService";
 
@@ -58,14 +59,28 @@ export const CanvasesLibraryTab: React.FC<CanvasesLibraryTabProps> = ({
           <Text style={styles.sectionHeading}>Workspace Library</Text>
           <Text style={styles.sectionSub}>Immutable .cmn canvases & causal mental models</Text>
         </View>
-        <TouchableOpacity style={styles.newCanvasBtn} onPress={onCreateNewCanvas} activeOpacity={0.85}>
+        <TouchableOpacity
+          style={styles.newCanvasBtn}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+            onCreateNewCanvas();
+          }}
+          activeOpacity={0.85}
+        >
           <Plus size={18} color="#F8FAFC" strokeWidth={2.2} />
           <Text style={styles.newCanvasBtnText}>New Canvas</Text>
         </TouchableOpacity>
       </View>
 
       {hero && (
-        <TouchableOpacity style={styles.heroCard} onPress={() => onOpenCanvas(hero.map_id)} activeOpacity={0.88}>
+        <TouchableOpacity
+          style={styles.heroCard}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+            onOpenCanvas(hero.map_id);
+          }}
+          activeOpacity={0.88}
+        >
           <View style={styles.heroTopRow}>
             <View style={styles.heroTag}>
               <Sparkles size={13} color="#38BDF8" strokeWidth={2.0} />
@@ -88,7 +103,7 @@ export const CanvasesLibraryTab: React.FC<CanvasesLibraryTabProps> = ({
         </TouchableOpacity>
       )}
 
-      <Text style={styles.gridHeader}>All Cognitive Canvases ({displayList.length})</Text>
+      <Text style={styles.gridHeader}>All Vink Canvases ({displayList.length})</Text>
       <View style={styles.grid}>
         {displayList.map((item) => {
           const nodeCount = Math.max(item.entity_count, item.stroke_count > 0 ? 1 : 0);
@@ -96,7 +111,10 @@ export const CanvasesLibraryTab: React.FC<CanvasesLibraryTabProps> = ({
             <TouchableOpacity
               key={item.map_id}
               style={styles.canvasCard}
-              onPress={() => onOpenCanvas(item.map_id)}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+                onOpenCanvas(item.map_id);
+              }}
               activeOpacity={0.85}
             >
               <View style={styles.cardTopRow}>

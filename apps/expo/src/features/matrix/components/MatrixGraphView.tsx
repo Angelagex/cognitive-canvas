@@ -2,6 +2,7 @@ import React, { useMemo, useState, useRef } from "react";
 import { View, StyleSheet, Dimensions, TouchableOpacity, Text } from "react-native";
 import Svg, { Defs, RadialGradient, Stop, Rect, Circle, Line, Text as SvgText, G } from "react-native-svg";
 import { GestureDetector, Gesture } from "react-native-gesture-handler";
+import * as Haptics from "expo-haptics";
 import { getDomainColor } from "../utils/domainColors";
 import { useMatrixLayout, LayoutNode } from "../hooks/useMatrixLayout";
 
@@ -145,7 +146,14 @@ export const MatrixGraphView: React.FC<MatrixGraphViewProps> = ({
               const isGhost = node.verificationState === "ghost";
               const isSel = selectedNodeId === node.id;
               return (
-                <G key={node.id} transform={`translate(${posX}, ${posY})`} onPress={() => onSelectNode?.(node)}>
+                <G
+                  key={node.id}
+                  transform={`translate(${posX}, ${posY})`}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+                    onSelectNode?.(node);
+                  }}
+                >
                   <Rect x={-92} y={-20} width={184} height={40} rx={20} fill="#000000" opacity={0.4} />
                   <Rect
                     x={-90} y={-18}
@@ -171,13 +179,32 @@ export const MatrixGraphView: React.FC<MatrixGraphViewProps> = ({
         </Svg>
 
         <View style={styles.zoomControls}>
-          <TouchableOpacity style={styles.zoomBtn} onPress={() => setScale((s) => Math.min(1.8, s + 0.15))}>
+          <TouchableOpacity
+            style={styles.zoomBtn}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+              setScale((s) => Math.min(1.8, s + 0.15));
+            }}
+          >
             <Text style={styles.zoomBtnText}>+</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.zoomBtn} onPress={() => setScale((s) => Math.max(0.45, s - 0.15))}>
+          <TouchableOpacity
+            style={styles.zoomBtn}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+              setScale((s) => Math.max(0.45, s - 0.15));
+            }}
+          >
             <Text style={styles.zoomBtnText}>−</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.zoomBtn} onPress={() => { setPan({ x: 24, y: 20 }); setScale(0.85); }}>
+          <TouchableOpacity
+            style={styles.zoomBtn}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+              setPan({ x: 24, y: 20 });
+              setScale(0.85);
+            }}
+          >
             <Text style={styles.zoomBtnText}>⟲</Text>
           </TouchableOpacity>
         </View>

@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { Alert } from "react-native";
+import * as Haptics from "expo-haptics";
 import { CognitiveCompilerOutput, VisualAST, PacerClassification, RawInkStroke } from "@cognitive-canvas/core/types";
 import { PlacedAttribute } from "../../types/canvas";
 import { compileCanvas } from "../../services/CompilationService";
@@ -212,6 +213,7 @@ export const useCognitiveCompilation = (props?: UseCognitiveCompilationProps) =>
             if (canvasId) {
               updateDocumentMetadata(canvasId, { verbalWalkthroughTranscript: combined });
             }
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
             return combined;
           });
         }

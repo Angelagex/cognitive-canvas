@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { View, Text, TouchableOpacity, TextInput } from "react-native";
+import * as Haptics from "expo-haptics";
 import {
   ArrowLeft,
   Pencil,
@@ -19,6 +20,7 @@ import {
 } from "@sketchyicons/react-native";
 import { styles } from "./TopHeader.styles";
 import { useCognitiveLayerStore } from "../../stores/useCognitiveLayerStore";
+import { VinkLogo } from "../brand";
 
 export interface TopHeaderProps {
   mapTitle: string;
@@ -93,13 +95,18 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
       <View style={styles.leftSection}>
         <TouchableOpacity
           style={styles.menuButton}
-          onPress={onReturnToHub}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+            onReturnToHub?.();
+          }}
           activeOpacity={0.75}
           accessibilityLabel="Auto-guardar y volver al Workspace Hub"
         >
           <ArrowLeft size={18} color="#38BDF8" strokeWidth={2.2} />
           <Text style={styles.menuText}>Hub</Text>
         </TouchableOpacity>
+
+        <VinkLogo showIcon={false} wordmarkHeight={18} style={{ marginRight: 10 }} />
 
         <View style={styles.divider} />
 

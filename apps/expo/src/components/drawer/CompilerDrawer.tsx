@@ -65,7 +65,7 @@ export const CompilerDrawer: React.FC<CompilerDrawerProps> = ({
           {/* Action Trigger Banner */}
           <View style={styles.actionBanner}>
             <View style={styles.bannerInfo}>
-              <Text style={styles.bannerTitle}>Cognitive Canvas — Grafo de Conocimiento</Text>
+              <Text style={styles.bannerTitle}>Vink — Grafo de Conocimiento</Text>
               <Text style={styles.bannerSubtitle}>
                 {strokeCount > 0 ? `${strokeCount} trazos listos en lienzo` : "Dibuja tu mapa para compilar"}
               </Text>
