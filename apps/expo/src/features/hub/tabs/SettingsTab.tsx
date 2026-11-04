@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { View, Text, TextInput, TouchableOpacity, ScrollView } from "react-native";
-import { Check, Settings, Mic, Sparkles, BrainCircuit, Trash2 } from "@sketchyicons/react-native";
+import * as Haptics from "expo-haptics";
+import { Check, Settings, Mic, Sparkles, BrainCircuit, Trash2, Palette } from "@sketchyicons/react-native";
 import { getUserPreferences, saveUserPreferences } from "../../../services/StorageService";
 import { KeyStorageService } from "../../../services/KeyStorageService";
 import { ToolbarDockEdge, CanvasThemePreset, CANVAS_THEMES } from "../../../types/canvas";
+import { useAppTheme, APP_THEMES, AppThemeId } from "../../../theme";
 import { styles } from "./SettingsTab.styles";
 
 export interface SettingsTabProps {
@@ -34,6 +36,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
     "Dominar sistemas distribuidos, consenso Raft y control de congestión TCP"
   );
   const [savedNotice, setSavedNotice] = useState(false);
+  const { themeId: currentAppThemeId, theme: appTheme, setAppTheme } = useAppTheme();
 
   useEffect(() => {
     KeyStorageService.getApiKey().then((stored) => {
@@ -92,19 +95,129 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   };
 
   const dockEdges: ToolbarDockEdge[] = ["left", "right", "top", "bottom"];
-  const themes: CanvasThemePreset[] = ["dark_slate", "charcoal_dark", "warm_ivory", "pure_white"];
+  const themes: CanvasThemePreset[] = [
+    "dark_slate",
+    "charcoal_dark",
+    "warm_ivory",
+    "pure_white",
+    "cobalto_crema",
+    "tinta_papel",
+  ];
+  const appThemeKeys: AppThemeId[] = ["cobalto_crema", "tinta_papel"];
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={[styles.container, { backgroundColor: appTheme.colors.bgApp }]}
+      contentContainerStyle={styles.content}
+    >
       <View style={styles.headerRow}>
         <View style={styles.titleRow}>
-          <Settings size={18} color="#38BDF8" strokeWidth={2.0} />
-          <Text style={styles.heading}>Engine & Pipeline Configuration</Text>
+          <Settings size={18} color={appTheme.colors.accentPrimary} strokeWidth={2.0} />
+          <Text style={[styles.heading, { color: appTheme.colors.textPrimary }]}>
+            Engine & Pipeline Configuration
+          </Text>
         </View>
-        <TouchableOpacity style={styles.saveBtn} onPress={handleSaveSettings}>
+        <TouchableOpacity
+          style={[styles.saveBtn, { backgroundColor: appTheme.colors.accentPrimary }]}
+          onPress={handleSaveSettings}
+        >
           <Check size={15} color="#FFFFFF" strokeWidth={2.2} />
           <Text style={styles.saveBtnText}>{savedNotice ? "Saved!" : "Save Preferences"}</Text>
         </TouchableOpacity>
+      </View>
+
+      {/* Vink Visual Identity & App Theme Switcher */}
+      <View
+        style={[
+          styles.sectionCard,
+          {
+            backgroundColor: appTheme.colors.bgCard,
+            borderColor: appTheme.colors.borderSubtle,
+          },
+        ]}
+      >
+        <View style={styles.cardHeader}>
+          <Palette size={16} color={appTheme.colors.accentSecondary} strokeWidth={2.0} />
+          <Text style={[styles.cardTitle, { color: appTheme.colors.textPrimary }]}>
+            Vink Visual Identity & App Theme
+          </Text>
+        </View>
+        <Text style={[styles.cardDesc, { color: appTheme.colors.textSecondary }]}>
+          Alterna entre las dos paletas oficiales para evaluar la estética, legibilidad y contraste en vivo.
+        </Text>
+
+        <View style={styles.themeCardsContainer}>
+          {appThemeKeys.map((key) => {
+            const config = APP_THEMES[key];
+            const isSelected = currentAppThemeId === key;
+            return (
+              <TouchableOpacity
+                key={key}
+                style={[
+                  styles.appThemeCard,
+                  {
+                    backgroundColor: isSelected ? config.colors.bgCardHover : config.colors.bgCard,
+                    borderColor: isSelected ? config.colors.borderActive : config.colors.borderSubtle,
+                  },
+                ]}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+                  setAppTheme(key);
+                }}
+                activeOpacity={0.85}
+              >
+                <View style={styles.themeCardTop}>
+                  <View style={styles.themeTitleRow}>
+                    <Text style={[styles.themeName, { color: config.colors.textPrimary }]}>
+                      {config.name}
+                    </Text>
+                    <View style={styles.themeDirectionBadge}>
+                      <Text style={styles.themeDirectionBadgeText}>
+                        DIRECCIÓN {config.direction}
+                      </Text>
+                    </View>
+                  </View>
+                  {isSelected && (
+                    <View
+                      style={[
+                        styles.activeIndicatorBadge,
+                        { borderColor: config.colors.borderActive },
+                      ]}
+                    >
+                      <Check size={12} color={config.colors.accentPrimary} strokeWidth={2.4} />
+                      <Text
+                        style={[
+                          styles.activeIndicatorText,
+                          { color: config.colors.accentPrimary },
+                        ]}
+                      >
+                        ACTIVO
+                      </Text>
+                    </View>
+                  )}
+                </View>
+
+                <Text style={styles.themeTagline}>{config.tagline}</Text>
+                <Text style={styles.themeConcept}>{config.concept}</Text>
+
+                <View style={styles.swatchesRow}>
+                  {config.colors.swatches.map((swatch, idx) => (
+                    <View
+                      key={idx}
+                      style={[
+                        styles.swatchCircle,
+                        { backgroundColor: swatch },
+                        swatch === config.colors.bgApp && {
+                          borderColor: "rgba(255, 255, 255, 0.4)",
+                        },
+                      ]}
+                    />
+                  ))}
+                </View>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
       </View>
 
       <View style={styles.sectionCard}>
@@ -247,22 +360,50 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
         </View>
 
         <Text style={[styles.label, { marginTop: 14, marginBottom: 6 }]}>
-          Canvas Paper Theme Preset
+          Canvas Paper Theme Preset ({themes.length} Presets)
         </Text>
         <View style={styles.pillRow}>
-          {themes.map((t) => (
-            <TouchableOpacity
-              key={t}
-              style={[styles.choicePill, canvasTheme === t && styles.choicePillActive]}
-              onPress={() => onSelectTheme(t)}
-            >
-              <Text
-                style={[styles.choicePillText, canvasTheme === t && styles.choicePillTextActive]}
+          {themes.map((t) => {
+            const config = CANVAS_THEMES[t];
+            const isSelected = canvasTheme === t;
+            return (
+              <TouchableOpacity
+                key={t}
+                style={[
+                  styles.choicePill,
+                  isSelected && {
+                    backgroundColor: appTheme.colors.accentPrimary,
+                    borderColor: appTheme.colors.accentPrimary,
+                  },
+                ]}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+                  onSelectTheme(t);
+                }}
               >
-                {CANVAS_THEMES[t].label}
-              </Text>
-            </TouchableOpacity>
-          ))}
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                  <View
+                    style={{
+                      width: 10,
+                      height: 10,
+                      borderRadius: 5,
+                      backgroundColor: config.backgroundColor,
+                      borderWidth: 1,
+                      borderColor: "rgba(255, 255, 255, 0.4)",
+                    }}
+                  />
+                  <Text
+                    style={[
+                      styles.choicePillText,
+                      isSelected && styles.choicePillTextActive,
+                    ]}
+                  >
+                    {config.label}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            );
+          })}
         </View>
       </View>
     </ScrollView>

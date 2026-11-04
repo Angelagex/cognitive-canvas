@@ -4,6 +4,7 @@ import * as Haptics from "expo-haptics";
 import { Zap, ExternalLink, GitMerge, X, Check, Download } from "@sketchyicons/react-native";
 import { CanvasCompiledPayload, KnowledgeNode, KnowledgeEdge } from "@cognitive-canvas/core";
 import { VinkLogo } from "../../components/brand";
+import { useAppTheme } from "../../theme";
 import {
   loadAllCompiledGraphs,
   updateKnowledgeNodeVerification,
@@ -23,6 +24,7 @@ export interface KnowledgeMatrixTabProps {
 const TIER_LABELS: Record<KnowledgeNode["tier"], string> = { primitive: "Primitive", mechanism: "Mechanism", system: "System" };
 
 export const KnowledgeMatrixTab: React.FC<KnowledgeMatrixTabProps> = ({ onOpenCanvasAtBounds }) => {
+  const { theme } = useAppTheme();
   const [payloads, setPayloads] = useState<CanvasCompiledPayload[]>([]);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedDomain, setSelectedDomain] = useState<string>("All");
@@ -133,26 +135,48 @@ export const KnowledgeMatrixTab: React.FC<KnowledgeMatrixTabProps> = ({ onOpenCa
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.topBar}>
+    <View style={[styles.container, { backgroundColor: theme.colors.bgApp }]}>
+      <View
+        style={[
+          styles.topBar,
+          {
+            backgroundColor: theme.colors.bgHeader,
+            borderBottomColor: theme.colors.borderSubtle,
+          },
+        ]}
+      >
         <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-          <VinkLogo showIcon={false} wordmarkHeight={18} />
-          <View style={{ width: 1, height: 22, backgroundColor: "#334155" }} />
+          <VinkLogo
+            showIcon={false}
+            wordmarkHeight={18}
+            wordmarkColor={theme.colors.textPrimary}
+          />
+          <View style={{ width: 1, height: 22, backgroundColor: theme.colors.borderSubtle }} />
           <View>
-            <Text style={styles.title}>Knowledge Matrix · Force-Directed Causal DAG</Text>
-            <Text style={styles.subtitle}>
+            <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
+              Knowledge Matrix · Force-Directed Causal DAG
+            </Text>
+            <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
               {filteredNodes.length} canonical concepts {selectedDomain !== "All" ? `in ${selectedDomain}` : `across ${payloads.length} compiled canvases`}
             </Text>
           </View>
         </View>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
           <TouchableOpacity
-            style={styles.exportMatrixBtn}
+            style={[
+              styles.exportMatrixBtn,
+              {
+                backgroundColor: theme.colors.badgeBg,
+                borderColor: theme.colors.badgeBorder,
+              },
+            ]}
             onPress={handleExportKnowledgeMatrix}
             activeOpacity={0.85}
           >
-            <Download size={14} color="#38BDF8" strokeWidth={2.0} />
-            <Text style={styles.exportMatrixText}>Exportar Matriz (JSON)</Text>
+            <Download size={14} color={theme.colors.accentPrimary} strokeWidth={2.0} />
+            <Text style={[styles.exportMatrixText, { color: theme.colors.accentPrimary }]}>
+              Exportar Matriz (JSON)
+            </Text>
           </TouchableOpacity>
           {overlappingNode && (
             <TouchableOpacity

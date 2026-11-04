@@ -21,6 +21,7 @@ import {
 import { styles } from "./TopHeader.styles";
 import { useCognitiveLayerStore } from "../../stores/useCognitiveLayerStore";
 import { VinkLogo } from "../brand";
+import { useAppTheme } from "../../theme";
 
 export interface TopHeaderProps {
   mapTitle: string;
@@ -55,6 +56,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
 }) => {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [tempTitle, setTempTitle] = useState(mapTitle);
+  const { theme } = useAppTheme();
   const isCognitiveLayerVisible = useCognitiveLayerStore((s) => s.isCognitiveLayerVisible);
   const toggleCognitiveLayer = useCognitiveLayerStore((s) => s.toggleCognitiveLayer);
 
@@ -90,11 +92,26 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
   };
 
   return (
-    <View style={styles.header}>
+    <View
+      style={[
+        styles.header,
+        {
+          backgroundColor: theme.colors.bgHeader,
+          borderBottomColor: theme.colors.borderSubtle,
+        },
+      ]}
+    >
       {/* Left: [ ← Hub ] Button, Interactive Title & Auto-Save Status */}
       <View style={styles.leftSection}>
         <TouchableOpacity
-          style={styles.menuButton}
+          style={[
+            styles.menuButton,
+            {
+              backgroundColor: theme.colors.pillInactiveBg,
+              borderColor: theme.colors.borderSubtle,
+              borderWidth: 1,
+            },
+          ]}
           onPress={() => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
             onReturnToHub?.();
@@ -102,13 +119,18 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
           activeOpacity={0.75}
           accessibilityLabel="Auto-guardar y volver al Workspace Hub"
         >
-          <ArrowLeft size={18} color="#38BDF8" strokeWidth={2.2} />
-          <Text style={styles.menuText}>Hub</Text>
+          <ArrowLeft size={18} color={theme.colors.accentPrimary} strokeWidth={2.2} />
+          <Text style={[styles.menuText, { color: theme.colors.textSecondary }]}>Hub</Text>
         </TouchableOpacity>
 
-        <VinkLogo showIcon={false} wordmarkHeight={18} style={{ marginRight: 10 }} />
+        <VinkLogo
+          showIcon={false}
+          wordmarkHeight={18}
+          wordmarkColor={theme.colors.textPrimary}
+          style={{ marginRight: 10 }}
+        />
 
-        <View style={styles.divider} />
+        <View style={[styles.divider, { backgroundColor: theme.colors.borderSubtle }]} />
 
         {isEditingTitle ? (
           <View style={styles.titleEditContainer}>

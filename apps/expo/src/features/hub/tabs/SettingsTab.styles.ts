@@ -124,5 +124,86 @@ export const styles = StyleSheet.create({
   choicePillActive: { backgroundColor: "#0284C7", borderColor: "#38BDF8" },
   choicePillText: { color: "#94A3B8", fontSize: 11, fontWeight: "600" },
   choicePillTextActive: { color: "#FFFFFF", fontWeight: "700" },
+  themeCardsContainer: {
+    gap: 12,
+    marginTop: 8,
+  },
+  appThemeCard: {
+    backgroundColor: "#161B2B",
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: "#252E46",
+    padding: 14,
+    gap: 8,
+  },
+  appThemeCardActive: {
+    borderColor: "#38BDF8",
+    backgroundColor: "rgba(56, 189, 248, 0.08)",
+  },
+  themeCardTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  themeTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  themeName: {
+    color: "#F8FAFC",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  themeDirectionBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    backgroundColor: "#1E293B",
+  },
+  themeDirectionBadgeText: {
+    color: "#94A3B8",
+    fontSize: 10,
+    fontWeight: "700",
+  },
+  activeIndicatorBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(16, 185, 129, 0.2)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#10B981",
+  },
+  activeIndicatorText: {
+    color: "#34D399",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  themeTagline: {
+    color: "#CBD5E1",
+    fontSize: 12,
+    fontStyle: "italic",
+  },
+  themeConcept: {
+    color: "#94A3B8",
+    fontSize: 11,
+    lineHeight: 16,
+  },
+  swatchesRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 4,
+  },
+  swatchCircle: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.2)",
+  },
 });
 

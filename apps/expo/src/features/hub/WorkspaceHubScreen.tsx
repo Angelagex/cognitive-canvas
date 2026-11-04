@@ -7,6 +7,7 @@ import {
   Network,
 } from "@sketchyicons/react-native";
 import { VinkLogo } from "../../components/brand";
+import { useAppTheme } from "../../theme";
 import { CanvasesLibraryTab } from "./tabs/CanvasesLibraryTab";
 import { SettingsTab } from "./tabs/SettingsTab";
 import { KnowledgeMatrixTab } from "../matrix/KnowledgeMatrixTab";
@@ -51,6 +52,7 @@ export const WorkspaceHubScreen: React.FC<WorkspaceHubScreenProps> = ({
 }) => {
   // Boots into CanvasesLibraryTab by default
   const [activeTab, setActiveTab] = useState<HubTabId>("library");
+  const { theme } = useAppTheme();
 
   const handleSelectTab = (tab: HubTabId) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
@@ -58,35 +60,65 @@ export const WorkspaceHubScreen: React.FC<WorkspaceHubScreenProps> = ({
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.colors.bgApp }]}>
       {/* Top Navigation Chrome */}
-      <View style={styles.hubHeader}>
+      <View
+        style={[
+          styles.hubHeader,
+          {
+            backgroundColor: theme.colors.bgHeader,
+            borderBottomColor: theme.colors.borderSubtle,
+          },
+        ]}
+      >
         <View style={styles.brandRow}>
-          <VinkLogo showIcon={false} wordmarkHeight={22} />
-          <View style={styles.brandDivider} />
+          <VinkLogo
+            showIcon={false}
+            wordmarkHeight={22}
+            wordmarkColor={theme.colors.textPrimary}
+          />
+          <View style={[styles.brandDivider, { backgroundColor: theme.colors.borderSubtle }]} />
           <View>
-            <Text style={styles.brandSubtitle}>
+            <Text style={[styles.brandSubtitle, { color: theme.colors.textSecondary }]}>
               Non-Linear Synthesis & Socratic Knowledge Matrix
             </Text>
           </View>
         </View>
 
         {/* Segmented Hub Tab Switcher */}
-        <View style={styles.tabBar}>
+        <View
+          style={[
+            styles.tabBar,
+            {
+              backgroundColor: theme.colors.pillInactiveBg,
+              borderColor: theme.colors.borderSubtle,
+              borderWidth: 1,
+            },
+          ]}
+        >
           <TouchableOpacity
-            style={[styles.tabBtn, activeTab === "library" && styles.tabBtnActive]}
+            style={[
+              styles.tabBtn,
+              activeTab === "library" && { backgroundColor: theme.colors.pillActiveBg },
+            ]}
             onPress={() => handleSelectTab("library")}
             activeOpacity={0.85}
           >
             <FolderOpen
               size={15}
-              color={activeTab === "library" ? "#FFFFFF" : "#94A3B8"}
+              color={activeTab === "library" ? theme.colors.pillActiveText : theme.colors.textMuted}
               strokeWidth={2.0}
             />
             <Text
               style={[
                 styles.tabBtnText,
-                activeTab === "library" && styles.tabBtnTextActive,
+                {
+                  color:
+                    activeTab === "library"
+                      ? theme.colors.pillActiveText
+                      : theme.colors.textMuted,
+                  fontWeight: activeTab === "library" ? "700" : "500",
+                },
               ]}
             >
               Canvases Library
@@ -94,19 +126,28 @@ export const WorkspaceHubScreen: React.FC<WorkspaceHubScreenProps> = ({
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.tabBtn, activeTab === "matrix" && styles.tabBtnActive]}
+            style={[
+              styles.tabBtn,
+              activeTab === "matrix" && { backgroundColor: theme.colors.pillActiveBg },
+            ]}
             onPress={() => handleSelectTab("matrix")}
             activeOpacity={0.85}
           >
             <Network
               size={15}
-              color={activeTab === "matrix" ? "#FFFFFF" : "#94A3B8"}
+              color={activeTab === "matrix" ? theme.colors.pillActiveText : theme.colors.textMuted}
               strokeWidth={2.0}
             />
             <Text
               style={[
                 styles.tabBtnText,
-                activeTab === "matrix" && styles.tabBtnTextActive,
+                {
+                  color:
+                    activeTab === "matrix"
+                      ? theme.colors.pillActiveText
+                      : theme.colors.textMuted,
+                  fontWeight: activeTab === "matrix" ? "700" : "500",
+                },
               ]}
             >
               Knowledge Matrix
@@ -114,19 +155,28 @@ export const WorkspaceHubScreen: React.FC<WorkspaceHubScreenProps> = ({
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.tabBtn, activeTab === "settings" && styles.tabBtnActive]}
+            style={[
+              styles.tabBtn,
+              activeTab === "settings" && { backgroundColor: theme.colors.pillActiveBg },
+            ]}
             onPress={() => handleSelectTab("settings")}
             activeOpacity={0.85}
           >
             <Settings
               size={15}
-              color={activeTab === "settings" ? "#FFFFFF" : "#94A3B8"}
+              color={activeTab === "settings" ? theme.colors.pillActiveText : theme.colors.textMuted}
               strokeWidth={2.0}
             />
             <Text
               style={[
                 styles.tabBtnText,
-                activeTab === "settings" && styles.tabBtnTextActive,
+                {
+                  color:
+                    activeTab === "settings"
+                      ? theme.colors.pillActiveText
+                      : theme.colors.textMuted,
+                  fontWeight: activeTab === "settings" ? "700" : "500",
+                },
               ]}
             >
               Settings

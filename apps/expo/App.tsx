@@ -14,12 +14,14 @@ import { FloatingRecordingPill } from "./src/components/canvas/FloatingRecording
 import { AppModals } from "./src/components/modals/AppModals";
 import { WorkspaceHubScreen } from "./src/features/hub/WorkspaceHubScreen";
 import { cognitiveLayerStore } from "./src/stores/useCognitiveLayerStore";
+import { AppThemeProvider, useAppTheme } from "./src/theme";
 import { styles } from "./src/styles/App.styles";
 
 export type RootScreen = "hub" | "canvas";
 
-export default function App() {
+function MainAppContent() {
   const [currentScreen, setCurrentScreen] = useState<RootScreen>("hub");
+  const { theme } = useAppTheme();
   const [showDocumentMenu, setShowDocumentMenu] = useState(false);
   const [stickerPickerVisible, setStickerPickerVisible] = useState(false);
   const [stickerTargetWorld, setStickerTargetWorld] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
@@ -99,8 +101,8 @@ export default function App() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <View style={styles.rootContainer}>
-        <StatusBar barStyle="light-content" backgroundColor="#0B1120" />
+      <View style={[styles.rootContainer, { backgroundColor: theme.colors.bgApp }]}>
+        <StatusBar barStyle="light-content" backgroundColor={theme.colors.bgHeader} />
 
         {currentScreen === "hub" ? (
           <WorkspaceHubScreen
@@ -287,5 +289,13 @@ export default function App() {
         )}
       </View>
     </GestureHandlerRootView>
+  );
+}
+
+export default function App() {
+  return (
+    <AppThemeProvider>
+      <MainAppContent />
+    </AppThemeProvider>
   );
 }

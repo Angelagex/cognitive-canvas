@@ -3,6 +3,7 @@ import { StyleSheet, View, Text, TouchableOpacity, ScrollView } from "react-nati
 import * as Haptics from "expo-haptics";
 import { Plus, Sparkles, Check, Clock, FileText, Trash2 } from "@sketchyicons/react-native";
 import { MapDocumentSummary } from "../../../services/StorageService";
+import { useAppTheme } from "../../../theme";
 
 export interface CanvasesLibraryTabProps {
   canvases: MapDocumentSummary[];
@@ -36,6 +37,7 @@ export const CanvasesLibraryTab: React.FC<CanvasesLibraryTabProps> = ({
   onCreateNewCanvas,
   onDeleteCanvas,
 }) => {
+  const { theme } = useAppTheme();
   const displayList: MapDocumentSummary[] =
     canvases.length > 0
       ? canvases
@@ -53,14 +55,21 @@ export const CanvasesLibraryTab: React.FC<CanvasesLibraryTabProps> = ({
   const hero = displayList[0];
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={[styles.container, { backgroundColor: theme.colors.bgApp }]}
+      contentContainerStyle={styles.content}
+    >
       <View style={styles.headerRow}>
         <View>
-          <Text style={styles.sectionHeading}>Workspace Library</Text>
-          <Text style={styles.sectionSub}>Immutable .cmn canvases & causal mental models</Text>
+          <Text style={[styles.sectionHeading, { color: theme.colors.textPrimary }]}>
+            Workspace Library
+          </Text>
+          <Text style={[styles.sectionSub, { color: theme.colors.textSecondary }]}>
+            Immutable .cmn canvases & causal mental models
+          </Text>
         </View>
         <TouchableOpacity
-          style={styles.newCanvasBtn}
+          style={[styles.newCanvasBtn, { backgroundColor: theme.colors.accentPrimary }]}
           onPress={() => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
             onCreateNewCanvas();
@@ -74,7 +83,13 @@ export const CanvasesLibraryTab: React.FC<CanvasesLibraryTabProps> = ({
 
       {hero && (
         <TouchableOpacity
-          style={styles.heroCard}
+          style={[
+            styles.heroCard,
+            {
+              backgroundColor: theme.colors.bgCard,
+              borderColor: theme.colors.borderSubtle,
+            },
+          ]}
           onPress={() => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
             onOpenCanvas(hero.map_id);
@@ -82,9 +97,16 @@ export const CanvasesLibraryTab: React.FC<CanvasesLibraryTabProps> = ({
           activeOpacity={0.88}
         >
           <View style={styles.heroTopRow}>
-            <View style={styles.heroTag}>
-              <Sparkles size={13} color="#38BDF8" strokeWidth={2.0} />
-              <Text style={styles.heroTagText}>CONTINUE STUDYING</Text>
+            <View
+              style={[
+                styles.heroTag,
+                { backgroundColor: theme.colors.badgeBg, borderColor: theme.colors.badgeBorder },
+              ]}
+            >
+              <Sparkles size={13} color={theme.colors.accentPrimary} strokeWidth={2.0} />
+              <Text style={[styles.heroTagText, { color: theme.colors.accentPrimary }]}>
+                CONTINUE STUDYING
+              </Text>
             </View>
             <View style={[styles.statusBadge, hero.is_compiled ? styles.statusVerified : styles.statusUnverified]}>
               <Text style={[styles.statusText, hero.is_compiled ? styles.statusTextVerified : styles.statusTextUnverified]}>
@@ -92,25 +114,39 @@ export const CanvasesLibraryTab: React.FC<CanvasesLibraryTabProps> = ({
               </Text>
             </View>
           </View>
-          <Text style={styles.heroTitle}>{hero.title}</Text>
+          <Text style={[styles.heroTitle, { color: theme.colors.textPrimary }]}>{hero.title}</Text>
           <View style={styles.heroMetaRow}>
-            <Text style={styles.heroMetaItem}>{Math.max(hero.entity_count, 1)} Knowledge Nodes</Text>
-            <Text style={styles.heroMetaDot}>•</Text>
-            <Text style={styles.heroMetaItem}>{hero.stroke_count} Ink Strokes</Text>
-            <Text style={styles.heroMetaDot}>•</Text>
-            <Text style={styles.heroMetaItem}>Updated {formatDate(hero.updated_at)}</Text>
+            <Text style={[styles.heroMetaItem, { color: theme.colors.textSecondary }]}>
+              {Math.max(hero.entity_count, 1)} Knowledge Nodes
+            </Text>
+            <Text style={[styles.heroMetaDot, { color: theme.colors.textMuted }]}>•</Text>
+            <Text style={[styles.heroMetaItem, { color: theme.colors.textSecondary }]}>
+              {hero.stroke_count} Ink Strokes
+            </Text>
+            <Text style={[styles.heroMetaDot, { color: theme.colors.textMuted }]}>•</Text>
+            <Text style={[styles.heroMetaItem, { color: theme.colors.textSecondary }]}>
+              Updated {formatDate(hero.updated_at)}
+            </Text>
           </View>
         </TouchableOpacity>
       )}
 
-      <Text style={styles.gridHeader}>All Vink Canvases ({displayList.length})</Text>
+      <Text style={[styles.gridHeader, { color: theme.colors.textPrimary }]}>
+        All Vink Canvases ({displayList.length})
+      </Text>
       <View style={styles.grid}>
         {displayList.map((item) => {
           const nodeCount = Math.max(item.entity_count, item.stroke_count > 0 ? 1 : 0);
           return (
             <TouchableOpacity
               key={item.map_id}
-              style={styles.canvasCard}
+              style={[
+                styles.canvasCard,
+                {
+                  backgroundColor: theme.colors.bgCard,
+                  borderColor: theme.colors.borderSubtle,
+                },
+              ]}
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
                 onOpenCanvas(item.map_id);
@@ -118,8 +154,13 @@ export const CanvasesLibraryTab: React.FC<CanvasesLibraryTabProps> = ({
               activeOpacity={0.85}
             >
               <View style={styles.cardTopRow}>
-                <View style={styles.iconCircle}>
-                  <FileText size={15} color="#38BDF8" strokeWidth={1.9} />
+                <View
+                  style={[
+                    styles.iconCircle,
+                    { backgroundColor: theme.colors.badgeBg, borderColor: theme.colors.badgeBorder },
+                  ]}
+                >
+                  <FileText size={15} color={theme.colors.accentPrimary} strokeWidth={1.9} />
                 </View>
                 <View style={[styles.statusBadge, item.is_compiled ? styles.statusVerified : styles.statusUnverified]}>
                   {item.is_compiled ? (
@@ -132,13 +173,20 @@ export const CanvasesLibraryTab: React.FC<CanvasesLibraryTabProps> = ({
                   </Text>
                 </View>
               </View>
-              <Text style={styles.cardTitle} numberOfLines={2}>
+              <Text
+                style={[styles.cardTitle, { color: theme.colors.textPrimary }]}
+                numberOfLines={2}
+              >
                 {item.title}
               </Text>
               <View style={styles.cardFooter}>
                 <View>
-                  <Text style={styles.cardNodeCount}>{nodeCount} nodes</Text>
-                  <Text style={styles.cardDate}>{formatDate(item.updated_at)}</Text>
+                  <Text style={[styles.cardNodeCount, { color: theme.colors.textSecondary }]}>
+                    {nodeCount} nodes
+                  </Text>
+                  <Text style={[styles.cardDate, { color: theme.colors.textMuted }]}>
+                    {formatDate(item.updated_at)}
+                  </Text>
                 </View>
                 {onDeleteCanvas && displayList.length > 1 && (
                   <TouchableOpacity style={styles.deleteBtn} onPress={() => onDeleteCanvas(item.map_id)}>

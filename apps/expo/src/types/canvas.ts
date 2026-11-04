@@ -32,7 +32,13 @@ export type ToolbarDockEdge = "left" | "right" | "top" | "bottom";
 
 export type CanvasBackgroundType = "dot_grid" | "graph_grid" | "ruled" | "blank";
 
-export type CanvasThemePreset = "dark_slate" | "charcoal_dark" | "warm_ivory" | "pure_white";
+export type CanvasThemePreset =
+  | "dark_slate"
+  | "charcoal_dark"
+  | "warm_ivory"
+  | "pure_white"
+  | "cobalto_crema"
+  | "tinta_papel";
 
 export interface CanvasThemeConfig {
   id: CanvasThemePreset;
@@ -80,6 +86,24 @@ export const CANVAS_THEMES: Record<CanvasThemePreset, CanvasThemeConfig> = {
     gridColor: "#E2E8F0",
     isDark: false,
     favoriteColors: ["#0F172A", "#0284C7", "#E11D48"], // Negro pizarra, Azul cian, Carmesí
+  },
+  cobalto_crema: {
+    id: "cobalto_crema",
+    label: "Cobalto y Crema",
+    backgroundColor: "#0C0E14",
+    defaultInkColor: "#F3EDE0",
+    gridColor: "#1C1F2B",
+    isDark: true,
+    favoriteColors: ["#F3EDE0", "#2F3DFF", "#FFB320"], // Crema, Cobalto vivo, Ámbar
+  },
+  tinta_papel: {
+    id: "tinta_papel",
+    label: "Tinta y Papel",
+    backgroundColor: "#10142A",
+    defaultInkColor: "#F3EEE3",
+    gridColor: "#1A2040",
+    isDark: true,
+    favoriteColors: ["#F3EEE3", "#4C6FFF", "#FF5A3C"], // Papel, Cobalto, Bermellón
   },
 };
 
@@ -204,6 +228,7 @@ export interface UserPreferences {
   gemini_api_key?: string;
   target_learning_goal?: string;
   default_theme?: CanvasThemePreset;
+  app_theme?: "cobalto_crema" | "tinta_papel";
   stylus_only_default?: boolean;
 }
 
@@ -222,6 +247,8 @@ export const DEFAULT_THEME_PALETTES: Record<CanvasThemePreset, string[]> = {
   charcoal_dark: [...CANVAS_THEMES.charcoal_dark.favoriteColors],
   warm_ivory: [...CANVAS_THEMES.warm_ivory.favoriteColors],
   pure_white: [...CANVAS_THEMES.pure_white.favoriteColors],
+  cobalto_crema: [...CANVAS_THEMES.cobalto_crema.favoriteColors],
+  tinta_papel: [...CANVAS_THEMES.tinta_papel.favoriteColors],
 };
 
 
