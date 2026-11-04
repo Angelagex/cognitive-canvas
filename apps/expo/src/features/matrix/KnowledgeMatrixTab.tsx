@@ -4,7 +4,7 @@ import * as Haptics from "expo-haptics";
 import { Zap, ExternalLink, GitMerge, X, Check, Download } from "@sketchyicons/react-native";
 import { CanvasCompiledPayload, KnowledgeNode, KnowledgeEdge } from "@cognitive-canvas/core";
 import { VinkLogo } from "../../components/brand";
-import { useAppTheme } from "../../theme";
+import { useSkin, fonts, radius, border } from "../../theme";
 import {
   loadAllCompiledGraphs,
   updateKnowledgeNodeVerification,
@@ -24,7 +24,7 @@ export interface KnowledgeMatrixTabProps {
 const TIER_LABELS: Record<KnowledgeNode["tier"], string> = { primitive: "Primitive", mechanism: "Mechanism", system: "System" };
 
 export const KnowledgeMatrixTab: React.FC<KnowledgeMatrixTabProps> = ({ onOpenCanvasAtBounds }) => {
-  const { theme } = useAppTheme();
+  const { skin } = useSkin();
   const [payloads, setPayloads] = useState<CanvasCompiledPayload[]>([]);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedDomain, setSelectedDomain] = useState<string>("All");
@@ -135,62 +135,54 @@ export const KnowledgeMatrixTab: React.FC<KnowledgeMatrixTabProps> = ({ onOpenCa
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.bgApp }]}>
+    <View style={[styles.container, { backgroundColor: skin.bg }]}>
       <View
         style={[
           styles.topBar,
           {
-            backgroundColor: theme.colors.bgHeader,
-            borderBottomColor: theme.colors.borderSubtle,
+            backgroundColor: skin.surface,
+            borderBottomColor: skin.borderSoft,
+            borderBottomWidth: border.soft,
           },
         ]}
       >
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-          <VinkLogo
-            showIcon={false}
-            wordmarkHeight={18}
-            wordmarkColor={theme.colors.textPrimary}
-          />
-          <View style={{ width: 1, height: 22, backgroundColor: theme.colors.borderSubtle }} />
-          <View>
-            <Text
-              style={[
-                styles.title,
-                theme.typography.display,
-                { color: theme.colors.textPrimary },
-              ]}
-            >
-              Knowledge Matrix · Force-Directed Causal DAG
-            </Text>
-            <Text
-              style={[
-                styles.subtitle,
-                theme.typography.body,
-                { color: theme.colors.textSecondary },
-              ]}
-            >
-              {filteredNodes.length} canonical concepts {selectedDomain !== "All" ? `in ${selectedDomain}` : `across ${payloads.length} compiled canvases`}
-            </Text>
-          </View>
+        <View>
+          <Text
+            style={[
+              styles.title,
+              { color: skin.text, fontFamily: fonts.display },
+            ]}
+          >
+            Knowledge Matrix · Force-Directed Causal DAG
+          </Text>
+          <Text
+            style={[
+              styles.subtitle,
+              { color: skin.textMuted, fontFamily: fonts.ui },
+            ]}
+          >
+            {filteredNodes.length} canonical concepts {selectedDomain !== "All" ? `in ${selectedDomain}` : `across ${payloads.length} compiled canvases`}
+          </Text>
         </View>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
           <TouchableOpacity
             style={[
               styles.exportMatrixBtn,
               {
-                backgroundColor: theme.colors.badgeBg,
-                borderColor: theme.colors.badgeBorder,
+                backgroundColor: skin.surfaceAlt,
+                borderColor: skin.borderSoft,
+                borderWidth: border.soft,
+                borderRadius: radius.pill,
               },
             ]}
             onPress={handleExportKnowledgeMatrix}
             activeOpacity={0.85}
           >
-            <Download size={14} color={theme.colors.accentPrimary} strokeWidth={2.0} />
+            <Download size={14} color={skin.text} strokeWidth={2.0} />
             <Text
               style={[
                 styles.exportMatrixText,
-                theme.typography.bodyBold,
-                { color: theme.colors.accentPrimary },
+                { color: skin.text, fontFamily: fonts.uiBold },
               ]}
             >
               Exportar Matriz (JSON)
@@ -206,7 +198,7 @@ export const KnowledgeMatrixTab: React.FC<KnowledgeMatrixTabProps> = ({ onOpenCa
               activeOpacity={0.85}
             >
               <GitMerge size={14} color="#FBBF24" strokeWidth={2.0} />
-              <Text style={[styles.consolidateBannerText, theme.typography.bodyBold]}>
+              <Text style={[styles.consolidateBannerText, { fontFamily: fonts.uiBold }]}>
                 Overlap: "{overlappingNode.label}" · Consolidate
               </Text>
             </TouchableOpacity>
@@ -218,15 +210,16 @@ export const KnowledgeMatrixTab: React.FC<KnowledgeMatrixTabProps> = ({ onOpenCa
         style={[
           styles.filterContainer,
           {
-            backgroundColor: theme.colors.bgHeader,
-            borderBottomColor: theme.colors.borderSubtle,
+            backgroundColor: skin.surface,
+            borderBottomColor: skin.borderSoft,
+            borderBottomWidth: border.soft,
           },
         ]}
       >
         <ScrollView contentContainerStyle={styles.filterScrollContent} horizontal showsHorizontalScrollIndicator={false}>
           {availableDomains.map((domain) => {
             const isSelected = selectedDomain === domain;
-            const domainColor = domain === "All" ? theme.colors.accentPrimary : getDomainColor(domain).stroke;
+            const domainColor = domain === "All" ? skin.primary : getDomainColor(domain).stroke;
             return (
               <TouchableOpacity
                 key={domain}
@@ -237,8 +230,10 @@ export const KnowledgeMatrixTab: React.FC<KnowledgeMatrixTabProps> = ({ onOpenCa
                 style={[
                   styles.domainChip,
                   {
-                    backgroundColor: isSelected ? domainColor + "25" : theme.colors.pillInactiveBg,
-                    borderColor: isSelected ? domainColor : theme.colors.borderSubtle,
+                    backgroundColor: isSelected ? domainColor + "25" : skin.surfaceAlt,
+                    borderColor: isSelected ? domainColor : skin.borderSoft,
+                    borderWidth: border.soft,
+                    borderRadius: radius.pill,
                   },
                 ]}
                 activeOpacity={0.7}
@@ -246,8 +241,10 @@ export const KnowledgeMatrixTab: React.FC<KnowledgeMatrixTabProps> = ({ onOpenCa
                 <Text
                   style={[
                     styles.domainChipText,
-                    isSelected ? theme.typography.bodyBold : theme.typography.body,
-                    { color: domainColor },
+                    {
+                      color: isSelected ? domainColor : skin.textMuted,
+                      fontFamily: isSelected ? fonts.uiBold : fonts.ui,
+                    },
                   ]}
                 >
                   {domain}
@@ -258,7 +255,7 @@ export const KnowledgeMatrixTab: React.FC<KnowledgeMatrixTabProps> = ({ onOpenCa
         </ScrollView>
       </View>
 
-      <View style={[styles.graphViewport, { width: SCREEN_WIDTH, height: SCREEN_HEIGHT - 160, backgroundColor: theme.colors.bgApp }]}>
+      <View style={[styles.graphViewport, { width: SCREEN_WIDTH, height: SCREEN_HEIGHT - 160, backgroundColor: skin.bg }]}>
         <DagGraphRenderer
           nodes={filteredNodes}
           edges={filteredEdges}
@@ -274,8 +271,9 @@ export const KnowledgeMatrixTab: React.FC<KnowledgeMatrixTabProps> = ({ onOpenCa
           style={[
             styles.bottomSheet,
             {
-              backgroundColor: theme.colors.bgCard,
-              borderColor: theme.colors.borderSubtle,
+              backgroundColor: skin.surface,
+              borderColor: skin.borderSoft,
+              borderTopWidth: border.soft,
             },
           ]}
         >
@@ -286,16 +284,17 @@ export const KnowledgeMatrixTab: React.FC<KnowledgeMatrixTabProps> = ({ onOpenCa
                   style={[
                     styles.tierBadge,
                     {
-                      backgroundColor: theme.colors.badgeBg,
-                      borderColor: theme.colors.badgeBorder,
+                      backgroundColor: skin.surfaceAlt,
+                      borderColor: skin.borderSoft,
+                      borderWidth: border.soft,
+                      borderRadius: radius.pill,
                     },
                   ]}
                 >
                   <Text
                     style={[
                       styles.tierBadgeText,
-                      theme.typography.monoBold,
-                      { color: theme.colors.accentPrimary },
+                      { color: skin.primary, fontFamily: fonts.monoBold },
                     ]}
                   >
                     {TIER_LABELS[selectedNode.tier]}
@@ -312,7 +311,7 @@ export const KnowledgeMatrixTab: React.FC<KnowledgeMatrixTabProps> = ({ onOpenCa
                   <Text
                     style={[
                       styles.stateBadgeText,
-                      theme.typography.monoBold,
+                      { fontFamily: fonts.monoBold },
                       selectedNode.verificationState === "verified"
                         ? styles.stateTextVerified
                         : styles.stateTextNeedsDefense,
@@ -327,23 +326,21 @@ export const KnowledgeMatrixTab: React.FC<KnowledgeMatrixTabProps> = ({ onOpenCa
               <Text
                 style={[
                   styles.sheetTitle,
-                  theme.typography.display,
-                  { color: theme.colors.textPrimary },
+                  { color: skin.text, fontFamily: fonts.display },
                 ]}
               >
                 {selectedNode.label}
               </Text>
             </View>
             <TouchableOpacity onPress={() => setSelectedNodeId(null)} style={styles.closeBtn}>
-              <X size={16} color={theme.colors.textMuted} strokeWidth={2.0} />
+              <X size={16} color={skin.textMuted} strokeWidth={2.0} />
             </TouchableOpacity>
           </View>
 
           <Text
             style={[
               styles.sheetSummary,
-              theme.typography.body,
-              { color: theme.colors.textSecondary },
+              { color: skin.text, fontFamily: fonts.ui },
             ]}
           >
             {selectedNode.summary}
@@ -352,15 +349,25 @@ export const KnowledgeMatrixTab: React.FC<KnowledgeMatrixTabProps> = ({ onOpenCa
           {!defenseActive ? (
             <View style={styles.actionsRow}>
               <TouchableOpacity
-                style={styles.socraticBtn}
+                style={[
+                  styles.socraticBtn,
+                  {
+                    backgroundColor: `${skin.warm}1A`,
+                    borderColor: skin.warm,
+                    borderWidth: border.soft,
+                    borderRadius: radius.pill,
+                  },
+                ]}
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
                   setDefenseActive(true);
                 }}
                 activeOpacity={0.85}
               >
-                <Zap size={14} color="#FBBF24" strokeWidth={2.0} />
-                <Text style={[styles.socraticBtnText, theme.typography.bodyBold]}>[ Defensa socrática ]</Text>
+                <Zap size={14} color={skin.warm} strokeWidth={2.0} />
+                <Text style={[styles.socraticBtnText, { color: skin.warm, fontFamily: fonts.uiBold }]}>
+                  [ Defensa socrática ]
+                </Text>
               </TouchableOpacity>
 
               <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -370,8 +377,10 @@ export const KnowledgeMatrixTab: React.FC<KnowledgeMatrixTabProps> = ({ onOpenCa
                     style={[
                       styles.originBtn,
                       {
-                        backgroundColor: theme.colors.pillInactiveBg,
-                        borderColor: theme.colors.borderSubtle,
+                        backgroundColor: skin.surfaceAlt,
+                        borderColor: skin.borderSoft,
+                        borderWidth: border.soft,
+                        borderRadius: radius.pill,
                       },
                     ]}
                     onPress={() => {
@@ -379,59 +388,59 @@ export const KnowledgeMatrixTab: React.FC<KnowledgeMatrixTabProps> = ({ onOpenCa
                       onOpenCanvasAtBounds(prov.canvasId, prov.boundingBox);
                     }}
                   >
-                    <ExternalLink size={13} color={theme.colors.accentPrimary} strokeWidth={2.0} />
+                    <ExternalLink size={13} color={skin.primary} strokeWidth={2.0} />
                     <Text
                       style={[
                         styles.originBtnText,
-                        theme.typography.bodyBold,
-                        { color: theme.colors.textPrimary },
+                        { color: skin.text, fontFamily: fonts.uiBold },
                       ]}
                     >
-                      [ ✍️ View in Canvas: {prov.canvasTitle} ]
+                      [ Ver en lienzo: {prov.canvasTitle} ]
                     </Text>
                   </TouchableOpacity>
                 ))}
               </ScrollView>
             </View>
           ) : (
-            <View style={styles.defenseBox}>
+            <View style={[styles.defenseBox, { backgroundColor: skin.surfaceAlt, borderRadius: radius.card }]}>
               <Text
                 style={[
                   styles.defenseQuestion,
-                  theme.typography.bodyBold,
-                  { color: theme.colors.accentSecondary },
+                  { color: skin.warm, fontFamily: fonts.uiBold },
                 ]}
               >
-                Socratic Audit: Under partition or high load, how does "{selectedNode.label}" prevent cascading failure or state corruption?
+                Auditoría Socrática: ¿Bajo partición o alta carga, cómo "{selectedNode.label}" previene fallo en cascada o corrupción de estado?
               </Text>
               <View style={styles.defenseInputRow}>
                 <TextInput
                   style={[
                     styles.defenseInput,
-                    theme.typography.body,
                     {
-                      backgroundColor: theme.colors.bgInput,
-                      borderColor: theme.colors.borderSubtle,
-                      color: theme.colors.textPrimary,
+                      backgroundColor: skin.bg,
+                      borderColor: skin.borderSoft,
+                      color: skin.text,
+                      fontFamily: fonts.ui,
+                      borderWidth: border.soft,
+                      borderRadius: radius.card,
                     },
                   ]}
                   value={defenseAnswer}
                   onChangeText={setDefenseAnswer}
-                  placeholder="Defend the causal mechanism without circular definitions..."
-                  placeholderTextColor={theme.colors.textMuted}
+                  placeholder="Defiende el mecanismo causal..."
+                  placeholderTextColor={skin.textMuted}
                 />
                 <TouchableOpacity
                   style={[
                     styles.submitDefenseBtn,
-                    { backgroundColor: theme.colors.accentPrimary },
+                    { backgroundColor: skin.primary, borderRadius: radius.card },
                   ]}
                   onPress={handleSubmitSocraticDefense}
                 >
-                  <Check size={15} color="#FFFFFF" strokeWidth={2.2} />
+                  <Check size={15} color={skin.onPrimary} strokeWidth={2.2} />
                 </TouchableOpacity>
               </View>
               {defenseFeedback && (
-                <Text style={[styles.feedbackText, theme.typography.body]}>
+                <Text style={[styles.feedbackText, { color: skin.primary, fontFamily: fonts.ui }]}>
                   {defenseFeedback}
                 </Text>
               )}

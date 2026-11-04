@@ -7,7 +7,7 @@ import {
   Network,
 } from "@sketchyicons/react-native";
 import { VinkLogo } from "../../components/brand";
-import { useAppTheme } from "../../theme";
+import { useSkin, fonts, radius, border } from "../../theme";
 import { CanvasesLibraryTab } from "./tabs/CanvasesLibraryTab";
 import { SettingsTab } from "./tabs/SettingsTab";
 import { KnowledgeMatrixTab } from "../matrix/KnowledgeMatrixTab";
@@ -52,7 +52,7 @@ export const WorkspaceHubScreen: React.FC<WorkspaceHubScreenProps> = ({
 }) => {
   // Boots into CanvasesLibraryTab by default
   const [activeTab, setActiveTab] = useState<HubTabId>("library");
-  const { theme } = useAppTheme();
+  const { skin } = useSkin();
 
   const handleSelectTab = (tab: HubTabId) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
@@ -60,14 +60,15 @@ export const WorkspaceHubScreen: React.FC<WorkspaceHubScreenProps> = ({
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.bgApp }]}>
+    <View style={[styles.container, { backgroundColor: skin.bg }]}>
       {/* Top Navigation Chrome */}
       <View
         style={[
           styles.hubHeader,
           {
-            backgroundColor: theme.colors.bgHeader,
-            borderBottomColor: theme.colors.borderSubtle,
+            backgroundColor: skin.surface,
+            borderBottomColor: skin.borderSoft,
+            borderBottomWidth: border.soft,
           },
         ]}
       >
@@ -75,15 +76,14 @@ export const WorkspaceHubScreen: React.FC<WorkspaceHubScreenProps> = ({
           <VinkLogo
             showIcon={false}
             wordmarkHeight={22}
-            wordmarkColor={theme.colors.textPrimary}
+            wordmarkColor={skin.text}
           />
-          <View style={[styles.brandDivider, { backgroundColor: theme.colors.borderSubtle }]} />
+          <View style={[styles.brandDivider, { backgroundColor: skin.borderSoft }]} />
           <View>
             <Text
               style={[
                 styles.brandSubtitle,
-                theme.typography.body,
-                { color: theme.colors.textSecondary },
+                { color: skin.textMuted, fontFamily: fonts.ui },
               ]}
             >
               Síntesis causal & matriz socrática
@@ -96,34 +96,35 @@ export const WorkspaceHubScreen: React.FC<WorkspaceHubScreenProps> = ({
           style={[
             styles.tabBar,
             {
-              backgroundColor: theme.colors.pillInactiveBg,
-              borderColor: theme.colors.borderSubtle,
-              borderWidth: 1,
+              backgroundColor: skin.surfaceAlt,
+              borderColor: skin.borderSoft,
+              borderWidth: border.soft,
+              borderRadius: radius.pill,
             },
           ]}
         >
           <TouchableOpacity
             style={[
               styles.tabBtn,
-              activeTab === "library" && { backgroundColor: theme.colors.pillActiveBg },
+              {
+                borderRadius: radius.pill,
+                backgroundColor: activeTab === "library" ? skin.primary : "transparent",
+              },
             ]}
             onPress={() => handleSelectTab("library")}
             activeOpacity={0.85}
           >
             <FolderOpen
               size={15}
-              color={activeTab === "library" ? theme.colors.pillActiveText : theme.colors.textMuted}
+              color={activeTab === "library" ? skin.onPrimary : skin.textMuted}
               strokeWidth={2.0}
             />
             <Text
               style={[
                 styles.tabBtnText,
-                activeTab === "library" ? theme.typography.bodyBold : theme.typography.body,
                 {
-                  color:
-                    activeTab === "library"
-                      ? theme.colors.pillActiveText
-                      : theme.colors.textMuted,
+                  color: activeTab === "library" ? skin.onPrimary : skin.textMuted,
+                  fontFamily: activeTab === "library" ? fonts.uiBold : fonts.ui,
                 },
               ]}
             >
@@ -134,25 +135,25 @@ export const WorkspaceHubScreen: React.FC<WorkspaceHubScreenProps> = ({
           <TouchableOpacity
             style={[
               styles.tabBtn,
-              activeTab === "matrix" && { backgroundColor: theme.colors.pillActiveBg },
+              {
+                borderRadius: radius.pill,
+                backgroundColor: activeTab === "matrix" ? skin.primary : "transparent",
+              },
             ]}
             onPress={() => handleSelectTab("matrix")}
             activeOpacity={0.85}
           >
             <Network
               size={15}
-              color={activeTab === "matrix" ? theme.colors.pillActiveText : theme.colors.textMuted}
+              color={activeTab === "matrix" ? skin.onPrimary : skin.textMuted}
               strokeWidth={2.0}
             />
             <Text
               style={[
                 styles.tabBtnText,
-                activeTab === "matrix" ? theme.typography.bodyBold : theme.typography.body,
                 {
-                  color:
-                    activeTab === "matrix"
-                      ? theme.colors.pillActiveText
-                      : theme.colors.textMuted,
+                  color: activeTab === "matrix" ? skin.onPrimary : skin.textMuted,
+                  fontFamily: activeTab === "matrix" ? fonts.uiBold : fonts.ui,
                 },
               ]}
             >
@@ -163,25 +164,25 @@ export const WorkspaceHubScreen: React.FC<WorkspaceHubScreenProps> = ({
           <TouchableOpacity
             style={[
               styles.tabBtn,
-              activeTab === "settings" && { backgroundColor: theme.colors.pillActiveBg },
+              {
+                borderRadius: radius.pill,
+                backgroundColor: activeTab === "settings" ? skin.primary : "transparent",
+              },
             ]}
             onPress={() => handleSelectTab("settings")}
             activeOpacity={0.85}
           >
             <Settings
               size={15}
-              color={activeTab === "settings" ? theme.colors.pillActiveText : theme.colors.textMuted}
+              color={activeTab === "settings" ? skin.onPrimary : skin.textMuted}
               strokeWidth={2.0}
             />
             <Text
               style={[
                 styles.tabBtnText,
-                activeTab === "settings" ? theme.typography.bodyBold : theme.typography.body,
                 {
-                  color:
-                    activeTab === "settings"
-                      ? theme.colors.pillActiveText
-                      : theme.colors.textMuted,
+                  color: activeTab === "settings" ? skin.onPrimary : skin.textMuted,
+                  fontFamily: activeTab === "settings" ? fonts.uiBold : fonts.ui,
                 },
               ]}
             >

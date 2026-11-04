@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, TextInput, TouchableOpacity, ScrollView } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet } from "react-native";
 import * as Haptics from "expo-haptics";
-import { Check, Settings, Mic, Sparkles, BrainCircuit, Trash2, Palette } from "@sketchyicons/react-native";
+import { Check, Settings, Mic, BrainCircuit, Trash2, Palette, ShieldCheck, Sparkles } from "@sketchyicons/react-native";
 import { getUserPreferences, saveUserPreferences } from "../../../services/StorageService";
 import { KeyStorageService } from "../../../services/KeyStorageService";
 import { ToolbarDockEdge, CanvasThemePreset, CANVAS_THEMES } from "../../../types/canvas";
-import { useAppTheme, APP_THEMES, AppThemeId, useSkin, SkinId, skins } from "../../../theme";
-import { styles } from "./SettingsTab.styles";
+import { useSkin, fonts, radius, border, SkinId, skins } from "../../../theme";
 
 export interface SettingsTabProps {
   stylusOnly: boolean;
@@ -25,6 +24,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   canvasTheme,
   onSelectTheme,
 }) => {
+  const { skin, skinActivo, setSkinActivo } = useSkin();
   const [apiKey, setApiKey] = useState("");
   const [isMasked, setIsMasked] = useState(true);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -36,8 +36,6 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
     "Dominar sistemas distribuidos, consenso Raft y control de congestión TCP"
   );
   const [savedNotice, setSavedNotice] = useState(false);
-  const { themeId: currentAppThemeId, theme: appTheme, setAppTheme } = useAppTheme();
-  const { skinActivo, setSkinActivo } = useSkin();
 
   useEffect(() => {
     KeyStorageService.getApiKey().then((stored) => {
@@ -50,40 +48,62 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   }, []);
 
   const handleSaveGeminiKey = async () => {
-    if (!apiKey.trim()) {
-      setIsStatusError(true);
-      setStatusMessage("Please enter a valid Gemini API key before saving.");
-      return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    const trimmed = apiKey.trim();
+    if (trimmed.length > 0) {
+      await KeyStorageService.setApiKey(trimmed);
+      setStatusMessage("Clave Gemini guardada con seguridad.");
+      setIsStatusError(false);
+    } else {
+      await KeyStorageService.clearApiKey();
+      setStatusMessage("Clave Gemini eliminada.");
+      setIsStatusError(false);
     }
-    await KeyStorageService.setApiKey(apiKey);
-    setIsStatusError(false);
-    setStatusMessage("Gemini API key saved securely on device.");
   };
 
   const handleClearGeminiKey = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     await KeyStorageService.clearApiKey();
     setApiKey("");
+    setStatusMessage("Clave Gemini borrada.");
     setIsStatusError(false);
-    setStatusMessage("Gemini API key cleared from device.");
   };
 
   const handleTestGeminiKey = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     setIsTestingKey(true);
-    setStatusMessage("Testing Gemini API key...");
-    setIsStatusError(false);
+    setStatusMessage(null);
     try {
-      const result = await KeyStorageService.testApiKey(apiKey);
-      setIsStatusError(!result.valid);
-      setStatusMessage(result.message);
+      const activeKey = apiKey.trim() || (await KeyStorageService.getApiKey());
+      if (!activeKey) {
+        setStatusMessage("Por favor ingresa una clave de API primero.");
+        setIsStatusError(true);
+        setIsTestingKey(false);
+        return;
+      }
+      const resp = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models?key=${activeKey}`
+      );
+      if (resp.ok) {
+        setStatusMessage("Clave de Gemini válida.");
+        setIsStatusError(false);
+      } else {
+        const data = await resp.json().catch(() => ({}));
+        setStatusMessage(
+          `Error en API (${resp.status}): ${data?.error?.message || "Clave no válida"}`
+        );
+        setIsStatusError(true);
+      }
+    } catch (err: any) {
+      setStatusMessage(`Error de red: ${err?.message || "No se pudo conectar"}`);
+      setIsStatusError(true);
     } finally {
       setIsTestingKey(false);
     }
   };
 
   const handleSaveSettings = async () => {
-    if (apiKey.trim()) {
-      await KeyStorageService.setApiKey(apiKey);
-    }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     await saveUserPreferences({
       deepgram_api_key: deepgramKey.trim(),
       target_learning_goal: learningGoal.trim(),
@@ -102,60 +122,85 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
     "tinta",
     "folio",
   ];
-  const appThemeKeys: AppThemeId[] = ["cobalto_crema", "tinta_papel"];
 
   return (
     <ScrollView
-      style={[styles.container, { backgroundColor: appTheme.colors.bgApp }]}
+      style={[styles.container, { backgroundColor: skin.bg }]}
       contentContainerStyle={styles.content}
     >
+      {/* ──────────────── Encabezado de Configuración ──────────────── */}
       <View style={styles.headerRow}>
         <View style={styles.titleRow}>
-          <Settings size={18} color={appTheme.colors.accentPrimary} strokeWidth={2.0} />
-          <Text style={[styles.heading, appTheme.typography.display, { color: appTheme.colors.textPrimary }]}>
-            Engine & Pipeline Configuration
+          <Settings size={20} color={skin.primary} strokeWidth={2.0} />
+          <Text
+            style={[
+              styles.heading,
+              { color: skin.text, fontFamily: fonts.display },
+            ]}
+          >
+            CONFIGURACIÓN DEL SISTEMA
           </Text>
         </View>
         <TouchableOpacity
-          style={[styles.saveBtn, { backgroundColor: appTheme.colors.accentPrimary }]}
+          style={[
+            styles.saveBtn,
+            { backgroundColor: skin.primary, borderRadius: radius.pill },
+          ]}
           onPress={handleSaveSettings}
+          activeOpacity={0.8}
         >
-          <Check size={15} color="#FFFFFF" strokeWidth={2.2} />
-          <Text style={[styles.saveBtnText, appTheme.typography.bodyBold]}>{savedNotice ? "Saved!" : "Save Preferences"}</Text>
+          <Check size={15} color={skin.onPrimary} strokeWidth={2.2} />
+          <Text
+            style={[
+              styles.saveBtnText,
+              { color: skin.onPrimary, fontFamily: fonts.uiBold },
+            ]}
+          >
+            {savedNotice ? "Guardado" : "Guardar preferencias"}
+          </Text>
         </TouchableOpacity>
       </View>
 
-      {/* Vink Visual Identity & App Theme Switcher */}
+      {/* ──────────────── Skin del Tema de la App (Crema · Noche · Tinta) ──────────────── */}
       <View
         style={[
           styles.sectionCard,
           {
-            backgroundColor: appTheme.colors.bgCard,
-            borderColor: appTheme.colors.borderSubtle,
+            backgroundColor: skin.surface,
+            borderColor: skin.borderSoft,
+            borderWidth: border.soft,
+            borderRadius: radius.card,
           },
         ]}
       >
         <View style={styles.cardHeader}>
-          <Palette size={16} color={appTheme.colors.accentSecondary} strokeWidth={2.0} />
-          <Text style={[styles.cardTitle, appTheme.typography.bodyBold, { color: appTheme.colors.textPrimary }]}>
-            Vink Visual Identity & App Theme
+          <Palette size={16} color={skin.primary} strokeWidth={2.0} />
+          <Text
+            style={[
+              styles.cardTitle,
+              { color: skin.text, fontFamily: fonts.uiBold },
+            ]}
+          >
+            Tema y Apariencia de la Interfaz
           </Text>
         </View>
-        <Text style={[styles.cardDesc, appTheme.typography.body, { color: appTheme.colors.textSecondary }]}>
-          Alterna entre las tres skins oficiales y paletas de la aplicación para evaluar la estética, legibilidad y contraste en vivo.
+        <Text
+          style={[
+            styles.cardDesc,
+            { color: skin.textMuted, fontFamily: fonts.ui },
+          ]}
+        >
+          Alterna entre las tres skins oficiales para evaluar la estética, legibilidad y contraste en vivo.
         </Text>
 
-        <Text style={[styles.label, appTheme.typography.bodyBold, { color: appTheme.colors.textSecondary, marginTop: 4, marginBottom: 8 }]}>
-          Skin de la Interfaz (Tokens del Sistema)
-        </Text>
-        <View style={[styles.pillRow, { marginBottom: 16 }]}>
+        <View style={styles.pillRow}>
           {(["crema", "noche", "tinta"] as SkinId[]).map((skId) => {
             const sk = skins[skId];
             const isSelected = skinActivo === skId;
             const labels: Record<SkinId, string> = {
               crema: "Crema (Claro)",
-              noche: "Noche (Oscuro)",
-              tinta: "Tinta (Editorial)",
+              noche: "Noche (Oscuro técnico)",
+              tinta: "Tinta (Oscuro editorial)",
             };
             return (
               <TouchableOpacity
@@ -163,8 +208,10 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                 style={[
                   styles.choicePill,
                   {
-                    backgroundColor: isSelected ? sk.primary : appTheme.colors.pillInactiveBg,
-                    borderColor: isSelected ? sk.primary : appTheme.colors.borderSubtle,
+                    backgroundColor: isSelected ? skin.primary : skin.surfaceAlt,
+                    borderColor: isSelected ? skin.primary : skin.borderSoft,
+                    borderWidth: border.soft,
+                    borderRadius: radius.pill,
                   },
                 ]}
                 onPress={() => {
@@ -187,8 +234,10 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                   <Text
                     style={[
                       styles.choicePillText,
-                      isSelected ? appTheme.typography.bodyBold : appTheme.typography.body,
-                      { color: isSelected ? sk.onPrimary : appTheme.colors.textSecondary },
+                      {
+                        color: isSelected ? skin.onPrimary : skin.text,
+                        fontFamily: isSelected ? fonts.uiBold : fonts.ui,
+                      },
                     ]}
                   >
                     {labels[skId]}
@@ -198,141 +247,58 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
             );
           })}
         </View>
-
-        <Text style={[styles.label, appTheme.typography.bodyBold, { color: appTheme.colors.textSecondary, marginBottom: 8 }]}>
-          Dirección de Identidad Visual
-        </Text>
-
-        <View style={styles.themeCardsContainer}>
-          {appThemeKeys.map((key) => {
-            const config = APP_THEMES[key];
-            const isSelected = currentAppThemeId === key;
-            return (
-              <TouchableOpacity
-                key={key}
-                style={[
-                  styles.appThemeCard,
-                  {
-                    backgroundColor: isSelected ? config.colors.bgCardHover : config.colors.bgCard,
-                    borderColor: isSelected ? config.colors.borderActive : config.colors.borderSubtle,
-                  },
-                ]}
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-                  setAppTheme(key);
-                }}
-                activeOpacity={0.85}
-              >
-                <View style={styles.themeCardTop}>
-                  <View style={styles.themeTitleRow}>
-                    <Text
-                      style={[
-                        styles.themeName,
-                        config.typography.display,
-                        { color: config.colors.textPrimary },
-                      ]}
-                    >
-                      {config.name}
-                    </Text>
-                    <View style={styles.themeDirectionBadge}>
-                      <Text
-                        style={[
-                          styles.themeDirectionBadgeText,
-                          config.typography.monoBold,
-                        ]}
-                      >
-                        DIRECCIÓN {config.direction}
-                      </Text>
-                    </View>
-                  </View>
-                  {isSelected && (
-                    <View
-                      style={[
-                        styles.activeIndicatorBadge,
-                        { borderColor: config.colors.borderActive },
-                      ]}
-                    >
-                      <Check size={12} color={config.colors.accentPrimary} strokeWidth={2.4} />
-                      <Text
-                        style={[
-                          styles.activeIndicatorText,
-                          config.typography.monoBold,
-                          { color: config.colors.accentPrimary },
-                        ]}
-                      >
-                        ACTIVO
-                      </Text>
-                    </View>
-                  )}
-                </View>
-
-                <Text
-                  style={[
-                    styles.themeTagline,
-                    config.typography.displayItalic,
-                  ]}
-                >
-                  {config.tagline}
-                </Text>
-                <Text style={[styles.themeConcept, config.typography.body]}>
-                  {config.concept}
-                </Text>
-
-                <View style={styles.swatchesRow}>
-                  {config.colors.swatches.map((swatch, idx) => (
-                    <View
-                      key={idx}
-                      style={[
-                        styles.swatchCircle,
-                        { backgroundColor: swatch },
-                        swatch === config.colors.bgApp && {
-                          borderColor: "rgba(255, 255, 255, 0.4)",
-                        },
-                      ]}
-                    />
-                  ))}
-                </View>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
       </View>
 
+      {/* ──────────────── Gemini API Configuration (BYOK) ──────────────── */}
       <View
         style={[
           styles.sectionCard,
           {
-            backgroundColor: appTheme.colors.bgCard,
-            borderColor: appTheme.colors.borderSubtle,
+            backgroundColor: skin.surface,
+            borderColor: skin.borderSoft,
+            borderWidth: border.soft,
+            borderRadius: radius.card,
           },
         ]}
       >
         <View style={styles.cardHeader}>
-          <BrainCircuit size={15} color="#10B981" strokeWidth={2.0} />
-          <Text style={[styles.cardTitle, appTheme.typography.bodyBold, { color: appTheme.colors.textPrimary }]}>
-            Gemini API Configuration (BYOK)
+          <BrainCircuit size={16} color={skin.primary} strokeWidth={2.0} />
+          <Text
+            style={[
+              styles.cardTitle,
+              { color: skin.text, fontFamily: fonts.uiBold },
+            ]}
+          >
+            Configuración API de Gemini
           </Text>
         </View>
-        <Text style={[styles.cardDesc, appTheme.typography.body, { color: appTheme.colors.textSecondary }]}>
-          Stored locally in Android hardware Keystore (`expo-secure-store`) and sent via `x-gemini-api-key` during compilation.
+        <Text
+          style={[
+            styles.cardDesc,
+            { color: skin.textMuted, fontFamily: fonts.ui },
+          ]}
+        >
+          Almacenada con cifrado localmente en Android Keystore y enviada como x-gemini-api-key durante la compilación.
         </Text>
 
         <View style={styles.keyInputRow}>
           <TextInput
             style={[
               styles.input,
-              appTheme.typography.body,
               {
                 flex: 1,
-                backgroundColor: appTheme.colors.bgInput,
-                borderColor: appTheme.colors.borderSubtle,
-                color: appTheme.colors.textPrimary,
+                backgroundColor: skin.bg,
+                borderColor: skin.borderSoft,
+                color: skin.text,
+                fontFamily: fonts.ui,
+                borderWidth: border.soft,
+                borderRadius: radius.card,
               },
             ]}
             value={apiKey}
             onChangeText={setApiKey}
             placeholder="AIzaSy..."
-            placeholderTextColor="#64748B"
+            placeholderTextColor={skin.textMuted}
             secureTextEntry={isMasked}
             autoCapitalize="none"
             autoCorrect={false}
@@ -341,38 +307,78 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
             style={[
               styles.maskToggleBtn,
               {
-                backgroundColor: appTheme.colors.pillInactiveBg,
-                borderColor: appTheme.colors.borderSubtle,
+                backgroundColor: skin.surfaceAlt,
+                borderColor: skin.borderSoft,
+                borderWidth: border.soft,
+                borderRadius: radius.pill,
               },
             ]}
             onPress={() => setIsMasked((prev) => !prev)}
+            activeOpacity={0.75}
           >
-            <Text style={[styles.maskToggleText, appTheme.typography.bodyBold, { color: appTheme.colors.textSecondary }]}>
-              {isMasked ? "Show" : "Hide"}
+            <Text
+              style={[
+                styles.maskToggleText,
+                { color: skin.textMuted, fontFamily: fonts.uiBold },
+              ]}
+            >
+              {isMasked ? "Mostrar" : "Ocultar"}
             </Text>
           </TouchableOpacity>
         </View>
 
         <View style={styles.keyActionsRow}>
-          <TouchableOpacity style={styles.keyPrimaryBtn} onPress={handleSaveGeminiKey}>
-            <Check size={14} color="#FFFFFF" strokeWidth={2.2} />
-            <Text style={[styles.keyBtnText, appTheme.typography.bodyBold]}>Save Key</Text>
-          </TouchableOpacity>
-
           <TouchableOpacity
-            style={styles.keyTestBtn}
-            onPress={handleTestGeminiKey}
-            disabled={isTestingKey}
+            style={[
+              styles.keyPrimaryBtn,
+              { backgroundColor: skin.primary, borderRadius: radius.pill },
+            ]}
+            onPress={handleSaveGeminiKey}
+            activeOpacity={0.8}
           >
-            <Sparkles size={14} color="#38BDF8" strokeWidth={2.0} />
-            <Text style={[styles.keyBtnText, appTheme.typography.bodyBold, { color: "#38BDF8" }]}>
-              {isTestingKey ? "Testing..." : "Test Key"}
+            <Check size={14} color={skin.onPrimary} strokeWidth={2.2} />
+            <Text style={[styles.keyBtnText, { color: skin.onPrimary, fontFamily: fonts.uiBold }]}>
+              Guardar clave
             </Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.keyClearBtn} onPress={handleClearGeminiKey}>
-            <Trash2 size={14} color="#EF4444" strokeWidth={2.0} />
-            <Text style={[styles.keyBtnText, appTheme.typography.bodyBold, { color: "#EF4444" }]}>Clear Key</Text>
+          <TouchableOpacity
+            style={[
+              styles.keyTestBtn,
+              {
+                backgroundColor: skin.surfaceAlt,
+                borderColor: skin.primary,
+                borderWidth: border.soft,
+                borderRadius: radius.pill,
+              },
+            ]}
+            onPress={handleTestGeminiKey}
+            disabled={isTestingKey}
+            activeOpacity={0.8}
+          >
+            <Sparkles size={14} color={skin.primary} strokeWidth={2.0} />
+            <Text style={[styles.keyBtnText, { color: skin.primary, fontFamily: fonts.uiBold }]}>
+              {isTestingKey ? "Probando..." : "Probar clave"}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.keyClearBtn,
+              {
+                backgroundColor: `${skin.alert}14`,
+                borderColor: skin.alert,
+                borderWidth: border.soft,
+                borderRadius: radius.pill,
+              },
+            ]}
+            onPress={handleClearGeminiKey}
+            activeOpacity={0.8}
+          >
+            <Trash2 size={14} color={skin.alert} strokeWidth={2.0} />
+            <Text style={[styles.keyBtnText, { color: skin.alert, fontFamily: fonts.uiBold }]}>
+              Borrar
+            </Text>
           </TouchableOpacity>
         </View>
 
@@ -380,14 +386,21 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
           <View
             style={[
               styles.statusBanner,
-              isStatusError ? styles.statusBannerError : styles.statusBannerOk,
+              {
+                backgroundColor: isStatusError ? `${skin.alert}18` : `${skin.success}18`,
+                borderColor: isStatusError ? skin.alert : skin.success,
+                borderWidth: border.soft,
+                borderRadius: radius.card,
+              },
             ]}
           >
             <Text
               style={[
                 styles.statusText,
-                appTheme.typography.mono,
-                isStatusError ? { color: "#FCA5A5" } : { color: "#6EE7B7" },
+                {
+                  color: isStatusError ? skin.alert : skin.success,
+                  fontFamily: fonts.mono,
+                },
               ]}
             >
               {statusMessage}
@@ -396,144 +409,218 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
         )}
       </View>
 
+      {/* ──────────────── Deepgram Nova-3 Audio Thinking Stream ──────────────── */}
       <View
         style={[
           styles.sectionCard,
           {
-            backgroundColor: appTheme.colors.bgCard,
-            borderColor: appTheme.colors.borderSubtle,
+            backgroundColor: skin.surface,
+            borderColor: skin.borderSoft,
+            borderWidth: border.soft,
+            borderRadius: radius.card,
           },
         ]}
       >
         <View style={styles.cardHeader}>
-          <Mic size={15} color="#38BDF8" strokeWidth={2.0} />
-          <Text style={[styles.cardTitle, appTheme.typography.bodyBold, { color: appTheme.colors.textPrimary }]}>
-            Deepgram Nova-3 Audio Thinking Stream
+          <Mic size={16} color={skin.primary} strokeWidth={2.0} />
+          <Text
+            style={[
+              styles.cardTitle,
+              { color: skin.text, fontFamily: fonts.uiBold },
+            ]}
+          >
+            Deepgram Nova-3 (Audio y Explicaciones)
           </Text>
         </View>
-        <Text style={[styles.cardDesc, appTheme.typography.body, { color: appTheme.colors.textSecondary }]}>
-          Utilizada por la píldora contextual del lazo (Mic) para transcribir hasta 45s de razonamiento causal verbal.
+        <Text
+          style={[
+            styles.cardDesc,
+            { color: skin.textMuted, fontFamily: fonts.ui },
+          ]}
+        >
+          Utilizada para transcribir hasta 45s de razonamiento verbal y Thinking Memos asociados al lazo.
         </Text>
         <TextInput
           style={[
             styles.input,
-            appTheme.typography.body,
             {
-              backgroundColor: appTheme.colors.bgInput,
-              borderColor: appTheme.colors.borderSubtle,
-              color: appTheme.colors.textPrimary,
+              backgroundColor: skin.bg,
+              borderColor: skin.borderSoft,
+              color: skin.text,
+              fontFamily: fonts.ui,
+              borderWidth: border.soft,
+              borderRadius: radius.card,
             },
           ]}
           value={deepgramKey}
           onChangeText={setDeepgramKey}
-          placeholder="dg_api_key_... (or EXPO_PUBLIC_DEEPGRAM_API_KEY)"
-          placeholderTextColor="#64748B"
+          placeholder="dg_api_key_... (o EXPO_PUBLIC_DEEPGRAM_API_KEY)"
+          placeholderTextColor={skin.textMuted}
           secureTextEntry
         />
       </View>
 
+      {/* ──────────────── Prerequisite Dependency Planner Goal ──────────────── */}
       <View
         style={[
           styles.sectionCard,
           {
-            backgroundColor: appTheme.colors.bgCard,
-            borderColor: appTheme.colors.borderSubtle,
+            backgroundColor: skin.surface,
+            borderColor: skin.borderSoft,
+            borderWidth: border.soft,
+            borderRadius: radius.card,
           },
         ]}
       >
         <View style={styles.cardHeader}>
-          <Sparkles size={15} color="#F59E0B" strokeWidth={2.0} />
-          <Text style={[styles.cardTitle, appTheme.typography.bodyBold, { color: appTheme.colors.textPrimary }]}>
-            Prerequisite Dependency Planner Goal
+          <ShieldCheck size={16} color={skin.warm} strokeWidth={2.0} />
+          <Text
+            style={[
+              styles.cardTitle,
+              { color: skin.text, fontFamily: fonts.uiBold },
+            ]}
+          >
+            Objetivo de Aprendizaje (LearnHarness)
           </Text>
         </View>
-        <Text style={[styles.cardDesc, appTheme.typography.body, { color: appTheme.colors.textSecondary }]}>
-          Target competency evaluated against your verified Knowledge Matrix nodes.
+        <Text
+          style={[
+            styles.cardDesc,
+            { color: skin.textMuted, fontFamily: fonts.ui },
+          ]}
+        >
+          Competencia evaluada en relación con los nodos y relaciones causales verificadas.
         </Text>
         <TextInput
           style={[
             styles.input,
-            appTheme.typography.body,
             {
-              backgroundColor: appTheme.colors.bgInput,
-              borderColor: appTheme.colors.borderSubtle,
-              color: appTheme.colors.textPrimary,
+              backgroundColor: skin.bg,
+              borderColor: skin.borderSoft,
+              color: skin.text,
+              fontFamily: fonts.ui,
+              borderWidth: border.soft,
+              borderRadius: radius.card,
             },
           ]}
           value={learningGoal}
           onChangeText={setLearningGoal}
-          placeholder="Define your target technical competency..."
-          placeholderTextColor="#64748B"
+          placeholder="Define tu objetivo técnico de estudio..."
+          placeholderTextColor={skin.textMuted}
         />
       </View>
 
+      {/* ──────────────── Hardware S-Pen & Dock Magnético ──────────────── */}
       <View
         style={[
           styles.sectionCard,
           {
-            backgroundColor: appTheme.colors.bgCard,
-            borderColor: appTheme.colors.borderSubtle,
+            backgroundColor: skin.surface,
+            borderColor: skin.borderSoft,
+            borderWidth: border.soft,
+            borderRadius: radius.card,
           },
         ]}
       >
-        <Text style={[styles.cardTitle, appTheme.typography.bodyBold, { color: appTheme.colors.textPrimary }]}>
-          S-Pen Hardware & Magnetic Dock
+        <Text
+          style={[
+            styles.cardTitle,
+            { color: skin.text, fontFamily: fonts.uiBold },
+          ]}
+        >
+          Hardware S-Pen & Barra Magnética
         </Text>
         <View style={styles.rowBetween}>
-          <Text style={[styles.label, appTheme.typography.bodyBold, { color: appTheme.colors.textSecondary }]}>
-            Strict S-Pen Palm Rejection (Stylus Only)
+          <Text
+            style={[
+              styles.label,
+              { color: skin.textMuted, fontFamily: fonts.uiBold },
+            ]}
+          >
+            Rechazo de palma estricto (Solo S-Pen)
           </Text>
           <TouchableOpacity
             style={[
               styles.toggleBtn,
               {
-                backgroundColor: appTheme.colors.pillInactiveBg,
-                borderColor: appTheme.colors.borderSubtle,
+                backgroundColor: stylusOnly ? skin.primary : skin.surfaceAlt,
+                borderColor: stylusOnly ? skin.primary : skin.borderSoft,
+                borderWidth: border.soft,
+                borderRadius: radius.pill,
               },
-              stylusOnly && styles.toggleBtnActive,
             ]}
             onPress={onToggleStylusOnly}
+            activeOpacity={0.8}
           >
-            <Text style={[styles.toggleText, appTheme.typography.monoBold]}>
-              {stylusOnly ? "ENABLED" : "DISABLED"}
+            <Text
+              style={[
+                styles.toggleText,
+                {
+                  color: stylusOnly ? skin.onPrimary : skin.textMuted,
+                  fontFamily: fonts.monoBold,
+                },
+              ]}
+            >
+              {stylusOnly ? "ACTIVADO" : "DESACTIVADO"}
             </Text>
           </TouchableOpacity>
         </View>
 
-        <Text style={[styles.label, appTheme.typography.bodyBold, { color: appTheme.colors.textSecondary, marginTop: 12, marginBottom: 6 }]}>
-          Magnetic Toolbar Dock Edge
+        <Text
+          style={[
+            styles.label,
+            { color: skin.textMuted, fontFamily: fonts.uiBold, marginTop: 14, marginBottom: 8 },
+          ]}
+        >
+          Borde de acoplamiento magnético de la barra
         </Text>
         <View style={styles.pillRow}>
           {dockEdges.map((edge) => {
             const isSelected = toolbarDockEdge === edge;
+            const labels: Record<ToolbarDockEdge, string> = {
+              left: "IZQUIERDA",
+              right: "DERECHA",
+              top: "SUPERIOR",
+              bottom: "INFERIOR",
+            };
             return (
               <TouchableOpacity
                 key={edge}
                 style={[
                   styles.choicePill,
                   {
-                    backgroundColor: isSelected ? appTheme.colors.accentPrimary : appTheme.colors.pillInactiveBg,
-                    borderColor: isSelected ? appTheme.colors.accentPrimary : appTheme.colors.borderSubtle,
+                    backgroundColor: isSelected ? skin.primary : skin.surfaceAlt,
+                    borderColor: isSelected ? skin.primary : skin.borderSoft,
+                    borderWidth: border.soft,
+                    borderRadius: radius.pill,
                   },
                 ]}
                 onPress={() => onChangeDockEdge(edge)}
+                activeOpacity={0.8}
               >
                 <Text
                   style={[
                     styles.choicePillText,
-                    isSelected ? appTheme.typography.bodyBold : appTheme.typography.body,
-                    { color: isSelected ? "#FFFFFF" : appTheme.colors.textSecondary },
+                    {
+                      color: isSelected ? skin.onPrimary : skin.textMuted,
+                      fontFamily: isSelected ? fonts.uiBold : fonts.ui,
+                    },
                   ]}
                 >
-                  {edge.toUpperCase()}
+                  {labels[edge]}
                 </Text>
               </TouchableOpacity>
             );
           })}
         </View>
 
-        <Text style={[styles.label, appTheme.typography.bodyBold, { color: appTheme.colors.textSecondary, marginTop: 14, marginBottom: 6 }]}>
-          Canvas Paper Theme Preset ({themes.length} Presets)
+        <Text
+          style={[
+            styles.label,
+            { color: skin.textMuted, fontFamily: fonts.uiBold, marginTop: 16, marginBottom: 8 },
+          ]}
+        >
+          Preset de Papel del Lienzo (4 presets)
         </Text>
         <View style={styles.pillRow}>
           {themes.map((t) => {
@@ -545,14 +632,17 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                 style={[
                   styles.choicePill,
                   {
-                    backgroundColor: isSelected ? appTheme.colors.accentPrimary : appTheme.colors.pillInactiveBg,
-                    borderColor: isSelected ? appTheme.colors.accentPrimary : appTheme.colors.borderSubtle,
+                    backgroundColor: isSelected ? skin.primary : skin.surfaceAlt,
+                    borderColor: isSelected ? skin.primary : skin.borderSoft,
+                    borderWidth: border.soft,
+                    borderRadius: radius.pill,
                   },
                 ]}
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
                   onSelectTheme(t);
                 }}
+                activeOpacity={0.8}
               >
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                   <View
@@ -568,8 +658,10 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                   <Text
                     style={[
                       styles.choicePillText,
-                      isSelected ? appTheme.typography.bodyBold : appTheme.typography.body,
-                      { color: isSelected ? "#FFFFFF" : appTheme.colors.textSecondary },
+                      {
+                        color: isSelected ? skin.onPrimary : skin.textMuted,
+                        fontFamily: isSelected ? fonts.uiBold : fonts.ui,
+                      },
                     ]}
                   >
                     {config.label}
@@ -583,3 +675,72 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
     </ScrollView>
   );
 };
+
+const styles = StyleSheet.create({
+  container: { flex: 1 },
+  content: { padding: 24, paddingBottom: 48, gap: 16 },
+  headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  titleRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  heading: { fontSize: 20, letterSpacing: 0.6 },
+  saveBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    gap: 6,
+  },
+  saveBtnText: { fontSize: 12 },
+  sectionCard: {
+    padding: 18,
+    gap: 12,
+  },
+  cardHeader: { flexDirection: "row", alignItems: "center", gap: 8 },
+  cardTitle: { fontSize: 14 },
+  cardDesc: { fontSize: 12, lineHeight: 17 },
+  label: { fontSize: 12 },
+  pillRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  choicePill: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
+  choicePillText: { fontSize: 11 },
+  keyInputRow: { flexDirection: "row", gap: 8, alignItems: "center" },
+  input: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 13,
+  },
+  maskToggleBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  maskToggleText: { fontSize: 11 },
+  keyActionsRow: { flexDirection: "row", gap: 8, marginTop: 4 },
+  keyPrimaryBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    gap: 6,
+  },
+  keyTestBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    gap: 6,
+  },
+  keyClearBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    gap: 6,
+  },
+  keyBtnText: { fontSize: 11 },
+  statusBanner: { padding: 10, marginTop: 4 },
+  statusText: { fontSize: 11 },
+  rowBetween: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  toggleBtn: { paddingHorizontal: 12, paddingVertical: 6 },
+  toggleText: { fontSize: 10, letterSpacing: 0.8 },
+});
