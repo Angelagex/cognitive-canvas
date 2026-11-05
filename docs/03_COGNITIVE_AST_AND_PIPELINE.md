@@ -157,7 +157,7 @@ Una limitación habitual en aplicaciones de notas convencionales es sobrecargar 
 Cognitive Canvas implementa una **separación ortogonal estricta**:
 1. **El Color del Trazo (`stroke.color`) se subordina exclusivamente al Contraste Ergonómico:**
    - Las paletas de colores persisten independientemente por tema de papel (`theme_palettes` en `user_preferences.json`).
-   - Cada preset de fondo (`dark_slate`, `charcoal_dark`, `warm_ivory`, `pure_white`) ofrece únicamente tintas calibradas con ratios de contraste WCAG AAA para garantizar legibilidad prolongada y descanso visual.
+   - Cada preset de fondo (`crema`, `niebla`, `obsidiana`, `tinta`, `pizarra`) ofrece únicamente tintas calibradas con ratios de contraste WCAG AAA para garantizar legibilidad prolongada y descanso visual.
 2. **La Semántica Cognitiva reside en el Visual AST (`visual_ast_layer.attributes`):**
    - El rol funcional de un nodo (Mecanismo Causal, Analogía, Evidencia) se asigna a través de la taxonomía PACER y se manifiesta mediante los **Under-Glow Shaders** difusos y las **Micro-Insignias** ancladas.
    - Un concepto atribuido como `CAUSAL_MECHANISM` conservará su resplandor azul característico y su insignia `⚙️` independientemente de si el trazo de tinta original fue dibujado en blanco hueso, tiza suave o negro pizarra.

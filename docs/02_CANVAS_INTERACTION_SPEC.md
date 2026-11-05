@@ -149,19 +149,39 @@ Para enriquecer el modelado visual sin degradar el rendimiento ni introducir cap
 
 ---
 
-## 4. Sistemas de Papel y Paletas Armónicas
+## 4. Sistemas de Papel y Paletas Armónicas (5 Presets Canónicos)
 
-El lienzo abandona los colores planos genéricos e implementa cuatro fondos diseñados para ergonomía óptica prolongada, cada uno con su tríada de tintas favoritas contextuales:
+El lienzo abandona los colores planos genéricos e implementa **cinco papeles canónicos** calibrados matemáticamente para garantizar descanso visual y máxima legibilidad, sujetos a las siguientes restricciones normativas:
+- **Puntos de retícula:** Ratio de contraste $\approx 1.5:1$ respecto al fondo.
+- **Tinta principal (texto):** Ratio de contraste $\ge 13:1$ (cumplimiento holgado de WCAG AAA).
+- **Tríada de favoritos:** Cada color secundario/acento tiene contraste $\ge 4.5:1$.
+- **Diferenciabilidad perceptual:** Cada terna de lápices mantiene una distancia cromática $\Delta E \ge 35$.
 
-| Preset ID | Fondo | Tinta Principal (Texto) | Tinta Secundaria (Relaciones) | Tinta de Acento (Destacado) | Retícula |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| `dark_slate` | Pizarra Azulada (`#0F172A`) | Blanco Hueso (`#F8FAFC`) | Azul Eléctrico (`#38BDF8`) | Rosa Carmín (`#F43F5E`) | Puntos (`#27354A`) |
-| `charcoal_dark` | Grafito Carbón (`#18181B`) | Tiza Suave (`#F4F4F5`) | Verde Esmeralda (`#34D399`) | Ámbar Dorado (`#FBBF24`) | Puntos (`#27272A`) |
-| `warm_ivory` | Marfil Cálido (`#FBF9F5`) | Carbón Pizarra (`#1E293B`) | Azul Zafiro (`#1D4ED8`) | Borgoña Vino (`#BE123C`) | Guías (`#E5DEC9`) |
-| `pure_white` | Blanco Puro (`#FFFFFF`) | Negro Pizarra (`#0F172A`) | Azul Cian (`#0284C7`) | Carmesí Vivo (`#E11D48`) | Cuadrícula (`#E2E8F0`) |
+| Preset ID | Nombre | Fondo | Tinta Principal (Texto) | Tinta Secundaria (Relaciones) | Tinta de Acento (Destacado) | Puntos / Retícula |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| `crema` | **Cobalto y Crema** | `#F3EDE0` | `#0C0E14` (16.5:1) | `#2F3DFF` (5.6:1) | `#C92500` (4.8:1) | Puntos `#C9C5BB` (1.48:1) |
+| `niebla` | **Niebla** | `#E8ECF3` | `#151B2B` (14.5:1) | `#2F3DFF` (5.5:1) | `#267458` (4.8:1) | Puntos `#C0C4CD` (1.47:1) |
+| `obsidiana` | **Obsidiana** | `#0C0E14` | `#F3EDE0` (16.5:1) | `#6471FF` (4.9:1) | `#FFB320` (10.8:1) | Puntos `#363639` (1.60:1) |
+| `tinta` | **Tinta y Papel** | `#10142A` | `#F3EEE3` (15.7:1) | `#7C93FF` (6.5:1) | `#FF6B4A` (6.5:1) | Puntos `#393B4B` (1.65:1) |
+| `pizarra` | **Pizarra** | `#15241F` | `#EFEBDD` (13.5:1) | `#7FD6B0` (9.3:1) | `#F2C75C` (10.0:1) | Puntos `#3A463F` (1.63:1) |
 
-### Sincronización Dinámica
-Al cambiar el preset de fondo del lienzo, la barra de herramientas (`GoodnotesToolbar`) actualiza automáticamente sus slots de color rápido para mantener el contraste óptimo y la armonía visual sin requerir ajustes manuales por parte del estudiante.
+### 4.1 Sincronización Dinámica y Memoria por Lienzo
+* **Contextualización Inmediata:** Al alternar el papel en `PaperTemplatePopover`, la barra de herramientas (`GoodnotesToolbar`) actualiza reactivamente su slot de tinta activa y sus 3 accesos directos favoritos.
+* **Persistencia en Documento `.cmn`:** Cada lienzo almacena su propio `canvas_theme` y `background_type` en sus metadatos. Al abrir cualquier mapa guardado, el lienzo restaura fielmente el papel con el que fue diseñado.
+* **Preset por Defecto para Nuevos Lienzos:** Desde la pestaña de Configuración (`SettingsTab`), el usuario elige el tema inicial predeterminado (`default_theme`), garantizando que cada nuevo lienzo creado nazca con el papel preferido por el estudiante.
+* **Migración Automática de Esquemas Legados:**
+  Para salvaguardar la retrocompatibilidad sin duplicar opciones en los selectores visuales:
+  - `crema` / `warm_ivory` $\rightarrow$ `crema`
+  - `folio` / `pure_white` $\rightarrow$ `niebla`
+  - `cobalto_crema` / `noche` / `charcoal_dark` $\rightarrow$ `obsidiana`
+  - `dark_slate` / `tinta_papel` $\rightarrow$ `tinta`
+  - `pizarra` $\rightarrow$ `pizarra`
+
+### 4.2 Invariante de Centrado Tipográfico en Android
+Para mitigar el defecto nativo del runtime de Android donde `includeFontPadding: true` agrega relleno vertical asimétrico a fuentes como *Barlow Condensed*, *Plus Jakarta Sans* y *Space Mono*, todo componente de interfaz con iconos y texto alineado horizontalmente implementa obligatoriamente:
+- `includeFontPadding: false`
+- `textAlignVertical: "center"`
+- Contenedores con `alignItems: "center"` y `justifyContent: "center"`
 
 ---
 

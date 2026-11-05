@@ -1,3 +1,4 @@
+
 # 01. Arquitectura del Motor y Sistema de Invariantes Espaciales
 
 ## 1. Stack Tecnológico
@@ -187,8 +188,9 @@ El formato de guardado universal de los mapas en Cognitive Canvas utiliza la ext
   "title": "Fotosíntesis y Transporte de Electrones",
   "updatedAt": "2026-10-11T23:15:00Z",
   "canvas": {
-    "backgroundColor": "#0F172A",
-    "themePreset": "dark_slate",
+    "backgroundColor": "#F3EDE0",
+    "themePreset": "crema",
+    "backgroundType": "dot_grid",
     "scale": 1.0,
     "translateX": 0.0,
     "translateY": 0.0
@@ -274,21 +276,28 @@ Para mantener una experiencia ergonómica personalizada e instantánea entre ses
     "laser": 16.0,
     "pan": 4.0
   },
+  "default_theme": "crema",
   "theme_palettes": {
-    "dark_slate": ["#F8FAFC", "#38BDF8", "#F43F5E"],
-    "charcoal_dark": ["#F4F4F5", "#34D399", "#FBBF24"],
-    "warm_ivory": ["#1E293B", "#1D4ED8", "#BE123C"],
-    "pure_white": ["#0F172A", "#0284C7", "#E11D48"]
+    "crema": ["#0C0E14", "#2F3DFF", "#C92500"],
+    "niebla": ["#151B2B", "#2F3DFF", "#267458"],
+    "obsidiana": ["#F3EDE0", "#6471FF", "#FFB320"],
+    "tinta": ["#F3EEE3", "#7C93FF", "#FF6B4A"],
+    "pizarra": ["#EFEBDD", "#7FD6B0", "#F2C75C"]
   }
 }
 ```
 
 1. **Posición de Acoplamiento Magnético (`toolbar_dock_edge`):**
    Persiste el borde de anclaje físico de la barra (`"left" | "right" | "top" | "bottom"`), restaurándola en su posición exacta al reabrir la app.
-2. **Memoria de Grosor por Herramienta (`tool_widths`):**
+2. **Preset de Papel por Defecto (`default_theme`):**
+   Determina el tema de fondo (`"crema" | "niebla" | "obsidiana" | "tinta" | "pizarra"`) con el que se inicializan los nuevos lienzos creados desde el Hub o desde el menú de documentos.
+3. **Memoria de Grosor por Herramienta (`tool_widths`):**
    Elimina reseteos arbitrarios al alternar entre herramientas. Cada instrumento (`pen`, `highlighter`, `eraser`, etc.) retiene su grosor independiente calibrado por el usuario.
-3. **Paletas Favoritas por Tema de Fondo (`theme_palettes`):**
-   Mantiene la tríada de tintas preferidas de forma contextual para cada uno de los 4 temas de papel (`dark_slate`, `charcoal_dark`, `warm_ivory`, `pure_white`). Al cambiar de fondo, se cargan los colores asignados a ese papel específico para salvaguardar el contraste y la armonía visual.
+4. **Paletas Favoritas por Tema de Fondo (`theme_palettes`):**
+   Mantiene la tríada de tintas preferidas de forma contextual para cada uno de los 5 temas de papel canónicos (`crema`, `niebla`, `obsidiana`, `tinta`, `pizarra`). Al cambiar de fondo, se cargan los colores asignados a ese papel específico para salvaguardar el contraste y la armonía visual.
+5. **Invariante de Migración de Presets (`migrateCanvasTheme`):**
+   Cualquier identificador heredado en bases de datos o archivos `.cmn` antiguos es normalizado en tiempo de ejecución:
+   `crema` / `warm_ivory` $\rightarrow$ `crema`; `folio` / `pure_white` $\rightarrow$ `niebla`; `cobalto_crema` / `noche` / `charcoal_dark` $\rightarrow$ `obsidiana`; `dark_slate` / `tinta_papel` $\rightarrow$ `tinta`; `pizarra` $\rightarrow$ `pizarra`.
 
 ---
 
