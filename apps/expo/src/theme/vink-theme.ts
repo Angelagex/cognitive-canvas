@@ -143,12 +143,15 @@ export const skins: Record<SkinId, Skin> = {
   },
 };
 
-// Presets de papel del lienzo (4 presets canónicos; removidos Pizarra Azulada y Marfil Cálido)
+// Presets de papel del lienzo (5 presets canónicos)
 export const canvasPapers = {
-  crema: { id: 'crema', label: 'Cobalto y Crema', bg: palette.cream, ink: palette.inkBlack, grid: palette.inkBlack + '22', isDark: false },
-  noche: { id: 'noche', label: 'Noche Obsidiana', bg: palette.night, ink: palette.cream, grid: palette.cream + '22', isDark: true },
-  tinta: { id: 'tinta', label: 'Tinta y Papel', bg: palette.ink, ink: palette.paper, grid: palette.paper + '22', isDark: true },
-  folio: { id: 'folio', label: 'Blanco Puro', bg: '#FFFFFF', ink: '#111111', grid: '#E2E8F0', isDark: false },
+  crema: { id: 'crema', label: 'Cobalto y Crema', bg: '#F3EDE0', ink: '#0C0E14', grid: '#C9C5BB', isDark: false },
+  niebla: { id: 'niebla', label: 'Niebla', bg: '#E8ECF3', ink: '#151B2B', grid: '#C0C4CD', isDark: false },
+  obsidiana: { id: 'obsidiana', label: 'Obsidiana', bg: '#0C0E14', ink: '#F3EDE0', grid: '#363639', isDark: true },
+  tinta: { id: 'tinta', label: 'Tinta y Papel', bg: '#10142A', ink: '#F3EEE3', grid: '#393B4B', isDark: true },
+  pizarra: { id: 'pizarra', label: 'Pizarra', bg: '#15241F', ink: '#EFEBDD', grid: '#3A463F', isDark: true },
+  // Alias for skin "noche" mapping to obsidiana paper
+  noche: { id: 'obsidiana', label: 'Obsidiana', bg: '#0C0E14', ink: '#F3EDE0', grid: '#363639', isDark: true },
 } as const;
 
 export type CanvasPaperPreset = keyof typeof canvasPapers;
@@ -191,15 +194,15 @@ export const fonts = {
 
 export const type = {
   // escala: 12 · 14 · 16 · 20 · 28 · 40 · 64 · 96
-  display96: { fontFamily: fonts.display, fontWeight: 'normal' as const, fontSize: 96, lineHeight: 94, textTransform: 'uppercase' as const, letterSpacing: -1 },
-  display64: { fontFamily: fonts.display, fontWeight: 'normal' as const, fontSize: 64, lineHeight: 62, textTransform: 'uppercase' as const, letterSpacing: -0.5 },
-  display40: { fontFamily: fonts.display, fontWeight: 'normal' as const, fontSize: 40, lineHeight: 40, textTransform: 'uppercase' as const },
-  title28: { fontFamily: fonts.display, fontWeight: 'normal' as const, fontSize: 28, lineHeight: 29, textTransform: 'uppercase' as const },
-  title20: { fontFamily: fonts.uiBold, fontWeight: 'normal' as const, fontSize: 20, lineHeight: 26 },
-  body16: { fontFamily: fonts.ui, fontWeight: 'normal' as const, fontSize: 16, lineHeight: 24 },
-  body14: { fontFamily: fonts.ui, fontWeight: 'normal' as const, fontSize: 14, lineHeight: 21 },
-  label12: { fontFamily: fonts.mono, fontWeight: 'normal' as const, fontSize: 12, lineHeight: 16, letterSpacing: 1, textTransform: 'uppercase' as const },
-  micro10: { fontFamily: fonts.monoBold, fontWeight: 'normal' as const, fontSize: 10, lineHeight: 14, letterSpacing: 1.2, textTransform: 'uppercase' as const },
+  display96: { fontFamily: fonts.display, fontWeight: 'normal' as const, fontSize: 96, lineHeight: 94, textTransform: 'uppercase' as const, letterSpacing: -1, includeFontPadding: false },
+  display64: { fontFamily: fonts.display, fontWeight: 'normal' as const, fontSize: 64, lineHeight: 62, textTransform: 'uppercase' as const, letterSpacing: -0.5, includeFontPadding: false },
+  display40: { fontFamily: fonts.display, fontWeight: 'normal' as const, fontSize: 40, lineHeight: 40, textTransform: 'uppercase' as const, includeFontPadding: false },
+  title28: { fontFamily: fonts.display, fontWeight: 'normal' as const, fontSize: 28, lineHeight: 29, textTransform: 'uppercase' as const, includeFontPadding: false },
+  title20: { fontFamily: fonts.uiBold, fontWeight: 'normal' as const, fontSize: 20, lineHeight: 26, includeFontPadding: false },
+  body16: { fontFamily: fonts.ui, fontWeight: 'normal' as const, fontSize: 16, lineHeight: 24, includeFontPadding: false },
+  body14: { fontFamily: fonts.ui, fontWeight: 'normal' as const, fontSize: 14, lineHeight: 21, includeFontPadding: false },
+  label12: { fontFamily: fonts.mono, fontWeight: 'normal' as const, fontSize: 12, lineHeight: 16, letterSpacing: 1, textTransform: 'uppercase' as const, includeFontPadding: false },
+  micro10: { fontFamily: fonts.monoBold, fontWeight: 'normal' as const, fontSize: 10, lineHeight: 14, letterSpacing: 1.2, textTransform: 'uppercase' as const, includeFontPadding: false },
 } as const;
 
 // ───────────────────────── Espaciado, forma, profundidad ─────────────────────────

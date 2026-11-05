@@ -6,7 +6,7 @@ export interface SkinContextValue {
   skinId: SkinId;
   skinActivo: SkinId;
   skin: Skin;
-  canvasPaper: typeof canvasPapers[SkinId];
+  canvasPaper: (typeof canvasPapers)[keyof typeof canvasPapers];
   setSkin: (id: SkinId) => void;
   setSkinActivo: (id: SkinId) => void;
   theme: typeof vinkTheme;

@@ -150,6 +150,12 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
               borderColor: skin.borderSoft,
               borderWidth: border.soft,
               borderRadius: radius.pill,
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 6,
+              paddingHorizontal: 10,
+              paddingVertical: 6,
             },
           ]}
           onPress={() => {
@@ -157,29 +163,15 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
             onReturnToHub?.();
           }}
           activeOpacity={0.75}
-          accessibilityLabel="Volver al Workspace Hub"
+          accessibilityLabel="Volver a Vink"
         >
           <ArrowLeft size={16} color={skin.primary} strokeWidth={2.2} />
-          <Text
-            style={[
-              styles.menuText,
-              {
-                color: skin.text,
-                fontFamily: fonts.uiBold,
-                fontWeight: "normal",
-              },
-            ]}
-          >
-            Hub
-          </Text>
+          <VinkLogo
+            showIcon={false}
+            wordmarkHeight={16}
+            wordmarkColor={skin.text}
+          />
         </TouchableOpacity>
-
-        <VinkLogo
-          showIcon={false}
-          wordmarkHeight={18}
-          wordmarkColor={skin.text}
-          style={{ marginRight: 8, marginLeft: 2 }}
-        />
 
         <View style={[styles.divider, { backgroundColor: skin.borderSoft }]} />
 

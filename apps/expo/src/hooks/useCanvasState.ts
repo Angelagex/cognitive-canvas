@@ -6,7 +6,8 @@ import { useCanvasAst } from "./canvas/useCanvasAst";
 import { useCanvasDocument } from "./canvas/useCanvasDocument";
 import { useCanvasHover } from "./canvas/useCanvasHover";
 import { useCognitiveCompilation } from "./canvas/useCognitiveCompilation";
-import { PassiveAttributeType, StrokesTransformedEvent } from "../types/canvas";
+import { PassiveAttributeType, StrokesTransformedEvent, migrateCanvasTheme } from "../types/canvas";
+import { getUserPreferences } from "../services/StorageService";
 
 export const useCanvasState = () => {
   // 1. Tools, Colors & Dock Side State
@@ -70,6 +71,10 @@ export const useCanvasState = () => {
     setCompilation: compiler.setCompilation,
     setToolbarDockSide: tools.handleChangeDockSide,
     setToolbarDockEdge: tools.setToolbarDockEdge,
+    canvasTheme: tools.canvasTheme,
+    setCanvasTheme: tools.setCanvasTheme,
+    backgroundType: tools.backgroundType,
+    setBackgroundType: tools.setBackgroundType,
   });
 
   getVisualASTFn = () => ast.visualAST;
@@ -148,6 +153,15 @@ export const useCanvasState = () => {
     [doc.handleTransformAttributes, ast.selectionBounds]
   );
 
+  const handleNewMap = useCallback(async () => {
+    await doc.handleNewMap();
+    try {
+      const prefs = await getUserPreferences();
+      const defaultTheme = migrateCanvasTheme(prefs.default_theme || "crema");
+      tools.setCanvasTheme(defaultTheme);
+    } catch {}
+  }, [doc.handleNewMap, tools.setCanvasTheme]);
+
   return {
     // Document
     currentMapId: doc.currentMapId,
@@ -159,7 +173,7 @@ export const useCanvasState = () => {
     savedMaps: doc.savedMaps,
     handleSaveMap: doc.handleSaveMap,
     handleLoadMap: doc.handleLoadMap,
-    handleNewMap: doc.handleNewMap,
+    handleNewMap,
     handleDeleteMap: doc.handleDeleteMap,
     placedAttributes: doc.placedAttributes,
     synthesisCards: doc.synthesisCards,

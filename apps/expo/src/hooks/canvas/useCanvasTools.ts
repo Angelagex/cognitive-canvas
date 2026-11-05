@@ -8,6 +8,7 @@ import {
   DEFAULT_THEME_PALETTES,
   EraserMode,
   ToolbarDockEdge,
+  migrateCanvasTheme,
 } from "../../types/canvas";
 import { getUserPreferences, saveUserPreferences } from "../../services/StorageService";
 
@@ -26,15 +27,15 @@ const isNearDark = (color: string): boolean => {
 export const useCanvasTools = () => {
   const [toolWidths, setToolWidths] = useState<Record<BrushType, number>>(DEFAULT_TOOL_WIDTHS);
   const [activeBrush, setActiveBrushState] = useState<BrushType>("pen");
-  const [activeColor, setActiveColor] = useState<string>(CANVAS_THEMES.dark_slate.defaultInkColor);
+  const [activeColor, setActiveColor] = useState<string>(CANVAS_THEMES.crema.defaultInkColor);
   const [activeWidth, setActiveWidthState] = useState<number>(DEFAULT_TOOL_WIDTHS.pen);
   const activeWidthRef = useRef<number>(DEFAULT_TOOL_WIDTHS.pen);
   const activeBrushRef = useRef<BrushType>("pen");
 
   const [eraserMode, setEraserMode] = useState<EraserMode>("stroke");
   const [backgroundType, setBackgroundType] = useState<CanvasBackgroundType>("dot_grid");
-  const [canvasTheme, setCanvasThemeState] = useState<CanvasThemePreset>("dark_slate");
-  const canvasThemeRef = useRef<CanvasThemePreset>("dark_slate");
+  const [canvasTheme, setCanvasThemeState] = useState<CanvasThemePreset>("crema");
+  const canvasThemeRef = useRef<CanvasThemePreset>("crema");
 
   const [themePalettes, setThemePalettes] =
     useState<Record<CanvasThemePreset, string[]>>(DEFAULT_THEME_PALETTES);
@@ -42,7 +43,7 @@ export const useCanvasTools = () => {
     useRef<Record<CanvasThemePreset, string[]>>(DEFAULT_THEME_PALETTES);
 
   const [favoriteColors, setFavoriteColors] = useState<string[]>([
-    ...DEFAULT_THEME_PALETTES.dark_slate,
+    ...DEFAULT_THEME_PALETTES.crema,
   ]);
   const [stylusOnly, setStylusOnly] = useState<boolean>(true); // S-Pen palm rejection by default
   const [toolbarDockEdge, setToolbarDockEdge] = useState<ToolbarDockEdge>("left");
@@ -71,8 +72,22 @@ export const useCanvasTools = () => {
       }
       if (prefs.theme_palettes) {
         setThemePalettes(prefs.theme_palettes);
+        themePalettesRef.current = prefs.theme_palettes;
+      }
+      if (prefs.default_theme) {
+        const migrated = migrateCanvasTheme(prefs.default_theme);
+        setCanvasThemeState(migrated);
+        canvasThemeRef.current = migrated;
+        const config = CANVAS_THEMES[migrated] || CANVAS_THEMES.crema;
+        const currentPalettes = prefs.theme_palettes || themePalettesRef.current;
+        const savedPalette = currentPalettes[migrated] || config.favoriteColors;
+        if (savedPalette && savedPalette.length > 0) {
+          setFavoriteColors([...savedPalette]);
+        }
+        setActiveColor(config.defaultInkColor);
+      } else {
         const currentTheme = canvasThemeRef.current;
-        const savedPalette = prefs.theme_palettes[currentTheme];
+        const savedPalette = prefs.theme_palettes?.[currentTheme];
         if (savedPalette && savedPalette.length > 0) {
           setFavoriteColors([...savedPalette]);
         }

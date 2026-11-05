@@ -5,7 +5,7 @@ import { X, Image, Download, BrainCircuit, Trash2, ChevronRight, Check, BookOpen
 import { exportHighResPng, getCanvasStrokes } from "../JetpackInkCanvas";
 import { MapDocumentSummary, loadDocument, getCompilationForCanvas } from "../../services/StorageService";
 import { styles } from "./DocumentActionsModal.styles";
-import { useAppTheme } from "../../theme";
+import { useSkin, fonts, radius, border } from "../../theme";
 
 export interface DocumentActionsModalProps {
   visible: boolean;
@@ -88,7 +88,7 @@ export const DocumentActionsModal: React.FC<DocumentActionsModalProps> = ({
   onRequestClear,
   onOpenGuide,
 }) => {
-  const { theme } = useAppTheme();
+  const { skin } = useSkin();
   const [busyAction, setBusyAction] = useState<"PNG" | "JSON" | "AI_JSON" | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -188,47 +188,68 @@ export const DocumentActionsModal: React.FC<DocumentActionsModalProps> = ({
         style={[
           styles.card,
           {
-            backgroundColor: theme.colors.bgCard,
-            borderColor: theme.colors.borderSubtle,
+            backgroundColor: skin.surface,
+            borderColor: skin.borderSoft,
+            borderWidth: border.strong,
+            borderRadius: radius.card,
           },
         ]}
         onPress={() => {}}
       >
-        <View style={[styles.header, { borderBottomColor: theme.colors.borderSubtle }]}>
+        <View
+          style={[
+            styles.header,
+            {
+              backgroundColor: skin.surfaceAlt,
+              borderBottomColor: skin.borderSoft,
+              borderBottomWidth: border.soft,
+            },
+          ]}
+        >
           <View style={styles.headerTextCol}>
             <Text
               style={[
                 styles.title,
-                theme.typography.display,
-                { color: theme.colors.textPrimary },
+                {
+                  color: skin.text,
+                  fontFamily: fonts.display,
+                },
               ]}
               numberOfLines={1}
             >
-              {mapTitle}
+              {mapTitle.toUpperCase()}
             </Text>
             <Text
               style={[
                 styles.subtitle,
-                theme.typography.body,
-                { color: theme.colors.textSecondary },
+                {
+                  color: skin.textMuted,
+                  fontFamily: fonts.ui,
+                },
               ]}
             >
               {strokeCount} trazos • {entityCount} entidades • Guardado {formatDate(lastSavedAt)}
             </Text>
           </View>
           <TouchableOpacity
-            style={[styles.closeBtn, { backgroundColor: theme.colors.pillInactiveBg }]}
+            style={[
+              styles.closeBtn,
+              {
+                backgroundColor: skin.surface,
+                borderColor: skin.borderSoft,
+              },
+            ]}
             onPress={onClose}
             activeOpacity={0.7}
           >
-            <X size={16} color={theme.colors.textMuted} strokeWidth={2.0} />
+            <X size={16} color={skin.textMuted} strokeWidth={2.0} />
           </TouchableOpacity>
         </View>
 
         {toastMessage && (
           <View style={styles.toastBanner}>
             <Check size={14} color="#10B981" strokeWidth={2.2} />
-            <Text style={[styles.toastText, theme.typography.mono]} numberOfLines={2}>
+            <Text style={[styles.toastText, { fontFamily: fonts.mono }]} numberOfLines={2}>
               {toastMessage}
             </Text>
           </View>
@@ -238,28 +259,39 @@ export const DocumentActionsModal: React.FC<DocumentActionsModalProps> = ({
           <Text
             style={[
               styles.sectionHeader,
-              theme.typography.monoBold,
-              { color: theme.colors.textMuted },
+              {
+                color: skin.textMuted,
+                fontFamily: fonts.monoBold,
+              },
             ]}
           >
             EXPORTAR & COMPARTIR
           </Text>
 
           <TouchableOpacity
-            style={styles.actionItem}
+            style={[
+              styles.actionItem,
+              {
+                backgroundColor: skin.surfaceAlt,
+                borderColor: skin.borderSoft,
+                borderWidth: border.soft,
+              },
+            ]}
             onPress={handleExportPng}
             disabled={busyAction !== null}
             activeOpacity={0.75}
           >
-            <View style={[styles.actionIconContainer, { backgroundColor: "#0284C7" }]}>
-              <Image size={18} color="#FFFFFF" strokeWidth={1.8} />
+            <View style={[styles.actionIconContainer, { backgroundColor: `${skin.primary}22` }]}>
+              <Image size={18} color={skin.primary} strokeWidth={2.0} />
             </View>
             <View style={styles.actionTextCol}>
               <Text
                 style={[
                   styles.actionTitle,
-                  theme.typography.bodyBold,
-                  { color: theme.colors.textPrimary },
+                  {
+                    color: skin.text,
+                    fontFamily: fonts.uiBold,
+                  },
                 ]}
               >
                 {busyAction === "PNG" ? "Capturando Snapshot..." : "Export as PNG"}
@@ -267,31 +299,42 @@ export const DocumentActionsModal: React.FC<DocumentActionsModalProps> = ({
               <Text
                 style={[
                   styles.actionDesc,
-                  theme.typography.body,
-                  { color: theme.colors.textSecondary },
+                  {
+                    color: skin.textMuted,
+                    fontFamily: fonts.ui,
+                  },
                 ]}
               >
                 Captura offscreen idéntica al pipeline de compilación IA (fullDocument, 1.0x)
               </Text>
             </View>
-            <ChevronRight size={18} color={theme.colors.textMuted} strokeWidth={2.0} />
+            <ChevronRight size={18} color={skin.textMuted} strokeWidth={2.0} />
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={styles.actionItem}
+            style={[
+              styles.actionItem,
+              {
+                backgroundColor: skin.surfaceAlt,
+                borderColor: skin.borderSoft,
+                borderWidth: border.soft,
+              },
+            ]}
             onPress={handleExportJson}
             disabled={busyAction !== null}
             activeOpacity={0.75}
           >
-            <View style={[styles.actionIconContainer, { backgroundColor: "#7C3AED" }]}>
-              <Download size={18} color="#FFFFFF" strokeWidth={1.8} />
+            <View style={[styles.actionIconContainer, { backgroundColor: `${skin.warm}22` }]}>
+              <Download size={18} color={skin.warm} strokeWidth={2.0} />
             </View>
             <View style={styles.actionTextCol}>
               <Text
                 style={[
                   styles.actionTitle,
-                  theme.typography.bodyBold,
-                  { color: theme.colors.textPrimary },
+                  {
+                    color: skin.text,
+                    fontFamily: fonts.uiBold,
+                  },
                 ]}
               >
                 {busyAction === "JSON" ? "Exportando JSON..." : "Export Canvas Data (.cmn JSON)"}
@@ -299,31 +342,42 @@ export const DocumentActionsModal: React.FC<DocumentActionsModalProps> = ({
               <Text
                 style={[
                   styles.actionDesc,
-                  theme.typography.body,
-                  { color: theme.colors.textSecondary },
+                  {
+                    color: skin.textMuted,
+                    fontFamily: fonts.ui,
+                  },
                 ]}
               >
                 Exporta el payload crudo de trazos vectoriales, stickers y árbol AST
               </Text>
             </View>
-            <ChevronRight size={18} color={theme.colors.textMuted} strokeWidth={2.0} />
+            <ChevronRight size={18} color={skin.textMuted} strokeWidth={2.0} />
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={styles.actionItem}
+            style={[
+              styles.actionItem,
+              {
+                backgroundColor: skin.surfaceAlt,
+                borderColor: skin.borderSoft,
+                borderWidth: border.soft,
+              },
+            ]}
             onPress={handleExportAiAnalysis}
             disabled={busyAction !== null}
             activeOpacity={0.75}
           >
-            <View style={[styles.actionIconContainer, { backgroundColor: "#059669" }]}>
-              <BrainCircuit size={18} color="#FFFFFF" strokeWidth={1.8} />
+            <View style={[styles.actionIconContainer, { backgroundColor: `${skin.success}22` }]}>
+              <BrainCircuit size={18} color={skin.success} strokeWidth={2.0} />
             </View>
             <View style={styles.actionTextCol}>
               <Text
                 style={[
                   styles.actionTitle,
-                  theme.typography.bodyBold,
-                  { color: theme.colors.textPrimary },
+                  {
+                    color: skin.text,
+                    fontFamily: fonts.uiBold,
+                  },
                 ]}
               >
                 {busyAction === "AI_JSON" ? "Exportando Análisis IA..." : "Export AI Analysis (JSON)"}
@@ -331,43 +385,56 @@ export const DocumentActionsModal: React.FC<DocumentActionsModalProps> = ({
               <Text
                 style={[
                   styles.actionDesc,
-                  theme.typography.body,
-                  { color: theme.colors.textSecondary },
+                  {
+                    color: skin.textMuted,
+                    fontFamily: fonts.ui,
+                  },
                 ]}
               >
                 Exporta el grafo cognitivo compilado, flashcards SRS, niveles y dominios
               </Text>
             </View>
-            <ChevronRight size={18} color={theme.colors.textMuted} strokeWidth={2.0} />
+            <ChevronRight size={18} color={skin.textMuted} strokeWidth={2.0} />
           </TouchableOpacity>
 
           <Text
             style={[
               styles.sectionHeader,
-              theme.typography.monoBold,
-              { color: theme.colors.textMuted },
+              {
+                color: skin.textMuted,
+                fontFamily: fonts.monoBold,
+              },
             ]}
           >
             AYUDA & GUÍA
           </Text>
 
           <TouchableOpacity
-            style={styles.actionItem}
+            style={[
+              styles.actionItem,
+              {
+                backgroundColor: skin.surfaceAlt,
+                borderColor: skin.borderSoft,
+                borderWidth: border.soft,
+              },
+            ]}
             onPress={() => {
               onClose();
               onOpenGuide?.();
             }}
             activeOpacity={0.75}
           >
-            <View style={[styles.actionIconContainer, { backgroundColor: "#F59E0B" }]}>
-              <BookOpen size={18} color="#FFFFFF" strokeWidth={1.8} />
+            <View style={[styles.actionIconContainer, { backgroundColor: `${skin.warm}22` }]}>
+              <BookOpen size={18} color={skin.warm} strokeWidth={2.0} />
             </View>
             <View style={styles.actionTextCol}>
               <Text
                 style={[
                   styles.actionTitle,
-                  theme.typography.bodyBold,
-                  { color: theme.colors.textPrimary },
+                  {
+                    color: skin.text,
+                    fontFamily: fonts.uiBold,
+                  },
                 ]}
               >
                 Guía de uso
@@ -375,52 +442,74 @@ export const DocumentActionsModal: React.FC<DocumentActionsModalProps> = ({
               <Text
                 style={[
                   styles.actionDesc,
-                  theme.typography.body,
-                  { color: theme.colors.textSecondary },
+                  {
+                    color: skin.textMuted,
+                    fontFamily: fonts.ui,
+                  },
                 ]}
               >
                 Tres pasos clave: dibuja en red, explica tu razonamiento y compila
               </Text>
             </View>
-            <ChevronRight size={18} color={theme.colors.textMuted} strokeWidth={2.0} />
+            <ChevronRight size={18} color={skin.textMuted} strokeWidth={2.0} />
           </TouchableOpacity>
 
           <Text
             style={[
               styles.sectionHeader,
-              theme.typography.monoBold,
-              { color: theme.colors.textMuted },
+              {
+                color: skin.textMuted,
+                fontFamily: fonts.monoBold,
+              },
             ]}
           >
             ZONA DE PELIGRO
           </Text>
 
           <TouchableOpacity
-            style={[styles.actionItem, styles.dangerItem]}
+            style={[
+              styles.actionItem,
+              styles.dangerItem,
+              {
+                backgroundColor: `${skin.alert}12`,
+                borderColor: `${skin.alert}44`,
+                borderWidth: border.soft,
+              },
+            ]}
             onPress={() => {
               onClose();
               onRequestClear();
             }}
             activeOpacity={0.75}
           >
-            <View style={[styles.actionIconContainer, { backgroundColor: "rgba(239, 68, 68, 0.2)" }]}>
-              <Trash2 size={18} color="#EF4444" strokeWidth={1.8} />
+            <View style={[styles.actionIconContainer, { backgroundColor: `${skin.alert}22` }]}>
+              <Trash2 size={18} color={skin.alert} strokeWidth={2.0} />
             </View>
             <View style={styles.actionTextCol}>
-              <Text style={[styles.actionTitle, theme.typography.bodyBold, styles.dangerText]}>
-                Clear All Strokes
+              <Text
+                style={[
+                  styles.actionTitle,
+                  {
+                    color: skin.alert,
+                    fontFamily: fonts.uiBold,
+                  },
+                ]}
+              >
+                Limpiar todos los trazos
               </Text>
               <Text
                 style={[
                   styles.actionDesc,
-                  theme.typography.body,
-                  { color: theme.colors.textSecondary },
+                  {
+                    color: skin.textMuted,
+                    fontFamily: fonts.ui,
+                  },
                 ]}
               >
                 Borrar todos los trazos manuscritos del lienzo actual
               </Text>
             </View>
-            <ChevronRight size={18} color="#EF4444" strokeWidth={2.0} />
+            <ChevronRight size={18} color={skin.alert} strokeWidth={2.0} />
           </TouchableOpacity>
         </View>
       </Pressable>

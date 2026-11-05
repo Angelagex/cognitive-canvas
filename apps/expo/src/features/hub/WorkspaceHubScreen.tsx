@@ -270,6 +270,8 @@ const styles = StyleSheet.create({
   brandSubtitle: {
     color: "#64748B",
     fontSize: 11,
+    includeFontPadding: false,
+    textAlignVertical: "center",
   },
   tabBar: {
     flexDirection: "row",
@@ -281,6 +283,7 @@ const styles = StyleSheet.create({
   tabBtn: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     gap: 6,
     paddingHorizontal: 14,
     paddingVertical: 7,
@@ -293,6 +296,8 @@ const styles = StyleSheet.create({
     color: "#94A3B8",
     fontSize: 12,
     fontWeight: "600",
+    includeFontPadding: false,
+    textAlignVertical: "center",
   },
   tabBtnTextActive: {
     color: "#FFFFFF",

@@ -7,6 +7,9 @@ import {
   DEFAULT_TOOL_WIDTHS,
   DEFAULT_THEME_PALETTES,
   SynthesisReferenceCard,
+  CanvasThemePreset,
+  CanvasBackgroundType,
+  migrateCanvasTheme,
 } from "../types/canvas";
 import { getGlobalKnowledgeMatrix, saveGlobalKnowledgeMatrix } from "./matrixStorage";
 
@@ -25,6 +28,8 @@ export interface ExtendedDocumentMetadata {
   placed_attributes?: PlacedAttribute[];
   synthesis_cards?: SynthesisReferenceCard[];
   verbalWalkthroughTranscript?: string;
+  canvas_theme?: CanvasThemePreset;
+  background_type?: CanvasBackgroundType;
 }
 
 export interface ExtendedCognitiveMapDocument extends Omit<CognitiveMapDocument, "metadata"> {
@@ -188,6 +193,7 @@ export async function getUserPreferences(): Promise<UserPreferences> {
   const defaults: UserPreferences = {
     toolbar_dock_side: "left",
     toolbar_dock_edge: "left",
+    default_theme: "crema",
     tool_widths: { ...DEFAULT_TOOL_WIDTHS },
     theme_palettes: { ...DEFAULT_THEME_PALETTES },
   };
@@ -204,12 +210,14 @@ export async function getUserPreferences(): Promise<UserPreferences> {
     const edge: ToolbarDockEdge =
       parsed.toolbar_dock_edge ||
       (parsed.toolbar_dock_side === "right" ? "right" : "left");
+    const defaultTheme = migrateCanvasTheme(parsed.default_theme || "crema");
 
     return {
       ...defaults,
       ...parsed,
       toolbar_dock_side: edge === "right" ? "right" : "left",
       toolbar_dock_edge: edge,
+      default_theme: defaultTheme,
       tool_widths: { ...defaults.tool_widths, ...(parsed.tool_widths || {}) },
       theme_palettes: { ...defaults.theme_palettes, ...(parsed.theme_palettes || {}) },
     };

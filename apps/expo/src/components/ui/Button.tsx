@@ -152,6 +152,8 @@ const styles = StyleSheet.create({
   },
   textBase: {
     letterSpacing: 0.2,
+    includeFontPadding: false,
+    textAlignVertical: "center",
   },
   iconLeft: {
     marginRight: 6,

@@ -378,15 +378,20 @@ const styles = StyleSheet.create({
   heroTag: {
     paddingHorizontal: 10,
     paddingVertical: 4,
+    alignItems: "center",
+    justifyContent: "center",
   },
   heroTagText: {
     fontSize: 10,
     letterSpacing: 0.8,
+    includeFontPadding: false,
+    textAlignVertical: "center",
   },
   heroTitle: {
     fontSize: 22,
     letterSpacing: 0.5,
     lineHeight: 26,
+    includeFontPadding: false,
   },
   heroMetaRow: {
     flexDirection: "row",
@@ -397,10 +402,13 @@ const styles = StyleSheet.create({
   metaCol: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
   },
   heroMetaValue: {
     fontSize: 11,
     letterSpacing: 0.5,
+    includeFontPadding: false,
+    textAlignVertical: "center",
   },
   heroMetaDot: {
     fontSize: 12,

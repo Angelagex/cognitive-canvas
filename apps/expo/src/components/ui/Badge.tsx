@@ -77,17 +77,22 @@ const styles = StyleSheet.create({
   badgeBase: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     paddingHorizontal: 8,
     paddingVertical: 3,
     alignSelf: "flex-start",
   },
   iconWrapper: {
     marginRight: 4,
+    justifyContent: "center",
+    alignItems: "center",
   },
   text: {
     fontSize: 10,
     letterSpacing: 0.8,
     textTransform: "uppercase",
+    includeFontPadding: false,
+    textAlignVertical: "center",
   },
 });
 

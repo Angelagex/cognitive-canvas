@@ -32,12 +32,18 @@ export type ToolbarDockEdge = "left" | "right" | "top" | "bottom";
 
 export type CanvasBackgroundType = "dot_grid" | "graph_grid" | "ruled" | "blank";
 
-export type CanvasThemePreset =
+export type CanonicalCanvasThemePreset =
   | "crema"
-  | "noche"
+  | "niebla"
+  | "obsidiana"
   | "tinta"
+  | "pizarra";
+
+export type CanvasThemePreset =
+  | CanonicalCanvasThemePreset
+  // Legacy aliases para migración transparente de lienzos existentes
+  | "noche"
   | "folio"
-  // Legacy aliases for backward compatibility with existing databases
   | "dark_slate"
   | "charcoal_dark"
   | "warm_ivory"
@@ -56,100 +62,156 @@ export interface CanvasThemeConfig {
 }
 
 export const CANVAS_THEMES: Record<CanvasThemePreset, CanvasThemeConfig> = {
-  // 4 Presets canónicos Vink (§1 / canvasPapers)
+  // ───────────────────────── 5 Presets Canónicos ─────────────────────────
   crema: {
     id: "crema",
     label: "Cobalto y Crema",
     backgroundColor: "#F3EDE0",
     defaultInkColor: "#0C0E14",
-    gridColor: "rgba(12, 14, 20, 0.14)",
+    gridColor: "#C9C5BB",
     isDark: false,
-    favoriteColors: ["#0C0E14", "#2F3DFF", "#FFB320"],
+    favoriteColors: ["#0C0E14", "#2F3DFF", "#C92500"],
   },
-  noche: {
-    id: "noche",
-    label: "Noche Obsidiana",
-    backgroundColor: "#0E1018",
+  niebla: {
+    id: "niebla",
+    label: "Niebla",
+    backgroundColor: "#E8ECF3",
+    defaultInkColor: "#151B2B",
+    gridColor: "#C0C4CD",
+    isDark: false,
+    favoriteColors: ["#151B2B", "#2F3DFF", "#267458"],
+  },
+  obsidiana: {
+    id: "obsidiana",
+    label: "Obsidiana",
+    backgroundColor: "#0C0E14",
     defaultInkColor: "#F3EDE0",
-    gridColor: "rgba(243, 237, 224, 0.14)",
+    gridColor: "#363639",
     isDark: true,
-    favoriteColors: ["#F3EDE0", "#5A68FF", "#FFB320"],
+    favoriteColors: ["#F3EDE0", "#6471FF", "#FFB320"],
   },
   tinta: {
     id: "tinta",
     label: "Tinta y Papel",
     backgroundColor: "#10142A",
     defaultInkColor: "#F3EEE3",
-    gridColor: "rgba(243, 238, 227, 0.14)",
+    gridColor: "#393B4B",
     isDark: true,
-    favoriteColors: ["#F3EEE3", "#4C6FFF", "#FF5A3C"],
+    favoriteColors: ["#F3EEE3", "#7C93FF", "#FF6B4A"],
+  },
+  pizarra: {
+    id: "pizarra",
+    label: "Pizarra",
+    backgroundColor: "#15241F",
+    defaultInkColor: "#EFEBDD",
+    gridColor: "#3A463F",
+    isDark: true,
+    favoriteColors: ["#EFEBDD", "#7FD6B0", "#F2C75C"],
+  },
+
+  // ───────────────────────── Aliases Legacy Migrados ─────────────────────────
+  warm_ivory: {
+    id: "warm_ivory",
+    label: "Cobalto y Crema",
+    backgroundColor: "#F3EDE0",
+    defaultInkColor: "#0C0E14",
+    gridColor: "#C9C5BB",
+    isDark: false,
+    favoriteColors: ["#0C0E14", "#2F3DFF", "#C92500"],
   },
   folio: {
     id: "folio",
-    label: "Blanco Puro",
-    backgroundColor: "#FFFFFF",
-    defaultInkColor: "#111111",
-    gridColor: "#E2E8F0",
+    label: "Niebla",
+    backgroundColor: "#E8ECF3",
+    defaultInkColor: "#151B2B",
+    gridColor: "#C0C4CD",
     isDark: false,
-    favoriteColors: ["#111111", "#2F3DFF", "#FF6B4A"],
+    favoriteColors: ["#151B2B", "#2F3DFF", "#267458"],
   },
-
-  // Aliases legacy
+  pure_white: {
+    id: "pure_white",
+    label: "Niebla",
+    backgroundColor: "#E8ECF3",
+    defaultInkColor: "#151B2B",
+    gridColor: "#C0C4CD",
+    isDark: false,
+    favoriteColors: ["#151B2B", "#2F3DFF", "#267458"],
+  },
   cobalto_crema: {
     id: "cobalto_crema",
-    label: "Cobalto y Crema",
+    label: "Obsidiana",
     backgroundColor: "#0C0E14",
     defaultInkColor: "#F3EDE0",
-    gridColor: "#1C1F2B",
+    gridColor: "#363639",
     isDark: true,
-    favoriteColors: ["#F3EDE0", "#2F3DFF", "#FFB320"],
+    favoriteColors: ["#F3EDE0", "#6471FF", "#FFB320"],
+  },
+  noche: {
+    id: "noche",
+    label: "Obsidiana",
+    backgroundColor: "#0C0E14",
+    defaultInkColor: "#F3EDE0",
+    gridColor: "#363639",
+    isDark: true,
+    favoriteColors: ["#F3EDE0", "#6471FF", "#FFB320"],
+  },
+  charcoal_dark: {
+    id: "charcoal_dark",
+    label: "Obsidiana",
+    backgroundColor: "#0C0E14",
+    defaultInkColor: "#F3EDE0",
+    gridColor: "#363639",
+    isDark: true,
+    favoriteColors: ["#F3EDE0", "#6471FF", "#FFB320"],
+  },
+  dark_slate: {
+    id: "dark_slate",
+    label: "Tinta y Papel",
+    backgroundColor: "#10142A",
+    defaultInkColor: "#F3EEE3",
+    gridColor: "#393B4B",
+    isDark: true,
+    favoriteColors: ["#F3EEE3", "#7C93FF", "#FF6B4A"],
   },
   tinta_papel: {
     id: "tinta_papel",
     label: "Tinta y Papel",
     backgroundColor: "#10142A",
     defaultInkColor: "#F3EEE3",
-    gridColor: "#1A2040",
+    gridColor: "#393B4B",
     isDark: true,
-    favoriteColors: ["#F3EEE3", "#4C6FFF", "#FF5A3C"],
-  },
-  pure_white: {
-    id: "pure_white",
-    label: "Blanco Puro",
-    backgroundColor: "#FFFFFF",
-    defaultInkColor: "#0F172A",
-    gridColor: "#E2E8F0",
-    isDark: false,
-    favoriteColors: ["#0F172A", "#0284C7", "#E11D48"],
-  },
-  charcoal_dark: {
-    id: "charcoal_dark",
-    label: "Grafito Carbón",
-    backgroundColor: "#18181B",
-    defaultInkColor: "#F4F4F5",
-    gridColor: "#27272A",
-    isDark: true,
-    favoriteColors: ["#F4F4F5", "#34D399", "#FBBF24"],
-  },
-  dark_slate: {
-    id: "dark_slate",
-    label: "Pizarra Azulada",
-    backgroundColor: "#0F172A",
-    defaultInkColor: "#F8FAFC",
-    gridColor: "#27354A",
-    isDark: true,
-    favoriteColors: ["#F8FAFC", "#38BDF8", "#F43F5E"],
-  },
-  warm_ivory: {
-    id: "warm_ivory",
-    label: "Marfil Cálido",
-    backgroundColor: "#FBF9F5",
-    defaultInkColor: "#1E293B",
-    gridColor: "#E5DEC9",
-    isDark: false,
-    favoriteColors: ["#1E293B", "#1D4ED8", "#BE123C"],
+    favoriteColors: ["#F3EEE3", "#7C93FF", "#FF6B4A"],
   },
 };
+
+export const CANVAS_THEME_PRESETS: CanonicalCanvasThemePreset[] = [
+  "crema",
+  "niebla",
+  "obsidiana",
+  "tinta",
+  "pizarra",
+];
+
+export const CANVAS_THEME_MIGRATION: Record<string, CanonicalCanvasThemePreset> = {
+  crema: "crema",
+  warm_ivory: "crema",
+  folio: "niebla",
+  pure_white: "niebla",
+  cobalto_crema: "obsidiana",
+  noche: "obsidiana",
+  charcoal_dark: "obsidiana",
+  dark_slate: "tinta",
+  tinta: "tinta",
+  tinta_papel: "tinta",
+  obsidiana: "obsidiana",
+  niebla: "niebla",
+  pizarra: "pizarra",
+};
+
+export function migrateCanvasTheme(themeId?: string | null): CanonicalCanvasThemePreset {
+  if (!themeId) return "crema";
+  return CANVAS_THEME_MIGRATION[themeId] || "crema";
+}
 
 export type EraserMode = "stroke" | "precision";
 
@@ -289,16 +351,22 @@ export const DEFAULT_TOOL_WIDTHS: Record<BrushType, number> = {
 };
 
 export const DEFAULT_THEME_PALETTES: Record<CanvasThemePreset, string[]> = {
+  // 5 Presets canónicos
   crema: [...CANVAS_THEMES.crema.favoriteColors],
-  noche: [...CANVAS_THEMES.noche.favoriteColors],
+  niebla: [...CANVAS_THEMES.niebla.favoriteColors],
+  obsidiana: [...CANVAS_THEMES.obsidiana.favoriteColors],
   tinta: [...CANVAS_THEMES.tinta.favoriteColors],
-  folio: [...CANVAS_THEMES.folio.favoriteColors],
-  dark_slate: [...CANVAS_THEMES.dark_slate.favoriteColors],
-  charcoal_dark: [...CANVAS_THEMES.charcoal_dark.favoriteColors],
-  warm_ivory: [...CANVAS_THEMES.warm_ivory.favoriteColors],
-  pure_white: [...CANVAS_THEMES.pure_white.favoriteColors],
-  cobalto_crema: [...CANVAS_THEMES.cobalto_crema.favoriteColors],
-  tinta_papel: [...CANVAS_THEMES.tinta_papel.favoriteColors],
+  pizarra: [...CANVAS_THEMES.pizarra.favoriteColors],
+
+  // Aliases legacy
+  noche: [...CANVAS_THEMES.obsidiana.favoriteColors],
+  folio: [...CANVAS_THEMES.niebla.favoriteColors],
+  dark_slate: [...CANVAS_THEMES.tinta.favoriteColors],
+  charcoal_dark: [...CANVAS_THEMES.obsidiana.favoriteColors],
+  warm_ivory: [...CANVAS_THEMES.crema.favoriteColors],
+  pure_white: [...CANVAS_THEMES.niebla.favoriteColors],
+  cobalto_crema: [...CANVAS_THEMES.obsidiana.favoriteColors],
+  tinta_papel: [...CANVAS_THEMES.tinta.favoriteColors],
 };
 
 

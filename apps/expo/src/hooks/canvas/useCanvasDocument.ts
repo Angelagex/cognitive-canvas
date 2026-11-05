@@ -19,6 +19,9 @@ import {
   ToolbarDockEdge,
   ThinkingMemo,
   SynthesisReferenceCard,
+  CanvasThemePreset,
+  CanvasBackgroundType,
+  migrateCanvasTheme,
 } from "../../types/canvas";
 import { VisualASTLayer, RawInkStroke } from "@cognitive-canvas/core";
 import { getCanvasStrokes } from "../../components/JetpackInkCanvas";
@@ -46,6 +49,10 @@ interface UseCanvasDocumentProps {
   setCompilation: (comp: any) => void;
   setToolbarDockSide: (side: "left" | "right") => void;
   setToolbarDockEdge?: (edge: ToolbarDockEdge) => void;
+  canvasTheme?: CanvasThemePreset;
+  setCanvasTheme?: (theme: CanvasThemePreset) => void;
+  backgroundType?: CanvasBackgroundType;
+  setBackgroundType?: (type: CanvasBackgroundType) => void;
 }
 
 export const useCanvasDocument = ({
@@ -71,6 +78,10 @@ export const useCanvasDocument = ({
   setCompilation,
   setToolbarDockSide,
   setToolbarDockEdge,
+  canvasTheme,
+  setCanvasTheme,
+  backgroundType,
+  setBackgroundType,
 }: UseCanvasDocumentProps) => {
   const [currentMapId, setCurrentMapId] = useState<string>(() => `map_${Date.now()}`);
   const [mapTitle, setMapTitle] = useState<string>("Mapa Mental - Redes Neuronales");
@@ -139,6 +150,8 @@ export const useCanvasDocument = ({
           canvas_translate_y: canvasTranslateYRef.current,
           placed_attributes: placedAttributesRef.current,
           synthesis_cards: synthesisCardsRef.current,
+          canvas_theme: canvasTheme,
+          background_type: backgroundType,
         },
         raw_ink_layer: {
           strokes: strokesRef.current,
@@ -341,7 +354,13 @@ export const useCanvasDocument = ({
             if (doc.metadata?.canvas_scale !== undefined) setCanvasScale(doc.metadata.canvas_scale);
             if (doc.metadata?.canvas_translate_x !== undefined) setCanvasTranslateX(doc.metadata.canvas_translate_x);
             if (doc.metadata?.canvas_translate_y !== undefined) setCanvasTranslateY(doc.metadata.canvas_translate_y);
-            if (doc.metadata?.placed_attributes) setPlacedAttributes(doc.metadata.placed_attributes);
+            if (doc.metadata?.canvas_theme) {
+            setCanvasTheme?.(migrateCanvasTheme(doc.metadata.canvas_theme));
+          }
+          if (doc.metadata?.background_type) {
+            setBackgroundType?.(doc.metadata.background_type);
+          }
+          if (doc.metadata?.placed_attributes) setPlacedAttributes(doc.metadata.placed_attributes);
             if (doc.visual_ast_layer) setVisualAST(doc.visual_ast_layer);
             const strokes = doc.raw_ink_layer?.strokes || [];
             strokesRef.current = strokes;
@@ -406,6 +425,8 @@ export const useCanvasDocument = ({
           canvas_translate_x: canvasTranslateX,
           canvas_translate_y: canvasTranslateY,
           placed_attributes: placedAttributes,
+          canvas_theme: canvasTheme,
+          background_type: backgroundType,
         },
         raw_ink_layer: {
           strokes: strokesRef.current,
@@ -474,6 +495,12 @@ export const useCanvasDocument = ({
           if (doc.metadata?.canvas_scale !== undefined) setCanvasScale(doc.metadata.canvas_scale);
           if (doc.metadata?.canvas_translate_x !== undefined) setCanvasTranslateX(doc.metadata.canvas_translate_x);
           if (doc.metadata?.canvas_translate_y !== undefined) setCanvasTranslateY(doc.metadata.canvas_translate_y);
+          if (doc.metadata?.canvas_theme) {
+            setCanvasTheme?.(migrateCanvasTheme(doc.metadata.canvas_theme));
+          }
+          if (doc.metadata?.background_type) {
+            setBackgroundType?.(doc.metadata.background_type);
+          }
           if (doc.metadata?.placed_attributes) setPlacedAttributes(doc.metadata.placed_attributes);
           setSynthesisCards(doc.metadata?.synthesis_cards || []);
           setActiveThinkingMemo(null);
@@ -532,6 +559,8 @@ export const useCanvasDocument = ({
           canvas_translate_x: canvasTranslateX,
           canvas_translate_y: canvasTranslateY,
           placed_attributes: placedAttributes,
+          canvas_theme: canvasTheme,
+          background_type: backgroundType,
         },
         raw_ink_layer: {
           strokes: strokesRef.current,

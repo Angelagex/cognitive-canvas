@@ -81,6 +81,7 @@ const styles = StyleSheet.create({
   chipBase: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderWidth: 1.2,
@@ -88,11 +89,15 @@ const styles = StyleSheet.create({
   },
   iconWrapper: {
     marginRight: 6,
+    justifyContent: "center",
+    alignItems: "center",
   },
   labelText: {
     fontSize: 11,
     letterSpacing: 0.5,
     textTransform: "uppercase",
+    includeFontPadding: false,
+    textAlignVertical: "center",
   },
 });
 

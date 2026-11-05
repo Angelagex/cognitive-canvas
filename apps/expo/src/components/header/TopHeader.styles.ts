@@ -17,6 +17,7 @@ export const styles = StyleSheet.create({
   menuButton: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     paddingHorizontal: 10,
     paddingVertical: 6,
     marginRight: 8,
@@ -24,6 +25,8 @@ export const styles = StyleSheet.create({
   },
   menuText: {
     fontSize: 12,
+    includeFontPadding: false,
+    textAlignVertical: "center",
   },
   divider: {
     width: 1,
@@ -148,12 +151,15 @@ export const styles = StyleSheet.create({
   explainButton: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     paddingHorizontal: 12,
     height: 34,
     gap: 6,
   },
   explainText: {
     fontSize: 12,
+    includeFontPadding: false,
+    textAlignVertical: "center",
   },
   // Compilar Split button
   compileGroup: {
@@ -162,12 +168,14 @@ export const styles = StyleSheet.create({
   splitCompileBtn: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     height: 34,
     overflow: "hidden",
   },
   splitCompileMain: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     paddingLeft: 12,
     paddingRight: 8,
     height: "100%",
@@ -175,6 +183,8 @@ export const styles = StyleSheet.create({
   compileBtnLabel: {
     fontSize: 12,
     letterSpacing: 0.3,
+    includeFontPadding: false,
+    textAlignVertical: "center",
   },
   splitCompileChevron: {
     height: "100%",
@@ -187,6 +197,7 @@ export const styles = StyleSheet.create({
   inspectionButton: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     paddingHorizontal: 10,
     height: 34,
     gap: 6,
@@ -194,6 +205,8 @@ export const styles = StyleSheet.create({
   },
   inspectionButtonText: {
     fontSize: 12,
+    includeFontPadding: false,
+    textAlignVertical: "center",
   },
   blindSpotBadge: {
     minWidth: 16,
@@ -209,6 +222,8 @@ export const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 9,
     fontFamily: "SpaceMono_700Bold",
+    includeFontPadding: false,
+    textAlignVertical: "center",
   },
   iconButton: {
     width: 34,

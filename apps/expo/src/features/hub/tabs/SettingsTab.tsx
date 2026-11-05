@@ -4,7 +4,7 @@ import * as Haptics from "expo-haptics";
 import { Check, Settings, Mic, BrainCircuit, Trash2, Palette, ShieldCheck, Sparkles } from "@sketchyicons/react-native";
 import { getUserPreferences, saveUserPreferences } from "../../../services/StorageService";
 import { KeyStorageService } from "../../../services/KeyStorageService";
-import { ToolbarDockEdge, CanvasThemePreset, CANVAS_THEMES } from "../../../types/canvas";
+import { ToolbarDockEdge, CanvasThemePreset, CANVAS_THEMES, CANVAS_THEME_PRESETS, migrateCanvasTheme } from "../../../types/canvas";
 import { useSkin, fonts, radius, border, SkinId, skins } from "../../../theme";
 
 export interface SettingsTabProps {
@@ -44,8 +44,11 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
     getUserPreferences().then((prefs) => {
       if (prefs.deepgram_api_key) setDeepgramKey(prefs.deepgram_api_key);
       if (prefs.target_learning_goal) setLearningGoal(prefs.target_learning_goal);
+      if (prefs.default_theme) {
+        onSelectTheme(migrateCanvasTheme(prefs.default_theme));
+      }
     });
-  }, []);
+  }, [onSelectTheme]);
 
   const handleSaveGeminiKey = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
@@ -116,12 +119,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   };
 
   const dockEdges: ToolbarDockEdge[] = ["left", "right", "top", "bottom"];
-  const themes: CanvasThemePreset[] = [
-    "crema",
-    "noche",
-    "tinta",
-    "folio",
-  ];
+  const themes = CANVAS_THEME_PRESETS;
 
   return (
     <ScrollView
@@ -198,10 +196,12 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
             const sk = skins[skId];
             const isSelected = skinActivo === skId;
             const labels: Record<SkinId, string> = {
-              crema: "Crema (Claro)",
-              noche: "Noche (Oscuro técnico)",
-              tinta: "Tinta (Oscuro editorial)",
+              crema: "Crema",
+              noche: "Noche",
+              tinta: "Tinta",
             };
+            const dotBg = skId === "tinta" ? "#2E3F7F" : sk.bg;
+            const dotBorder = skId === "tinta" ? "#4C6FFF" : sk.border;
             return (
               <TouchableOpacity
                 key={skId}
@@ -220,15 +220,15 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                 }}
                 activeOpacity={0.8}
               >
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 }}>
                   <View
                     style={{
                       width: 10,
                       height: 10,
                       borderRadius: 5,
-                      backgroundColor: sk.bg,
+                      backgroundColor: dotBg,
                       borderWidth: 1,
-                      borderColor: sk.border,
+                      borderColor: dotBorder,
                     }}
                   />
                   <Text
@@ -617,10 +617,18 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
         <Text
           style={[
             styles.label,
-            { color: skin.textMuted, fontFamily: fonts.uiBold, marginTop: 16, marginBottom: 8 },
+            { color: skin.textMuted, fontFamily: fonts.uiBold, marginTop: 16, marginBottom: 4 },
           ]}
         >
-          Preset de Papel del Lienzo (4 presets)
+          Preset de Papel por Defecto (5 presets)
+        </Text>
+        <Text
+          style={[
+            styles.cardDesc,
+            { color: skin.textMuted, fontFamily: fonts.ui, marginBottom: 8 },
+          ]}
+        >
+          Define el tema de papel inicial para los nuevos lienzos creados en el Hub.
         </Text>
         <View style={styles.pillRow}>
           {themes.map((t) => {
@@ -644,7 +652,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                 }}
                 activeOpacity={0.8}
               >
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 }}>
                   <View
                     style={{
                       width: 10,
@@ -681,44 +689,52 @@ const styles = StyleSheet.create({
   content: { padding: 24, paddingBottom: 48, gap: 16 },
   headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   titleRow: { flexDirection: "row", alignItems: "center", gap: 10 },
-  heading: { fontSize: 20, letterSpacing: 0.6 },
+  heading: { fontSize: 20, letterSpacing: 0.6, includeFontPadding: false, textAlignVertical: "center" },
   saveBtn: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     paddingHorizontal: 14,
     paddingVertical: 8,
     gap: 6,
   },
-  saveBtnText: { fontSize: 12 },
+  saveBtnText: { fontSize: 12, includeFontPadding: false, textAlignVertical: "center" },
   sectionCard: {
     padding: 18,
     gap: 12,
   },
   cardHeader: { flexDirection: "row", alignItems: "center", gap: 8 },
-  cardTitle: { fontSize: 14 },
-  cardDesc: { fontSize: 12, lineHeight: 17 },
-  label: { fontSize: 12 },
+  cardTitle: { fontSize: 14, includeFontPadding: false, textAlignVertical: "center" },
+  cardDesc: { fontSize: 12, lineHeight: 17, includeFontPadding: false },
+  label: { fontSize: 12, includeFontPadding: false, textAlignVertical: "center" },
   pillRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   choicePill: {
     paddingHorizontal: 12,
     paddingVertical: 7,
+    justifyContent: "center",
+    alignItems: "center",
   },
-  choicePillText: { fontSize: 11 },
+  choicePillText: { fontSize: 11, includeFontPadding: false, textAlignVertical: "center" },
   keyInputRow: { flexDirection: "row", gap: 8, alignItems: "center" },
   input: {
     paddingHorizontal: 12,
     paddingVertical: 8,
     fontSize: 13,
+    includeFontPadding: false,
+    textAlignVertical: "center",
   },
   maskToggleBtn: {
     paddingHorizontal: 12,
     paddingVertical: 8,
+    justifyContent: "center",
+    alignItems: "center",
   },
-  maskToggleText: { fontSize: 11 },
+  maskToggleText: { fontSize: 11, includeFontPadding: false, textAlignVertical: "center" },
   keyActionsRow: { flexDirection: "row", gap: 8, marginTop: 4 },
   keyPrimaryBtn: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     paddingHorizontal: 12,
     paddingVertical: 7,
     gap: 6,
@@ -726,6 +742,7 @@ const styles = StyleSheet.create({
   keyTestBtn: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     paddingHorizontal: 12,
     paddingVertical: 7,
     gap: 6,
@@ -733,14 +750,20 @@ const styles = StyleSheet.create({
   keyClearBtn: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     paddingHorizontal: 12,
     paddingVertical: 7,
     gap: 6,
   },
-  keyBtnText: { fontSize: 11 },
+  keyBtnText: { fontSize: 11, includeFontPadding: false, textAlignVertical: "center" },
   statusBanner: { padding: 10, marginTop: 4 },
-  statusText: { fontSize: 11 },
+  statusText: { fontSize: 11, includeFontPadding: false, textAlignVertical: "center" },
   rowBetween: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  toggleBtn: { paddingHorizontal: 12, paddingVertical: 6 },
-  toggleText: { fontSize: 10, letterSpacing: 0.8 },
+  toggleBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  toggleText: { fontSize: 10, letterSpacing: 0.8, includeFontPadding: false, textAlignVertical: "center" },
 });

@@ -1,11 +1,13 @@
 import React from "react";
-import { StyleSheet, View, Text, TouchableOpacity, Pressable, ViewStyle } from "react-native";
+import { StyleSheet, View, Text, TouchableOpacity, Pressable, ViewStyle, ScrollView } from "react-native";
 import { Check, FileText } from "@sketchyicons/react-native";
 import {
   CanvasBackgroundType,
   CanvasThemePreset,
   CANVAS_THEMES,
+  CANVAS_THEME_PRESETS,
 } from "../../../types/canvas";
+import { useSkin, fonts, radius, border } from "../../../theme";
 
 export interface PaperTemplateItem {
   id: CanvasBackgroundType;
@@ -34,11 +36,13 @@ export const PaperTemplatePopover: React.FC<PaperTemplatePopoverProps> = ({
   visible = true,
   backgroundType,
   onSelectBackgroundType,
-  canvasTheme = "dark_slate",
+  canvasTheme = "crema",
   onSelectCanvasTheme,
   onClose,
   positionStyle,
 }) => {
+  const { skin } = useSkin();
+
   if (!visible) return null;
 
   return (
@@ -51,74 +55,129 @@ export const PaperTemplatePopover: React.FC<PaperTemplatePopoverProps> = ({
         onStartShouldSetResponder={() => true}
         onTouchEnd={(e) => e.stopPropagation()}
         pointerEvents="auto"
-        style={[styles.popoverCard, { width: 200 }, positionStyle]}
+        style={[
+          styles.popoverCard,
+          {
+            backgroundColor: skin.surface,
+            borderColor: skin.borderSoft,
+            borderWidth: border.soft,
+            borderRadius: radius.card,
+          },
+          positionStyle,
+        ]}
       >
-      <Text style={styles.popoverHeader}>TIPO DE PAPEL</Text>
-      {PAPER_TEMPLATES.map((tmpl) => {
-        const isSelected = backgroundType === tmpl.id;
-        return (
-          <TouchableOpacity
-            key={tmpl.id}
-            style={[styles.popoverItem, isSelected && styles.popoverItemActive]}
-            onPress={() => {
-              onSelectBackgroundType(tmpl.id);
-            }}
-            activeOpacity={0.7}
+        <ScrollView showsVerticalScrollIndicator={false}>
+          <Text
+            style={[
+              styles.popoverHeader,
+              { color: skin.textMuted, fontFamily: fonts.monoBold },
+            ]}
           >
-            {tmpl.icon === "file" ? (
-              <View style={styles.popoverIconWrapper}>
-                <FileText size={15} color="#94A3B8" strokeWidth={1.8} />
-              </View>
-            ) : (
-              <Text style={styles.popoverItemIcon}>{tmpl.icon}</Text>
-            )}
-            <Text style={[styles.popoverItemLabel, isSelected && styles.popoverItemLabelActive]}>
-              {tmpl.label}
-            </Text>
-            {isSelected && <Check size={14} color="#38BDF8" strokeWidth={2.2} />}
-          </TouchableOpacity>
-        );
-      })}
-
-      {onSelectCanvasTheme && (
-        <>
-          <Text style={[styles.popoverHeader, { marginTop: 12 }]}>TEMA DE PAPEL</Text>
-          {(Object.keys(CANVAS_THEMES) as CanvasThemePreset[]).map((themeKey) => {
-            const themeConfig = CANVAS_THEMES[themeKey];
-            const isSelected = canvasTheme === themeKey;
+            TIPO DE PAPEL
+          </Text>
+          {PAPER_TEMPLATES.map((tmpl) => {
+            const isSelected = backgroundType === tmpl.id;
             return (
               <TouchableOpacity
-                key={themeKey}
-                style={[styles.popoverItem, isSelected && styles.popoverItemActive]}
+                key={tmpl.id}
+                style={[
+                  styles.popoverItem,
+                  {
+                    backgroundColor: isSelected ? `${skin.primary}1E` : "transparent",
+                    borderRadius: radius.pill,
+                  },
+                ]}
                 onPress={() => {
-                  onSelectCanvasTheme(themeKey);
+                  onSelectBackgroundType(tmpl.id);
                 }}
                 activeOpacity={0.7}
               >
-                <View
-                  style={[
-                    styles.themeColorSwatch,
-                    {
-                      backgroundColor: themeConfig.backgroundColor,
-                      borderColor: themeConfig.isDark ? "#334155" : "#CBD5E1",
-                    },
-                  ]}
-                />
+                {tmpl.icon === "file" ? (
+                  <View style={styles.popoverIconWrapper}>
+                    <FileText size={15} color={isSelected ? skin.primary : skin.textMuted} strokeWidth={1.8} />
+                  </View>
+                ) : (
+                  <Text
+                    style={[
+                      styles.popoverItemIcon,
+                      { color: isSelected ? skin.primary : skin.textMuted },
+                    ]}
+                  >
+                    {tmpl.icon}
+                  </Text>
+                )}
                 <Text
                   style={[
                     styles.popoverItemLabel,
-                    isSelected && styles.popoverItemLabelActive,
+                    {
+                      color: isSelected ? skin.primary : skin.text,
+                      fontFamily: isSelected ? fonts.uiBold : fonts.ui,
+                    },
                   ]}
                 >
-                  {themeConfig.label}
+                  {tmpl.label}
                 </Text>
-                {isSelected && <Check size={14} color="#38BDF8" strokeWidth={2.2} />}
+                {isSelected && <Check size={14} color={skin.primary} strokeWidth={2.2} />}
               </TouchableOpacity>
             );
           })}
-        </>
-      )}
-        </View>
+
+          {onSelectCanvasTheme && (
+            <>
+              <Text
+                style={[
+                  styles.popoverHeader,
+                  { color: skin.textMuted, fontFamily: fonts.monoBold, marginTop: 14 },
+                ]}
+              >
+                TEMA DE PAPEL
+              </Text>
+              {CANVAS_THEME_PRESETS.map((themeKey) => {
+                const themeConfig = CANVAS_THEMES[themeKey];
+                const isSelected = canvasTheme === themeKey;
+                return (
+                  <TouchableOpacity
+                    key={themeKey}
+                    style={[
+                      styles.popoverItem,
+                      {
+                        backgroundColor: isSelected ? `${skin.primary}1E` : "transparent",
+                        borderRadius: radius.pill,
+                      },
+                    ]}
+                    onPress={() => {
+                      onSelectCanvasTheme(themeKey);
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <View
+                      style={[
+                        styles.themeColorSwatch,
+                        {
+                          backgroundColor: themeConfig.backgroundColor,
+                          borderColor: themeConfig.isDark ? skin.borderSoft : "#CBD5E1",
+                        },
+                      ]}
+                    />
+                    <Text
+                      style={[
+                        styles.popoverItemLabel,
+                        {
+                          color: isSelected ? skin.primary : skin.text,
+                          fontFamily: isSelected ? fonts.uiBold : fonts.ui,
+                        },
+                      ]}
+                    >
+                      {themeConfig.label}
+                    </Text>
+                    {isSelected && <Check size={14} color={skin.primary} strokeWidth={2.2} />}
+                  </TouchableOpacity>
+                );
+              })}
+            </>
+          )}
+        </ScrollView>
+      </View>
     </View>
   );
 };
@@ -126,12 +185,8 @@ export const PaperTemplatePopover: React.FC<PaperTemplatePopoverProps> = ({
 const styles = StyleSheet.create({
   popoverCard: {
     position: "absolute",
-    width: 210,
-    height: 384,
-    backgroundColor: "#0B1120",
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "#1E293B",
+    width: 220,
+    maxHeight: 440,
     padding: 12,
     paddingBottom: 16,
     shadowColor: "#000",
@@ -142,27 +197,26 @@ const styles = StyleSheet.create({
     zIndex: 9999,
   },
   popoverHeader: {
-    color: "#64748B",
     fontSize: 9,
-    fontWeight: "700",
     letterSpacing: 1,
     marginBottom: 8,
+    textTransform: "uppercase",
+    includeFontPadding: false,
+    textAlignVertical: "center",
   },
   popoverItem: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "flex-start",
     paddingVertical: 7,
     paddingHorizontal: 8,
-    borderRadius: 8,
     marginVertical: 1,
-  },
-  popoverItemActive: {
-    backgroundColor: "rgba(56, 189, 248, 0.12)",
   },
   popoverItemIcon: {
     fontSize: 16,
     marginRight: 10,
-    color: "#94A3B8",
+    includeFontPadding: false,
+    textAlignVertical: "center",
   },
   popoverIconWrapper: {
     width: 16,
@@ -178,17 +232,12 @@ const styles = StyleSheet.create({
     marginRight: 10,
   },
   popoverItemLabel: {
-    color: "#CBD5E1",
     fontSize: 12,
-    fontWeight: "600",
     flex: 1,
-  },
-  popoverItemLabelActive: {
-    color: "#38BDF8",
-    fontWeight: "700",
+    includeFontPadding: false,
+    textAlignVertical: "center",
   },
   popoverCheck: {
-    color: "#38BDF8",
     fontSize: 13,
     fontWeight: "700",
   },
